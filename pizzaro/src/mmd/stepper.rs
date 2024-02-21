@@ -1,8 +1,9 @@
 use embedded_hal::digital::v2::OutputPin;
 use fugit::ExtU64;
 
-use crate::common::global_timer::AsyncDelay;
 use generic::atomi_error::AtomiError;
+
+use crate::common::global_timer::AsyncDelay;
 
 pub struct Stepper<OP1: OutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay> {
     enable_pin: OP1,

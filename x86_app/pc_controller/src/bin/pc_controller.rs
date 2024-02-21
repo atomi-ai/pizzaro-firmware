@@ -1,17 +1,16 @@
-use generic::atomi_proto::AtomiProto;
-use generic::command_to_proto::parse_protocol;
-
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::io::Read;
 use std::time::Duration;
 
-use clap::{Parser};
+use clap::Parser;
+use generic::atomi_proto::AtomiProto;
+use generic::command_to_proto::parse_protocol;
+use rustyline::{Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
 use rustyline::completion::FilenameCompleter;
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::HistoryHinter;
 use rustyline::validate::MatchingBracketValidator;
-use rustyline::{Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
 use rustyline_derive::{Completer, Helper, Hinter, Validator};
 use serialport::ClearBuffer;
 

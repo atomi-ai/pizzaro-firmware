@@ -1,8 +1,9 @@
 use std::io::Write;
 use std::time::Duration;
+
 use clap::Parser;
-use serialport::{available_ports, SerialPort, SerialPortType};
 use generic::atomi_proto::{AtomiProto, HpdCommand, McCommand, MmdCommand};
+use serialport::{available_ports, SerialPort, SerialPortType};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

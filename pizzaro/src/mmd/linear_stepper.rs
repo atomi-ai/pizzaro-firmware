@@ -1,12 +1,12 @@
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
-use defmt::info;
 
+use defmt::info;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 
-use crate::common::global_timer::AsyncDelay;
 use generic::atomi_error::AtomiError;
 
+use crate::common::global_timer::AsyncDelay;
 use crate::mmd::stepper::Stepper;
 
 const FAST_SPEED: u32 = 100;  // steps / second

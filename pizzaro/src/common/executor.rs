@@ -5,11 +5,13 @@ use core::cell::RefCell;
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
+
 use critical_section::Mutex;
-use defmt::{info, Formatter, Format};
+use defmt::{Format, Formatter, info};
 use fugit::ExtU64;
 use futures::task::noop_waker;
 use heapless::spsc::Queue;
+
 use crate::common::global_timer::Delay;
 
 const TASK_CAPACITY: usize = 32;

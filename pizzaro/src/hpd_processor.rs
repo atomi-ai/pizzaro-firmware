@@ -1,14 +1,17 @@
-use crate::common::pid::PIDController;
-use crate::common::global_timer::{now, AtomiDuration, AtomiInstant, Delay};
 use core::sync::atomic::{AtomicI32, Ordering};
-use defmt::{info, Debug2Format, Format};
+
+use defmt::{Debug2Format, Format, info};
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
 use fugit::ExtU64;
-use generic::atomi_error::AtomiError;
-use rp2040_hal::gpio::bank0::Gpio18;
 use rp2040_hal::gpio::{FunctionSio, Pin, PullDown, SioOutput};
+use rp2040_hal::gpio::bank0::Gpio18;
 use rp2040_hal::pwm::{FreeRunning, Pwm0, Slice};
+
+use generic::atomi_error::AtomiError;
+
+use crate::common::global_timer::{AtomiDuration, AtomiInstant, Delay, now};
+use crate::common::pid::PIDController;
 
 const MAX_POSITION: i32 = 10_000_000;
 const MIN_POSITION: i32 = -MAX_POSITION;

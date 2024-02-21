@@ -1,15 +1,15 @@
-use rp2040_hal::gpio::bank0::{Gpio11, Gpio18, Gpio22, Gpio26, Gpio27, Gpio4, Gpio5};
 use rp2040_hal::gpio::{FunctionSio, FunctionUart, Pin, PullDown, SioInput, SioOutput};
+use rp2040_hal::gpio::bank0::{Gpio11, Gpio18, Gpio22, Gpio26, Gpio27, Gpio4, Gpio5};
 use rp2040_hal::pac::UART1;
 use rp2040_hal::uart::{Enabled, UartPeripheral};
 
-use crate::common::global_status::{FutureStatus, FutureType, set_status};
-use crate::common::global_timer::DelayCreator;
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{AtomiProto, MmdCommand};
 
-use crate::mmd::linear_stepper::LinearStepper;
+use crate::common::global_status::{FutureStatus, FutureType, set_status};
+use crate::common::global_timer::DelayCreator;
 use crate::common::uart_comm::UartComm;
+use crate::mmd::linear_stepper::LinearStepper;
 
 pub type EnablePinType = Pin<Gpio22, FunctionSio<SioOutput>, PullDown>;
 pub type DirPinType = Pin<Gpio18, FunctionSio<SioOutput>, PullDown>;

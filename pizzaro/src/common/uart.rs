@@ -1,6 +1,7 @@
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
+
 use embedded_hal::serial::Read;
 
 struct UartRead<'a, T: Read<u8>> {

@@ -1,9 +1,12 @@
 use alloc::vec;
+
 use defmt::{Debug2Format, Format, info};
 use embedded_hal::serial::{Read, Write};
 use serde::{Deserialize, Serialize};
-use crate::common::uart::uart_read;
+
 use generic::atomi_error::AtomiError;
+
+use crate::common::uart::uart_read;
 
 pub struct UartComm<'a, T: Read<u8> + Write<u8>> {
     uart: &'a mut T,

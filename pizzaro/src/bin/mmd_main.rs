@@ -3,36 +3,34 @@
 
 extern crate alloc;
 
-// TODO(zephyr): Move these two default definition to a global lib.
-use panic_probe as _;
-use defmt_rtt as _;
-
 use alloc::boxed::Box;
 use alloc::vec;
+
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
 use defmt::{Debug2Format, error, info};
-use rp2040_hal::{clocks::{init_clocks_and_plls, Clock}, pac, sio::Sio, Timer, uart::{UartPeripheral}, watchdog::Watchdog};
+use fugit::{ExtU64, RateExtU32};
+use rp2040_hal::{clocks::{Clock, init_clocks_and_plls}, pac, sio::Sio, Timer, uart::UartPeripheral, watchdog::Watchdog};
+use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
-use fugit::{ExtU64, RateExtU32};
-use rp2040_hal::gpio::{FunctionUart};
 use rp_pico::pac::interrupt;
-use pizzaro::common::async_initialization;
-use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_status::{FutureStatus, FutureType, get_status, set_status};
-use pizzaro::common::global_timer::{Delay, DelayCreator, init_global_timer, now};
-use pizzaro::common::rp2040_timer::Rp2040Timer;
+
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::AtomiProto;
 use generic::atomi_proto::MmdCommand::MmdBusy;
+use pizzaro::common::async_initialization;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
+use pizzaro::common::executor::{spawn_task, start_global_executor};
+use pizzaro::common::global_status::{FutureStatus, FutureType, get_status, set_status};
+use pizzaro::common::global_timer::{Delay, DelayCreator, init_global_timer, now};
+use pizzaro::common::once::Once;
+use pizzaro::common::rp2040_timer::Rp2040Timer;
+use pizzaro::common::uart_comm::UartComm;
 use pizzaro::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::mmd::linear_stepper::LinearStepper;
 use pizzaro::mmd::stepper::Stepper;
 use pizzaro::mmd_processor::{MmdProcessor, UartType};
-use pizzaro::common::once::Once;
-use pizzaro::common::uart_comm::UartComm;
 
 static mut UART: Option<UartType> = None;
 

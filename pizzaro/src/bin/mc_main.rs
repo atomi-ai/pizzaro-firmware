@@ -3,33 +3,32 @@
 
 extern crate alloc;
 
-use panic_probe as _;
-use defmt_rtt as _;
-
 use alloc::boxed::Box;
+
 use defmt::{Debug2Format, error, info};
 use fugit::{ExtU64, RateExtU32};
-use rp2040_hal::{clocks::{init_clocks_and_plls, Clock}, pac, sio::Sio, Timer, uart::{UartPeripheral}, watchdog::Watchdog};
+use rp2040_hal::{clocks::{Clock, init_clocks_and_plls}, pac, sio::Sio, Timer, uart::UartPeripheral, watchdog::Watchdog};
+use rp2040_hal::gpio::{FunctionUart, Pin, PullDown};
+use rp2040_hal::gpio::bank0::{Gpio12, Gpio13};
 use rp2040_hal::uart::{DataBits, Enabled, StopBits, UartConfig};
 use rp_pico::{entry, hal, XOSC_CRYSTAL_FREQ};
 use rp_pico::hal::pac::interrupt;
-use rp2040_hal::gpio::{FunctionUart, Pin, PullDown};
-use rp2040_hal::gpio::bank0::{Gpio12, Gpio13};
 use rp_pico::pac::UART0;
 use usb_device::bus::UsbBusAllocator;
 use usb_device::device::{UsbDevice, UsbDeviceBuilder, UsbVidPid};
 use usb_device::UsbError;
 use usbd_serial::SerialPort;
-use pizzaro::common::async_initialization;
-use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{Delay, init_global_timer, now};
-use pizzaro::common::rp2040_timer::Rp2040Timer;
+
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{AtomiProto, McCommand};
+use pizzaro::common::async_initialization;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
-use pizzaro::message_queue::{MessageQueueInterface, MessageQueueWrapper};
+use pizzaro::common::executor::{spawn_task, start_global_executor};
+use pizzaro::common::global_timer::{Delay, init_global_timer, now};
 use pizzaro::common::once::Once;
+use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
+use pizzaro::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
 static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;

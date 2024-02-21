@@ -1,5 +1,6 @@
 use alloc::collections::VecDeque;
 use core::cell::RefCell;
+
 use critical_section::Mutex;
 
 pub trait MessageQueueInterface<T> {

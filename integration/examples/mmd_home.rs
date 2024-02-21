@@ -3,22 +3,20 @@
 
 extern crate alloc;
 
-// TODO(zephyr): Move these two default definition to a global lib.
-use panic_probe as _;
-use defmt_rtt as _;
-
 use alloc::boxed::Box;
+
 use cortex_m::asm::delay;
-use defmt::{info};
-use rp2040_hal::{clocks::{init_clocks_and_plls}, pac, sio::Sio, Timer, watchdog::Watchdog};
+use defmt::info;
+use rp2040_hal::{clocks::init_clocks_and_plls, pac, sio::Sio, Timer, watchdog::Watchdog};
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
+
 use pizzaro::common::async_initialization;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{DelayCreator, init_global_timer};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::mmd::linear_stepper::LinearStepper;
 use pizzaro::mmd::stepper::Stepper;
-use pizzaro::mmd_processor::{MmdProcessor};
+use pizzaro::mmd_processor::MmdProcessor;
 
 #[entry]
 fn main() -> ! {

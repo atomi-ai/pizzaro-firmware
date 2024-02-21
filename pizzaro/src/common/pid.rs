@@ -1,5 +1,6 @@
-use crate::common::global_timer::{AtomiDuration, AtomiInstant};
 use defmt::info;
+
+use crate::common::global_timer::{AtomiDuration, AtomiInstant};
 
 const UNSET_INSTANT: AtomiInstant = AtomiInstant::from_ticks(0);
 const STATIONARY_POSITION_THRESHOLD: f32 = 10.0;

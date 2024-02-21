@@ -3,6 +3,7 @@ extern crate alloc;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::cell::RefCell;
+
 use critical_section::Mutex;
 use defmt::info;
 

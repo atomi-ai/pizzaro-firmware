@@ -4,22 +4,21 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
-use cortex_m::asm::delay;
-use panic_probe as _;
-use defmt_rtt as _;
 
+use cortex_m::asm::delay;
 use defmt::info;
-use rp2040_hal::{entry, pac, Sio, Timer, Watchdog};
-use rp2040_hal::clocks::init_clocks_and_plls;
-use rp_pico::{hal, XOSC_CRYSTAL_FREQ};
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 use embedded_hal::PwmPin;
 use fugit::ExtU64;
-use rp2040_hal::gpio::bank0::Gpio18;
+use rp2040_hal::{entry, pac, Sio, Timer, Watchdog};
+use rp2040_hal::clocks::init_clocks_and_plls;
 use rp2040_hal::gpio::{FunctionSio, Pin, PullDown, SioOutput};
+use rp2040_hal::gpio::bank0::Gpio18;
 use rp2040_hal::multicore::{Multicore, Stack};
 use rp2040_hal::pwm::{FreeRunning, Pwm0, Slice};
 use rp2040_hal::sio::SioFifo;
+use rp_pico::{hal, XOSC_CRYSTAL_FREQ};
+
 use pizzaro::common::async_initialization;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{Delay, init_global_timer};
