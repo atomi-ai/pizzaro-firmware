@@ -8,19 +8,19 @@ use cortex_m::asm::delay;
 use defmt_rtt as _;
 use panic_probe as _;
 
-use common::async_initialization;
-use common::executor::{spawn_task, start_global_executor};
-use common::global_timer::{init_global_timer, Delay};
 use defmt::info;
 use embedded_hal::digital::v2::InputPin;
 use fugit::ExtU64;
-use integration::hpd_processor::{HpdProcessor, LinearScale, PwmMotor};
+use pizzaro::common::async_initialization;
+use pizzaro::common::executor::{spawn_task, start_global_executor};
+use pizzaro::common::global_timer::{init_global_timer, Delay};
+use pizzaro::common::rp2040_timer::Rp2040Timer;
+use pizzaro::hpd_processor::{HpdProcessor, LinearScale, PwmMotor};
 use rp2040_hal::clocks::init_clocks_and_plls;
 use rp2040_hal::multicore::{Multicore, Stack};
 use rp2040_hal::sio::SioFifo;
 use rp2040_hal::{entry, pac, Sio, Timer, Watchdog};
 use rp_pico::{hal, XOSC_CRYSTAL_FREQ};
-use common::rp2040_timer::Rp2040Timer;
 
 struct GlobalContainer {
     linear_scale: Option<LinearScale>,

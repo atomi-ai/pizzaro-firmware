@@ -1,12 +1,14 @@
 // TODO(zephyr): Move the file to ../testing?
 
-use crate::mock_stepper::x::StepperAdapter;
-use common::global_timer::{now, Delay};
 use core::fmt::Debug;
-use defmt::info;
 
-use common::global_status::{set_status, FutureStatus, FutureType};
+use defmt::info;
 use fugit::ExtU64;
+
+use pizzaro::common::global_status::{FutureStatus, FutureType, set_status};
+use pizzaro::common::global_timer::{Delay, now};
+
+use crate::mock_stepper::x::StepperAdapter;
 
 #[derive(Copy, Clone, Debug, defmt::Format)]
 pub enum Direction {
@@ -208,8 +210,9 @@ pub async fn homing<S: Stepper + defmt::Format>(mut stepper: S, fast_speed: i64,
 }
 
 pub mod x {
-    use crate::mock_stepper::{Direction, Stepper, StepperState};
     use core::fmt::Debug;
+
+    use crate::mock_stepper::{Direction, Stepper, StepperState};
 
     #[derive(Debug, defmt::Format)]
     pub struct StepperAdapter<T: 'static + Stepper>(pub &'static mut T);

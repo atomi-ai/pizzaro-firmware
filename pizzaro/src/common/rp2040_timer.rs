@@ -1,5 +1,5 @@
 use rp2040_hal::Timer;
-use crate::global_timer::{AtomiInstant, AtomiTimer};
+use crate::common::global_timer::{AtomiInstant, AtomiTimer};
 
 pub struct Rp2040Timer(Timer);
 

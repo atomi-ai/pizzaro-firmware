@@ -20,10 +20,10 @@ use rp2040_hal::gpio::{FunctionSio, Pin, PullDown, SioOutput};
 use rp2040_hal::multicore::{Multicore, Stack};
 use rp2040_hal::pwm::{FreeRunning, Pwm0, Slice};
 use rp2040_hal::sio::SioFifo;
-use common::async_initialization;
-use common::executor::{spawn_task, start_global_executor};
-use common::global_timer::{Delay, init_global_timer};
-use common::rp2040_timer::Rp2040Timer;
+use pizzaro::common::async_initialization;
+use pizzaro::common::executor::{spawn_task, start_global_executor};
+use pizzaro::common::global_timer::{Delay, init_global_timer};
+use pizzaro::common::rp2040_timer::Rp2040Timer;
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
 

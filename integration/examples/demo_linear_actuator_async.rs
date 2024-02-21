@@ -8,7 +8,7 @@ use panic_probe as _;
 use defmt_rtt as _;
 
 use alloc::boxed::Box;
-use common::global_timer::{Delay, init_global_timer};
+use pizzaro::common::global_timer::{Delay, init_global_timer};
 use defmt::{error, info};
 use fugit::ExtU64;
 use integration::mock_stepper::{homing, MockStepper, stepper_tick};
@@ -16,11 +16,11 @@ use integration::mock_stepper::x::StepperAdapter;
 use rp2040_hal::{entry, pac, Timer, Watchdog};
 use rp2040_hal::clocks::init_clocks_and_plls;
 use rp_pico::XOSC_CRYSTAL_FREQ;
-use common::async_initialization;
-use common::executor::{spawn_task, start_global_executor};
-use common::global_status::{FutureType, get_status};
-use common::global_status::FutureStatus::Completed;
-use common::rp2040_timer::Rp2040Timer;
+use pizzaro::common::async_initialization;
+use pizzaro::common::executor::{spawn_task, start_global_executor};
+use pizzaro::common::global_status::{FutureType, get_status};
+use pizzaro::common::global_status::FutureStatus::Completed;
+use pizzaro::common::rp2040_timer::Rp2040Timer;
 
 struct GlobalContainer {
     stepper: Option<MockStepper>,

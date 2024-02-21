@@ -1,4 +1,4 @@
-use common::global_timer::{AtomiDuration, AtomiInstant};
+use crate::common::global_timer::{AtomiDuration, AtomiInstant};
 use defmt::info;
 
 const UNSET_INSTANT: AtomiInstant = AtomiInstant::from_ticks(0);

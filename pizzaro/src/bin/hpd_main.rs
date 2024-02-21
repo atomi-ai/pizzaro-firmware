@@ -19,17 +19,17 @@ use fugit::{ExtU64, RateExtU32};
 use rp2040_hal::gpio::{FunctionUart, Pin, PullDown};
 use rp2040_hal::gpio::bank0::{Gpio8, Gpio9};
 use rp_pico::pac::{interrupt, UART1};
-use common::async_initialization;
-use common::executor::{spawn_task, start_global_executor};
-use common::global_timer::{Delay, init_global_timer};
-use common::rp2040_timer::Rp2040Timer;
+use pizzaro::common::async_initialization;
+use pizzaro::common::executor::{spawn_task, start_global_executor};
+use pizzaro::common::global_timer::{Delay, init_global_timer};
+use pizzaro::common::rp2040_timer::Rp2040Timer;
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::AtomiProto;
-use integration::consts::UART_EXPECTED_RESPONSE_LENGTH;
-use integration::hpd_process::process_hpd_message;
-use integration::message_queue::{MessageQueueInterface, MessageQueueWrapper};
-use integration::once::Once;
-use integration::uart_comm::UartComm;
+use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
+use pizzaro::hpd_process::process_hpd_message;
+use pizzaro::message_queue::{MessageQueueInterface, MessageQueueWrapper};
+use pizzaro::common::once::Once;
+use pizzaro::common::uart_comm::UartComm;
 
 static mut UART: Option<UartPeripheral<Enabled, UART1, (
     Pin<Gpio8, FunctionUart, PullDown>, Pin<Gpio9, FunctionUart, PullDown>)>> = None;

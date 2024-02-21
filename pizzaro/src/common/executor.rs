@@ -9,8 +9,8 @@ use critical_section::Mutex;
 use defmt::{info, Formatter, Format};
 use fugit::ExtU64;
 use futures::task::noop_waker;
-use crate::global_timer::Delay;
 use heapless::spsc::Queue;
+use crate::common::global_timer::Delay;
 
 const TASK_CAPACITY: usize = 32;
 

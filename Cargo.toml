@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "common",
     "generic",
     "integration",
+    "pizzaro",
 ]
 resolver = "2"
 

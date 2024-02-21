@@ -3,19 +3,19 @@
 
 extern crate alloc;
 
-use alloc::boxed::Box;
 use defmt_rtt as _;
 use panic_probe as _;
 
-use common::async_initialization;
-use common::executor::{dump_executor_status, spawn_task, start_global_executor};
-use common::global_timer::init_global_timer;
+use alloc::boxed::Box;
+use pizzaro::common::async_initialization;
+use pizzaro::common::executor::{dump_executor_status, spawn_task, start_global_executor};
+use pizzaro::common::global_timer::init_global_timer;
 use defmt;
 use defmt::info;
 use rp2040_hal::clocks::init_clocks_and_plls;
 use rp2040_hal::{entry, pac, Sio, Timer, Watchdog};
 use rp_pico::XOSC_CRYSTAL_FREQ;
-use common::rp2040_timer::Rp2040Timer;
+use pizzaro::common::rp2040_timer::Rp2040Timer;
 
 #[entry]
 fn main() -> ! {

@@ -4,7 +4,7 @@ use defmt::info;
 
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 
-use common::global_timer::AsyncDelay;
+use crate::common::global_timer::AsyncDelay;
 use generic::atomi_error::AtomiError;
 
 use crate::mmd::stepper::Stepper;

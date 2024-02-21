@@ -3,13 +3,13 @@ use rp2040_hal::gpio::{FunctionSio, FunctionUart, Pin, PullDown, SioInput, SioOu
 use rp2040_hal::pac::UART1;
 use rp2040_hal::uart::{Enabled, UartPeripheral};
 
-use common::global_status::{FutureStatus, FutureType, set_status};
-use common::global_timer::DelayCreator;
+use crate::common::global_status::{FutureStatus, FutureType, set_status};
+use crate::common::global_timer::DelayCreator;
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{AtomiProto, MmdCommand};
 
 use crate::mmd::linear_stepper::LinearStepper;
-use crate::uart_comm::UartComm;
+use crate::common::uart_comm::UartComm;
 
 pub type EnablePinType = Pin<Gpio22, FunctionSio<SioOutput>, PullDown>;
 pub type DirPinType = Pin<Gpio18, FunctionSio<SioOutput>, PullDown>;
