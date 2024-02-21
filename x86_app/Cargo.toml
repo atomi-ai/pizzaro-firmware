@@ -1,0 +1,4 @@
+# This is a workspace for x86 tools
+[workspace]
+members = ["pc_controller"]
+resolver = "1"

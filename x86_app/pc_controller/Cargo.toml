@@ -1,0 +1,24 @@
+[package]
+name = "pc_controller"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+generic = { version = "0.1", path = "../../generic" }
+
+env_logger = { version = "0.11", default-features = false }
+radix_trie = "0.2"
+rustyline = "13.0"
+rustyline-derive = "0.10.0"
+serialport = "4.3"
+
+serde = { version = "1.0.196" }
+postcard = "1.0"
+heapless = "0.8"
+clap = { version = "4.4", features = ["derive"] }
+
+[dev-dependencies]
+
+[features]
+custom-bindings = []
+derive = []
