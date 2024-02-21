@@ -7,19 +7,18 @@ use alloc::boxed::Box;
 
 use cortex_m::asm::delay;
 use defmt::info;
-use embedded_hal::digital::v2::InputPin;
-use fugit::ExtU64;
 use rp2040_hal::{entry, pac, Sio, Timer, Watchdog};
 use rp2040_hal::clocks::init_clocks_and_plls;
 use rp2040_hal::multicore::{Multicore, Stack};
-use rp2040_hal::sio::SioFifo;
-use rp_pico::{hal, XOSC_CRYSTAL_FREQ};
+use rp_pico::XOSC_CRYSTAL_FREQ;
 
 use pizzaro::common::async_initialization;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{Delay, init_global_timer};
+use pizzaro::common::global_timer::init_global_timer;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::hpd_processor::{HpdProcessor, LinearScale, PwmMotor};
+use pizzaro::hpd::hpd_misc::{LinearScale, MOTOR150_PWM_TOP, PwmMotor};
+use pizzaro::hpd::hpd_processor::HpdProcessor;
+use pizzaro::hpd::linear_scale::{core1_task, read_and_update_linear_scale};
 
 struct GlobalContainer {
     linear_scale: Option<LinearScale>,
@@ -27,50 +26,6 @@ struct GlobalContainer {
 static mut GLOBAL_CONTAINER: GlobalContainer = GlobalContainer { linear_scale: None };
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
-
-fn core1_task() -> ! {
-    let mut pac = unsafe { pac::Peripherals::steal() };
-
-    let mut sio = Sio::new(pac.SIO);
-    let pins = hal::gpio::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
-
-    let gpio10 = pins.gpio10.into_floating_input();
-    let gpio11 = pins.gpio11.into_floating_input();
-    let (mut x, mut y) = (true, false);
-    let mut pos = 0i32;
-    let mut count = 0;
-    loop {
-        let new_x = gpio10.is_high().unwrap_or(false);
-        let new_y = gpio11.is_high().unwrap_or(true);
-        match (x, y, new_x, new_y) {
-            (false, false, true, false)
-            | (false, true, false, false)
-            | (true, false, true, true)
-            | (true, true, false, true) => {
-                // increment
-                pos += 1;
-            }
-            (false, false, false, true)
-            | (false, true, true, true)
-            | (true, false, false, false)
-            | (true, true, true, false) => {
-                // decrement
-                pos -= 1;
-            }
-            (_, _, _, _) => {}
-        }
-        (x, y) = (new_x, new_y);
-        count += 1;
-        if count % 500 == 13 {
-            sio.fifo.write(pos as u32);
-        }
-    }
-}
 
 #[entry]
 fn main() -> ! {
@@ -158,23 +113,3 @@ async fn hpd_home(mut processor: HpdProcessor) {
     t = processor.move_to(10000).await.unwrap();
     info!("xfguo: position 6: {}", t);
 }
-
-async fn read_and_update_linear_scale(mut fifo: SioFifo, linear_scale: &mut LinearScale) {
-    loop {
-        {
-            let mut last_pos: Option<i32> = None;
-            // let mut count = 0;
-            while let Some(pos) = fifo.read() {
-                // count += 1;
-                last_pos = Some(pos as i32);
-            }
-            if let Some(t) = last_pos {
-                // info!("count = {}, pos = {}", count, t);
-                linear_scale.update_position(t);
-            }
-        }
-        Delay::new(1.millis()).await;
-    }
-}
-
-const MOTOR150_PWM_TOP: u16 = 2000;

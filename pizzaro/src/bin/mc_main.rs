@@ -28,7 +28,7 @@ use pizzaro::common::global_timer::{Delay, init_global_timer, now};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
-use pizzaro::message_queue::{MessageQueueInterface, MessageQueueWrapper};
+use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
 static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;

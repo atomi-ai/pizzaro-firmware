@@ -27,12 +27,12 @@ use pizzaro::common::global_timer::{Delay, DelayCreator, init_global_timer, now}
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
-use pizzaro::message_queue::{MessageQueueInterface, MessageQueueWrapper};
+use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::mmd::linear_stepper::LinearStepper;
 use pizzaro::mmd::stepper::Stepper;
-use pizzaro::mmd_processor::{MmdProcessor, UartType};
+use pizzaro::mmd::mmd_processor::{MmdProcessor, MmdUartType};
 
-static mut UART: Option<UartType> = None;
+static mut UART: Option<MmdUartType> = None;
 
 static mut MESSAGE_QUEUE_ONCE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
@@ -163,7 +163,7 @@ unsafe fn UART1_IRQ() {
 
 /// 防止mmd process msg的异步函数因为运动被阻塞了，这里在阻塞时，在中端里进行
 /// 快速处理。
-fn process_message_in_irq(uart: &mut UartType, msg: AtomiProto) {
+fn process_message_in_irq(uart: &mut MmdUartType, msg: AtomiProto) {
     if let Some(FutureStatus::MmdBusy) = get_status(FutureType::Mmd) {
         if let AtomiProto::Mmd(_) = msg {
             // MMD必须要处理的消息，直接返回busy

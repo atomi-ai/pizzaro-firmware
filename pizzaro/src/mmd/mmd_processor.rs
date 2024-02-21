@@ -18,7 +18,7 @@ pub type LimitLeftPinType = Pin<Gpio26, FunctionSio<SioInput>, PullDown>;
 pub type LimitRightPinType = Pin<Gpio27, FunctionSio<SioInput>, PullDown>;
 pub type LinearStepperType = LinearStepper<LimitLeftPinType, LimitRightPinType, EnablePinType, DirPinType, StepPinType, DelayCreator>;
 
-pub type UartType = UartPeripheral<Enabled, UART1, (
+pub type MmdUartType = UartPeripheral<Enabled, UART1, (
     Pin<Gpio4, FunctionUart, PullDown>, Pin<Gpio5, FunctionUart, PullDown>)>;
 
 pub struct MmdProcessor {
@@ -29,7 +29,7 @@ impl MmdProcessor {
     pub fn new(linear_stepper: LinearStepperType) -> Self {
         Self { linear_stepper }
     }
-    pub async fn process_mmd_message<'a>(&mut self, uart_comm: &mut UartComm<'a, UartType>, msg: MmdCommand) -> Result<(), AtomiError>{
+    pub async fn process_mmd_message<'a>(&mut self, uart_comm: &mut UartComm<'a, MmdUartType>, msg: MmdCommand) -> Result<(), AtomiError>{
         set_status(FutureType::Mmd, FutureStatus::MmdBusy);
         match msg {
             MmdCommand::MmdPing =>

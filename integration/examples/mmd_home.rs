@@ -16,7 +16,7 @@ use pizzaro::common::global_timer::{DelayCreator, init_global_timer};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::mmd::linear_stepper::LinearStepper;
 use pizzaro::mmd::stepper::Stepper;
-use pizzaro::mmd_processor::MmdProcessor;
+use pizzaro::mmd::mmd_processor::MmdProcessor;
 
 #[entry]
 fn main() -> ! {

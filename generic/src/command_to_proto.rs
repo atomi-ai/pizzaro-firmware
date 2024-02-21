@@ -46,7 +46,7 @@ fn parse_mmd_command<'a, I>(tokens: &mut I) -> AtomiProto
         Some("ping") => AtomiProto::Mmd(MmdCommand::MmdPing),
         Some("pong") => AtomiProto::Mmd(MmdCommand::MmdPong),
         Some("home") => AtomiProto::Mmd(MmdCommand::MmdHome),
-        Some("move_to_relative") => {
+        Some("move_rel") => {
             if let Ok(steps) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdMoveToRelative {steps})
             } else {
@@ -71,6 +71,21 @@ fn parse_hpd_command<'a, I>(tokens: &mut I) -> AtomiProto
     match tokens.next() {
         Some("ping") => AtomiProto::Hpd(HpdCommand::HpdPing),
         Some("pong") => AtomiProto::Hpd(HpdCommand::HpdPong),
-        _ => AtomiProto::Hpd(HpdCommand::HpdError),
+        Some("home") => AtomiProto::Hpd(HpdCommand::HpdHome),
+        Some("move_rel") => {
+            if let Ok(distance) = parse_int(tokens.next()) {
+                AtomiProto::Hpd(HpdCommand::HpdMoveToRelative {distance})
+            } else {
+                AtomiProto::Unknown
+            }
+        }
+        Some("move_to") => {
+            if let Ok(position) = parse_int(tokens.next()) {
+                AtomiProto::Hpd(HpdCommand::HpdMoveTo {position})
+            } else {
+                AtomiProto::Unknown
+            }
+        }
+        _ => AtomiProto::Unknown,
     }
 }

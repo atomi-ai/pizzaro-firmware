@@ -11,8 +11,8 @@ pub mod executor;
 pub mod rp2040_timer;
 pub mod once;
 pub mod consts;
-pub mod pid;
 pub mod uart_comm;
+pub mod message_queue;
 
 pub fn async_initialization() {
     init_allocator();

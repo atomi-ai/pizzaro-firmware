@@ -22,6 +22,11 @@ pub enum FutureStatus {
     // MMD status
     MmdAvailable,
     MmdBusy,
+
+    // HPD status
+    HpdAvailable,
+    HpdBusy,
+
     // More future specific status
 }
 
@@ -30,6 +35,7 @@ pub enum FutureType {
     Main, // Reserved for a future that handle everything.
     StepperHoming,
     Mmd,
+    Hpd,
     End,
 }
 
@@ -39,9 +45,10 @@ impl FutureType {
             FutureType::Main => 0,
             FutureType::StepperHoming => 1,
             FutureType::Mmd => 2,
+            FutureType::Hpd => 3,
 
             // End need to be the last index + 1.
-            FutureType::End => 3,
+            FutureType::End => 4,
         }
     }
 }

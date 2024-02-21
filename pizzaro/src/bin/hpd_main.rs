@@ -13,6 +13,7 @@ use fugit::{ExtU64, RateExtU32};
 use rp2040_hal::{clocks::{Clock, init_clocks_and_plls}, pac, sio::Sio, Timer, uart::UartPeripheral, watchdog::Watchdog};
 use rp2040_hal::gpio::{FunctionUart, Pin, PullDown};
 use rp2040_hal::gpio::bank0::{Gpio8, Gpio9};
+use rp2040_hal::multicore::{Multicore, Stack};
 use rp2040_hal::uart::{DataBits, Enabled, StopBits, UartConfig};
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 use rp_pico::pac::{interrupt, UART1};
@@ -23,11 +24,18 @@ use pizzaro::common::async_initialization;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{Delay, init_global_timer};
+use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
-use pizzaro::hpd_process::process_hpd_message;
-use pizzaro::message_queue::{MessageQueueInterface, MessageQueueWrapper};
+use pizzaro::hpd::hpd_misc::{LinearScale, MOTOR150_PWM_TOP, PwmMotor};
+use pizzaro::hpd::hpd_processor::HpdProcessor;
+use pizzaro::hpd::linear_scale::{core1_task, read_and_update_linear_scale};
+
+struct GlobalContainer {
+    linear_scale: Option<LinearScale>,
+}
+static mut GLOBAL_CONTAINER: GlobalContainer = GlobalContainer { linear_scale: None };
 
 static mut UART: Option<UartPeripheral<Enabled, UART1, (
     Pin<Gpio8, FunctionUart, PullDown>, Pin<Gpio9, FunctionUart, PullDown>)>> = None;
@@ -36,12 +44,13 @@ static mut MESSAGE_QUEUE_ONCE: Once<MessageQueueWrapper<AtomiProto>> = Once::new
 fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
     unsafe { MESSAGE_QUEUE_ONCE.get_mut() }
 }
+static mut CORE1_STACK: Stack<4096> = Stack::new();
 
 #[entry]
 fn main() -> ! {
     async_initialization();
     let mut pac = pac::Peripherals::take().unwrap();
-    let sio = Sio::new(pac.SIO);
+    let mut sio = Sio::new(pac.SIO);
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
     let clocks = init_clocks_and_plls(
         XOSC_CRYSTAL_FREQ,
@@ -80,7 +89,40 @@ fn main() -> ! {
         NVIC::unmask(pac::Interrupt::UART1_IRQ);
     }
 
-    spawn_task(process_messages());
+    {
+        let mut mc = Multicore::new(&mut pac.PSM, &mut pac.PPB, &mut sio.fifo);
+        let cores = mc.cores();
+        let core1 = &mut cores[1];
+        let _ = core1.spawn(unsafe { &mut CORE1_STACK.mem }, move || {
+            core1_task()
+        });
+
+        unsafe {
+            GLOBAL_CONTAINER.linear_scale.replace(LinearScale::new());
+        }
+        let linear_scale_rc0 = unsafe { GLOBAL_CONTAINER.linear_scale.as_mut().unwrap() };
+        let linear_scale_rc1 = unsafe { GLOBAL_CONTAINER.linear_scale.as_mut().unwrap() };
+        {
+            // Start scale
+            spawn_task(read_and_update_linear_scale(sio.fifo, linear_scale_rc0));
+        }
+        // Start motor150
+        let pwm_slices = rp2040_hal::pwm::Slices::new(pac.PWM, &mut pac.RESETS);
+        let mut pwm = pwm_slices.pwm0;
+        pwm.set_ph_correct();
+        pwm.set_top(MOTOR150_PWM_TOP);
+        pwm.enable();
+        pwm.channel_a.output_to(pins.gpio16);
+        pwm.channel_b.output_to(pins.gpio17);
+        pwm.channel_b.set_inverted();
+
+        let processor = HpdProcessor::new(
+            linear_scale_rc1,
+            PwmMotor::new(pins.gpio18.into_push_pull_output(), pwm),
+        );
+
+        spawn_task(hpd_process_messages(processor));
+    }
     start_global_executor();
 
     loop {
@@ -89,33 +131,23 @@ fn main() -> ! {
     }
 }
 
-async fn process_messages() {
+async fn hpd_process_messages(mut hpd_processor: HpdProcessor) {
+    let uart = unsafe { UART.as_mut().unwrap() };
+    let mut uart_comm = UartComm::new(uart, UART_EXPECTED_RESPONSE_LENGTH);
     loop {
+        Delay::new(1.millis()).await;
+
         if let Some(message) = get_mq().dequeue() {
             info!("[HPD] process_messages() 1.1 | dequeued message: {}", message);
             // 处理消息
-            let resp = match message {
-                AtomiProto::Hpd(msg) => process_hpd_message(msg),
+            let res = match message {
+                AtomiProto::Hpd(msg) => hpd_processor.process_hpd_message(&mut uart_comm, msg).await,
                 _ => Err(AtomiError::IgnoredMsg), // Ignore unrelated commands
             };
-            let resp_cmd = match resp {
-                Ok(cmd) => cmd,
-                Err(err) => {
-                    info!("[HPD] msg processing error: {}", err);
-                    continue;
-                }
-            };
-            let uart = unsafe { UART.as_mut().unwrap() };
-            let mut uart_comm = UartComm::new(uart, UART_EXPECTED_RESPONSE_LENGTH);
-            let res = uart_comm.send(AtomiProto::Hpd(resp_cmd));
-            match res {
-                Ok(data) => info!("[HPD] Sent resp {:?} and result: {:?}", resp_cmd, data),
-                Err(err) => error!("[HPD] Sent resp {:?} and got error: {:?}", resp_cmd, err),
+            if let Err(err) = res {
+                info!("[HPD] message processing error: {}", err);
             }
         }
-
-        // 延迟一段时间
-        Delay::new(1.millis()).await;
     }
 }
 

@@ -40,4 +40,11 @@ pub enum HpdCommand {
     HpdError,
     HpdPing,
     HpdPong,
+
+    HpdHome,
+    HpdMoveTo { position: i32 },
+    HpdMoveToRelative { distance: i32 },
+
+    // Return status
+    HpdBusy,
 }
