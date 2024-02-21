@@ -1,7 +1,6 @@
 #![no_std]
 extern crate alloc;
 
-pub mod cap_displacement_processor;
 pub mod global_timer;
 pub mod global_status;
 pub mod global_allocator;
