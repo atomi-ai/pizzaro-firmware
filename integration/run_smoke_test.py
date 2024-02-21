@@ -4,10 +4,9 @@ import os
 
 # 烧写函数，返回命令执行结果
 def burn_binary(binary_name, probe_id):
-    cmd = ["cargo", "flash", "--release", "--target", "thumbv6m-none-eabi", "--chip",
-           "RP2040", "--probe", probe_id, "--protocol", "swd", "--package",
-           "integration", "--bin", binary_name]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    cmd = f'cargo flash --release --target thumbv6m-none-eabi --chip RP2040 --probe {probe_id} --protocol swd --package integration --bin {binary_name}'
+    print(f'Run command: "{cmd}"')
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     if result.returncode == 0:
         return f"{binary_name} 烧写成功"
     else:
