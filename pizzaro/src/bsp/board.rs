@@ -43,9 +43,11 @@ pub type McUiScreenPins = (
     Pin<Gpio8, FunctionUart, PullDown>,
     Pin<Gpio9, FunctionUart, PullDown>,
 );
+pub type McUiUart = UartPeripheral<Enabled, UART1, McUiScreenPins>;
 
 define_pins! {
     mc_uart, UART0,
+    mc_ui_uart, UART1,
     mmd_uart, UART1,
     hpd_uart, UART1
 }
@@ -55,6 +57,10 @@ pub fn hpd_uart_irq() -> Interrupt {
 }
 
 pub fn mmd_uart_irq() -> Interrupt {
+    Interrupt::UART1_IRQ
+}
+
+pub fn mc_ui_uart_irq() -> Interrupt {
     Interrupt::UART1_IRQ
 }
 
@@ -132,8 +138,8 @@ define_pins! {
     mc_cap_dout2, gpio5,
     mc_cap_sck3, gpio6,
     mc_cap_dout3, gpio7,
-    mc_ui_uart_rx, gpio8,
-    mc_ui_uart_tx, gpio9,
+    mc_ui_uart_tx, gpio8,
+    mc_ui_uart_rx, gpio9,
     mc_485_dir, gpio11,
     mc_sys_tx, gpio12,
     mc_sys_rx, gpio13,

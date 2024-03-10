@@ -8,6 +8,8 @@ use generic::atomi_error::AtomiError;
 
 use crate::common::uart::uart_read;
 
+use super::{global_timer::AtomiDuration, uart::uart_read_timeout};
+
 pub struct UartComm<'a, T: Read<u8> + Write<u8>> {
     uart: &'a mut T,
     expected_response_length: usize,
@@ -44,6 +46,31 @@ impl<'a, T: Read<u8> + Write<u8>> UartComm<'a, T> {
             .map_err(|_| AtomiError::UartWriteError)?;
         self.bwrite_all(&out)
             .map_err(|_| AtomiError::UartWriteError)
+    }
+
+    pub async fn try_recv<U, F, E>(
+        &mut self,
+        processor: F,
+        timeout: Option<AtomiDuration>,
+    ) -> Result<U, AtomiError>
+    where
+        F: Fn(&[u8]) -> Option<U>,
+        E: Into<AtomiError>,
+    {
+        let mut length_buffer = [0u8; 1];
+
+        loop {
+            match uart_read_timeout(self.uart, &mut length_buffer, timeout).await {
+                Ok(()) => {
+                    if let Some(result) = processor(&length_buffer) {
+                        return Ok(result);
+                    } else if timeout.is_some() {
+                        return Err(AtomiError::IgnoredMsg);
+                    }
+                }
+                Err(_) => return Err(AtomiError::UartReadError),
+            }
+        }
     }
 
     pub async fn recv<U>(&mut self) -> Result<U, AtomiError>

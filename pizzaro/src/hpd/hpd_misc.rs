@@ -1,3 +1,4 @@
+use crate::bsp::config::REVERT_HPD_LINEARSCALE_DIRECTION;
 use crate::common::global_timer::{now, AtomiDuration, AtomiInstant};
 use core::sync::atomic::{AtomicI32, Ordering};
 use defmt::{info, Format};
@@ -5,9 +6,10 @@ use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
 use generic::atomi_error::AtomiError;
 use rp2040_hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, SioOutput};
+use rp2040_hal::pac::adc::fcs::THRESH_R;
 use rp2040_hal::pwm::{FreeRunning, Pwm0, Slice};
 
-pub const MOTOR150_PWM_TOP: u16 = 2000;
+pub const MOTOR150_PWM_TOP: u16 = 5000;
 // const LITTLE_DISTANCE: i32 = 1000;  // 10mm
 
 const MAX_POSITION: i32 = 10_000_000;
@@ -43,6 +45,7 @@ pub struct LinearScale {
     last_ts: AtomiInstant,
     position: AtomicI32,
     home_position: Option<i32>,
+    revert_linearscale_dir: bool,
 }
 
 impl Default for LinearScale {
@@ -58,6 +61,7 @@ impl LinearScale {
             last_ts: AtomiInstant::from_ticks(0),
             position: AtomicI32::new(0),
             home_position: None,
+            revert_linearscale_dir: REVERT_HPD_LINEARSCALE_DIRECTION,
         }
     }
 
@@ -82,7 +86,14 @@ impl LinearScale {
             self.last_position = t;
             self.last_ts = now();
         }
-        self.position.store(new_position, Ordering::Relaxed);
+        self.position.store(
+            if self.revert_linearscale_dir {
+                -new_position
+            } else {
+                new_position
+            },
+            Ordering::Relaxed,
+        );
     }
 
     pub(crate) fn check_homed(&self) -> Result<i32, AtomiError> {
@@ -131,31 +142,64 @@ impl LinearScale {
 pub struct PwmMotor {
     enable_pin: Pin<DynPinId, FunctionSio<SioOutput>, PullDown>,
     pwm: Slice<Pwm0, FreeRunning>,
+    thres_speed: (f32, f32, f32, f32),
+    revert_dir: bool,
+    revert_en: bool,
 }
 
 impl PwmMotor {
     pub fn new(
         enable_pin: Pin<DynPinId, FunctionSio<SioOutput>, PullDown>,
         pwm: Slice<Pwm0, FreeRunning>,
+        thres_speed: (f32, f32, f32, f32),
+        revert_dir: bool,
+        revert_en: bool,
     ) -> Self {
-        Self { enable_pin, pwm }
+        Self {
+            enable_pin,
+            pwm,
+            thres_speed,
+            revert_dir,
+            revert_en,
+        }
     }
 
     pub(crate) fn start_pwm_motor(&mut self) -> Result<(), AtomiError> {
-        self.enable_pin
-            .set_high()
-            .or(Err(AtomiError::HpdCannotStart))
+        (if self.revert_en {
+            self.enable_pin.set_low()
+        } else {
+            self.enable_pin.set_high()
+        })
+        .or(Err(AtomiError::HpdCannotStart))
     }
 
     pub(crate) fn apply_speed(&mut self, speed: f32) {
-        let t = (-speed * 33.0) as i32;
-        let duty = match t {
-            1..=33 => (33 - t) as u32,
-            -33..=-1 => (67 - t) as u32,
-            _ => 50,
+        // speed范围-1.0~1.0
+        // 这里duty需要注意，静止为0.5，但最小最大值不能到0-1.0，必须限制在大致0.03~0.97的范围内。
+        // 此外，因为阻力的缘故，启动速度也要加一个偏置，比如0.54才开始转。
+        // 此外还需要注意，正向偏置和负向偏置还未必一致，所以最终实际的速度按照占空比来算大致是（0.03~0.45, 0.55~0.97这样的
+
+        let (s1, s2, s3, s4) = self.thres_speed;
+        let spd = if self.revert_dir {
+            -speed.clamp(-1.0, 1.0)
+        } else {
+            speed.clamp(-1.0, 1.0)
         };
-        let duty_scaled = (MOTOR150_PWM_TOP as u32) * duty / 100;
-        // info!("speed = {}, t = {}, duty = {}, duty_scaled = {}", speed, t, duty, duty_scaled);
+
+        let spd_mapped = if spd > 0.0 {
+            spd * (s4 - s3) + s3
+        } else if spd < 0.0 {
+            (spd + 1.0) * (s2 - s1) + s1
+        } else {
+            0.5
+        };
+
+        //let t = ((if self.revert_dir { -speed } else { speed }) * 33.0) as i32;
+        let duty_scaled = ((MOTOR150_PWM_TOP as f32) * spd_mapped) as u32;
+        // info!(
+        //     "speed = {}, spd_mapped = {}, duty_scaled = {}, revert_dir={}",
+        //     speed, spd_mapped, duty_scaled, self.revert_dir,
+        // );
         self.pwm.channel_a.set_duty(duty_scaled as u16);
         self.pwm.channel_b.set_duty(duty_scaled as u16);
     }

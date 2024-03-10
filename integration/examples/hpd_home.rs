@@ -9,6 +9,7 @@ use cortex_m::asm::delay;
 use defmt::info;
 use embedded_hal::digital::v2::OutputPin;
 
+use pizzaro::bsp::config::{HPD_BR_THRESHOLD, REVERT_HPD_BR_DIRECTION, REVERT_HPD_EN_SIGNAL};
 use pizzaro::common::async_initialization;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, Delay};
@@ -97,6 +98,9 @@ fn main() -> ! {
             PwmMotor::new(
                 hpd_br_nEN!(pins).into_push_pull_output().into_dyn_pin(),
                 pwm,
+                HPD_BR_THRESHOLD,
+                REVERT_HPD_BR_DIRECTION,
+                REVERT_HPD_EN_SIGNAL,
             ),
         );
         spawn_task(hpd_home(processor));

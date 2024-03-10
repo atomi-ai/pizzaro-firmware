@@ -7,8 +7,9 @@ use alloc::boxed::Box;
 
 use defmt::{error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
-use pizzaro::bsp::McUart;
-use pizzaro::mc_uart;
+use pizzaro::bsp::{mc_ui_uart_irq, McUart, McUiScreenPins, McUiUart};
+use pizzaro::mc::touch_screen;
+use pizzaro::{mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
@@ -28,7 +29,7 @@ use usbd_serial::SerialPort;
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{AtomiProto, McCommand};
-use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
+use pizzaro::common::consts::{UART_EXPECTED_RESPONSE_LENGTH, UI_UART_MAX_RESPONSE_LENGTH};
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, now, Delay};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
@@ -40,7 +41,7 @@ use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
 static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
 static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
-
+static mut UART: Option<UiUartType> = None;
 static mut FROM_PC_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
     unsafe { FROM_PC_MESSAGE_QUEUE.get_mut() }
@@ -89,6 +90,30 @@ fn main() -> ! {
             )
             .unwrap();
         spawn_task(process_messages(uart));
+    }
+
+    {
+        // initialize UI screen
+        let ui_uart_pins = (
+            // UART TX (characters sent from RP2040) on pin 1 (GPIO0)
+            mc_ui_uart_tx!(pins).into_function::<FunctionUart>(),
+            // UART RX (characters received by RP2040) on pin 2 (GPIO1)
+            mc_ui_uart_rx!(pins).into_function::<FunctionUart>(),
+        );
+
+        let ui_uart = UartPeripheral::new(mc_ui_uart!(pac), ui_uart_pins, &mut pac.RESETS)
+            .enable(
+                UartConfig::new(9600.Hz(), DataBits::Eight, None, StopBits::One),
+                clocks.peripheral_clock.freq(),
+            )
+            .unwrap();
+
+        unsafe {
+            UIUART = Some(uart);
+            NVIC::unmask(mc_ui_uart_irq());
+        }
+
+        //spawn_task(process_ui_screen(ui_uart));
     }
 
     {
@@ -145,6 +170,7 @@ fn main() -> ! {
 }
 
 type UartType = McUart;
+type UiUartType = McUiUart;
 
 async fn process_messages(mut uart: UartType) {
     // TODO(zephyr): Do we need to keep connection alive?
@@ -156,7 +182,7 @@ async fn process_messages(mut uart: UartType) {
 
         let t = get_mq().dequeue();
         // TODO(zephyr): simplify the code below.
-        if !t.is_none() {
+        if t.is_some() {
             info!("[MC] get msg from queue: {}", t);
         }
         let msg = match t {
@@ -179,6 +205,29 @@ async fn process_messages(mut uart: UartType) {
             Ok(())
         })();
         info!("Send data back through USBCTRL result: {}", res);
+    }
+}
+
+async fn process_ui_screen(mut ui_uart: UiUartType) {
+    // TODO(zephyr): Do we need to keep connection alive?
+    let mut uart_comm = UartComm::new(&mut ui_uart, UI_UART_MAX_RESPONSE_LENGTH);
+
+    loop {
+        Delay::new(1.millis()).await;
+        let ts_cmd = uart_comm
+            .try_recv(
+                |data| touch_screen::TouchScreenEnum::parse(data).ok(),
+                Some(5.millis()),
+            )
+            .await;
+
+        match ts_cmd {
+            Ok(cmd) => {
+                info!("touch screen cmd:{}", cmd);
+                // TODO: push cmd into queue
+            }
+            Err(_) => continue,
+        }
     }
 }
 
