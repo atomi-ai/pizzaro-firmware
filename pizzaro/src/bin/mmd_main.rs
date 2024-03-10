@@ -8,29 +8,40 @@ use alloc::vec;
 
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
-use defmt::{Debug2Format, error, info};
+use defmt::{error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
-use rp2040_hal::{clocks::{Clock, init_clocks_and_plls}, pac, sio::Sio, Timer, uart::UartPeripheral, watchdog::Watchdog};
+use pizzaro::bsp::mmd_uart_irq;
+use pizzaro::{
+    mmd_limit0, mmd_limit1, mmd_stepper42_dir0, mmd_stepper42_nEN0, mmd_stepper42_step0,
+};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
-use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
+use rp2040_hal::{
+    clocks::{init_clocks_and_plls, Clock},
+    pac,
+    sio::Sio,
+    uart::UartPeripheral,
+    watchdog::Watchdog,
+    Timer,
+};
 use rp_pico::pac::interrupt;
+use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::AtomiProto;
 use generic::atomi_proto::MmdCommand::MmdBusy;
-use pizzaro::common::async_initialization;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_status::{FutureStatus, FutureType, get_status, set_status};
-use pizzaro::common::global_timer::{Delay, DelayCreator, init_global_timer, now};
+use pizzaro::common::global_status::{get_status, set_status, FutureStatus, FutureType};
+use pizzaro::common::global_timer::{init_global_timer, now, Delay, DelayCreator};
+use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
-use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::mmd::linear_stepper::LinearStepper;
-use pizzaro::mmd::stepper::Stepper;
 use pizzaro::mmd::mmd_processor::{MmdProcessor, MmdUartType};
+use pizzaro::mmd::stepper::Stepper;
+use pizzaro::{common::async_initialization, mmd_sys_rx, mmd_sys_tx};
 
 static mut UART: Option<MmdUartType> = None;
 
@@ -54,8 +65,8 @@ fn main() -> ! {
         &mut pac.RESETS,
         &mut watchdog,
     )
-        .ok()
-        .unwrap();
+    .ok()
+    .unwrap();
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
 
@@ -66,8 +77,8 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
     let uart_pins = (
-        pins.gpio4.into_function::<FunctionUart>(), // TX, not used in this program
-        pins.gpio5.into_function::<FunctionUart>(), // RX
+        mmd_sys_tx!(pins).into_function::<FunctionUart>(), // TX, not used in this program
+        mmd_sys_rx!(pins).into_function::<FunctionUart>(), // RX
     );
     let mut uart = UartPeripheral::new(pac.UART1, uart_pins, &mut pac.RESETS)
         .enable(
@@ -79,21 +90,21 @@ fn main() -> ! {
     uart.enable_rx_interrupt();
     unsafe {
         UART = Some(uart);
-        NVIC::unmask(pac::Interrupt::UART1_IRQ);
+        NVIC::unmask(mmd_uart_irq());
     }
 
     {
-        let enable_pin = pins.gpio22.into_push_pull_output();
-        let dir_pin = pins.gpio18.into_push_pull_output();
-        let step_pin = pins.gpio11.into_push_pull_output();
-        let left_limit_pin = pins.gpio26.into_pull_down_input();
-        let right_limit_pin = pins.gpio27.into_pull_down_input();
+        let enable_pin = mmd_stepper42_nEN0!(pins).into_push_pull_output();
+        let dir_pin = mmd_stepper42_dir0!(pins).into_push_pull_output();
+        let step_pin = mmd_stepper42_step0!(pins).into_push_pull_output();
+        let left_limit_pin = mmd_limit0!(pins).into_pull_down_input();
+        let right_limit_pin = mmd_limit1!(pins).into_pull_down_input();
         let delay_creator = DelayCreator::new();
-        let processor = MmdProcessor::new(
-            LinearStepper::new(
-                Stepper::new(enable_pin, dir_pin, step_pin, delay_creator),
-                left_limit_pin,
-                right_limit_pin));
+        let processor = MmdProcessor::new(LinearStepper::new(
+            Stepper::new(enable_pin, dir_pin, step_pin, delay_creator),
+            left_limit_pin,
+            right_limit_pin,
+        ));
         spawn_task(mmd_process_messages(processor));
     }
 
@@ -112,10 +123,15 @@ async fn mmd_process_messages(mut mmd_processor: MmdProcessor) {
     let mut uart_comm = UartComm::new(uart, UART_EXPECTED_RESPONSE_LENGTH);
     loop {
         if let Some(message) = get_mq().dequeue() {
-            info!("[MMD] process_messages() 1.1 | dequeued message: {}", message);
+            info!(
+                "[MMD] process_messages() 1.1 | dequeued message: {}",
+                message
+            );
             // 处理消息
             let res = match message {
-                AtomiProto::Mmd(msg) => mmd_processor.process_mmd_message(&mut uart_comm, msg).await,
+                AtomiProto::Mmd(msg) => {
+                    mmd_processor.process_mmd_message(&mut uart_comm, msg).await
+                }
                 _ => Err(AtomiError::IgnoredMsg), // Ignore unrelated commands
             };
             if let Err(err) = res {
@@ -145,17 +161,25 @@ unsafe fn UART1_IRQ() {
         let message_length = length_buffer[0] as usize;
         let mut message_buffer = vec![0; message_length];
         if uart.read_full_blocking(&mut message_buffer).is_err() {
-            error!("Errors in reading the whole message with size ({})", message_length);
+            error!(
+                "Errors in reading the whole message with size ({})",
+                message_length
+            );
             return;
         }
 
         // Parse the message
-        info!("{} | UART1_IRQ() 5, len = {}, data: {}", now().ticks(), message_length, Debug2Format(&message_buffer));
+        info!(
+            "{} | UART1_IRQ() 5, len = {}, data: {}",
+            now().ticks(),
+            message_length,
+            Debug2Format(&message_buffer)
+        );
         match postcard::from_bytes::<AtomiProto>(&message_buffer) {
             Ok(msg) => {
                 info!("Received message: {:?}", msg);
                 process_message_in_irq(uart, msg);
-            },
+            }
             Err(_) => info!("Failed to parse message"),
         }
     }
@@ -169,10 +193,13 @@ fn process_message_in_irq(uart: &mut MmdUartType, msg: AtomiProto) {
             // MMD必须要处理的消息，直接返回busy
             let mut uart_comm = UartComm::new(uart, UART_EXPECTED_RESPONSE_LENGTH);
             if let Err(err) = uart_comm.send(AtomiProto::Mmd(MmdBusy)) {
-                error!("[MMD] Errors in sending MMD BUSY response back to MC, err: {}", err);
+                error!(
+                    "[MMD] Errors in sending MMD BUSY response back to MC, err: {}",
+                    err
+                );
             }
         }
-        return
+        return;
     }
 
     // 正常处理流程

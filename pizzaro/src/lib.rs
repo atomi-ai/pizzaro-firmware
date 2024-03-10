@@ -8,3 +8,4 @@ use defmt_rtt as _;
 pub mod mmd;
 pub mod common;
 pub mod hpd;
+pub mod bsp;

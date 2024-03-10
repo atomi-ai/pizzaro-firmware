@@ -1,12 +1,11 @@
+use crate::common::global_timer::{now, AtomiDuration, AtomiInstant};
 use core::sync::atomic::{AtomicI32, Ordering};
-use defmt::{Format, info};
+use defmt::{info, Format};
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
-use rp2040_hal::gpio::bank0::Gpio18;
-use rp2040_hal::gpio::{FunctionSio, Pin, PullDown, SioOutput};
-use rp2040_hal::pwm::{FreeRunning, Pwm0, Slice};
 use generic::atomi_error::AtomiError;
-use crate::common::global_timer::{AtomiDuration, AtomiInstant, now};
+use rp2040_hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, SioOutput};
+use rp2040_hal::pwm::{FreeRunning, Pwm0, Slice};
 
 pub const MOTOR150_PWM_TOP: u16 = 2000;
 // const LITTLE_DISTANCE: i32 = 1000;  // 10mm
@@ -18,7 +17,7 @@ const STATIONARY_TIME_THRESHOLD: AtomiDuration = AtomiDuration::millis(200);
 
 #[derive(Copy, Clone, Debug, Format)]
 pub enum HpdDirection {
-    _Top,  // Add "Top" back if necessary.
+    _Top, // Add "Top" back if necessary.
     Bottom,
 }
 
@@ -44,6 +43,12 @@ pub struct LinearScale {
     last_ts: AtomiInstant,
     position: AtomicI32,
     home_position: Option<i32>,
+}
+
+impl Default for LinearScale {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LinearScale {
@@ -124,20 +129,22 @@ impl LinearScale {
 }
 
 pub struct PwmMotor {
-    enable_pin: Pin<Gpio18, FunctionSio<SioOutput>, PullDown>,
+    enable_pin: Pin<DynPinId, FunctionSio<SioOutput>, PullDown>,
     pwm: Slice<Pwm0, FreeRunning>,
 }
 
 impl PwmMotor {
     pub fn new(
-        enable_pin: Pin<Gpio18, FunctionSio<SioOutput>, PullDown>,
+        enable_pin: Pin<DynPinId, FunctionSio<SioOutput>, PullDown>,
         pwm: Slice<Pwm0, FreeRunning>,
     ) -> Self {
         Self { enable_pin, pwm }
     }
 
     pub(crate) fn start_pwm_motor(&mut self) -> Result<(), AtomiError> {
-        self.enable_pin.set_high().or(Err(AtomiError::HpdCannotStart))
+        self.enable_pin
+            .set_high()
+            .or(Err(AtomiError::HpdCannotStart))
     }
 
     pub(crate) fn apply_speed(&mut self, speed: f32) {
