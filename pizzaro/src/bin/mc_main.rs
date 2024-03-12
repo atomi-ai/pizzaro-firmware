@@ -5,10 +5,11 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 
+use cortex_m::peripheral::NVIC;
 use defmt::{error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
 use pizzaro::bsp::{mc_ui_uart_irq, McUart, McUiScreenPins, McUiUart};
-use pizzaro::mc::touch_screen;
+use pizzaro::mc::touch_screen::{self, TouchScreenEnum};
 use pizzaro::{mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
@@ -41,7 +42,7 @@ use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
 static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
 static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
-static mut UART: Option<UiUartType> = None;
+static mut UIUART: Option<UiUartType> = None;
 static mut FROM_PC_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
     unsafe { FROM_PC_MESSAGE_QUEUE.get_mut() }
@@ -109,7 +110,7 @@ fn main() -> ! {
             .unwrap();
 
         unsafe {
-            UIUART = Some(uart);
+            UIUART = Some(ui_uart);
             NVIC::unmask(mc_ui_uart_irq());
         }
 

@@ -12,6 +12,8 @@ pub mod led_controller;
 pub mod message_queue;
 pub mod once;
 pub mod rp2040_timer;
+pub mod tmc2209;
+pub mod tmc5160;
 pub mod uart;
 pub mod uart_comm;
 

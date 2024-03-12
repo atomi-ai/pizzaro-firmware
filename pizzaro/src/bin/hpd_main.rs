@@ -10,6 +10,9 @@ use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
 use defmt::{error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
+use pizzaro::bsp::config::{
+    HPD_BR_THRESHOLD, REVERT_HPD_BR_DIRECTION, REVERT_HPD_LINEARSCALE_DIRECTION,
+};
 use pizzaro::bsp::{hpd_uart_irq, HpdUart};
 use pizzaro::{hpd_sys_rx, hpd_sys_tx, hpd_uart};
 use rp2040_hal::gpio::FunctionUart;
@@ -123,7 +126,13 @@ fn main() -> ! {
 
         let processor = HpdProcessor::new(
             linear_scale_rc1,
-            PwmMotor::new(pins.gpio18.into_push_pull_output().into_dyn_pin(), pwm),
+            PwmMotor::new(
+                pins.gpio18.into_push_pull_output().into_dyn_pin(),
+                pwm,
+                HPD_BR_THRESHOLD,
+                REVERT_HPD_BR_DIRECTION,
+                REVERT_HPD_LINEARSCALE_DIRECTION,
+            ),
         );
 
         spawn_task(hpd_process_messages(processor));

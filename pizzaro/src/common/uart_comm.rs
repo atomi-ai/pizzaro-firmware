@@ -48,14 +48,13 @@ impl<'a, T: Read<u8> + Write<u8>> UartComm<'a, T> {
             .map_err(|_| AtomiError::UartWriteError)
     }
 
-    pub async fn try_recv<U, F, E>(
+    pub async fn try_recv<U, F>(
         &mut self,
         processor: F,
         timeout: Option<AtomiDuration>,
     ) -> Result<U, AtomiError>
     where
         F: Fn(&[u8]) -> Option<U>,
-        E: Into<AtomiError>,
     {
         let mut length_buffer = [0u8; 1];
 

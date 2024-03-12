@@ -6,7 +6,6 @@ use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
 use generic::atomi_error::AtomiError;
 use rp2040_hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, SioOutput};
-use rp2040_hal::pac::adc::fcs::THRESH_R;
 use rp2040_hal::pwm::{FreeRunning, Pwm0, Slice};
 
 pub const MOTOR150_PWM_TOP: u16 = 5000;

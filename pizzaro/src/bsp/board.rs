@@ -68,6 +68,50 @@ define_pins! {
     // ws2812b led on mc/mmd/hpd
     smart_led, gpio16,
 
+    // // V1.5.4
+    // // MMD: MultiMotorDriver
+    // // brush motor
+    // mmd_br_pwm_a, gpio0,
+    // mmd_br_pwm_b, gpio1,
+    // mmd_br_nEN, gpio3,
+    // // 485 interface
+    // mmd_sys_tx, gpio4,
+    // mmd_sys_rx, gpio5,
+    // mmd_485_dir, gpio8,
+    // // brushless motor0
+    // mmd_spd_sense_bl0, gpio2,
+    // mmd_dir_bl0, gpio20,
+    // mmd_spd_ctrl_bl0, gpio9,
+    // // brushless motor1
+    // mmd_spd_sense_bl1, gpio6,
+    // mmd_dir_bl1, gpio7,
+    // mmd_spd_ctrl_bl1, gpio10,
+    // // 42 motor0
+    // mmd_stepper42_step0, gpio11,
+    // mmd_stepper42_dir0, gpio18,
+    // mmd_stepper42_nEN0, gpio22,
+    // mmd_stepper42_diag0, gpio28,
+    // // 42 motor1
+    // mmd_stepper42_step1, gpio21,
+    // mmd_stepper42_dir1, gpio23,
+    // mmd_stepper42_nEN1, gpio25,
+    // mmd_stepper42_diag1, gpio29,
+    // // 57 motor
+    // mmd_stepper57_nEN, gpio24,
+    // mmd_stepper57_step, gpio14,
+    // mmd_stepper57_dir, gpio17,
+    // // tmc related interface
+    // mmd_tmc_uart_tx, gpio12,
+    // mmd_tmc_uart_rx, gpio13,
+    // mmd_tmc_5160_addr, gpio29,
+    // // proximity sensors
+    // mmd_proximity_sensor0, gpio15,
+    // mmd_proximity_sensor1, gpio19,
+    // // limit switchs
+    // mmd_limit0, gpio26,
+    // mmd_limit1, gpio27,
+
+    // rollback to HW version V1.5.1
     // MMD: MultiMotorDriver
     // brush motor
     mmd_br_pwm_a, gpio0,
@@ -76,7 +120,7 @@ define_pins! {
     // 485 interface
     mmd_sys_tx, gpio4,
     mmd_sys_rx, gpio5,
-    mmd_485_dir, gpio8,
+    mmd_485_dir, gpio21,
     // brushless motor0
     mmd_spd_sense_bl0, gpio2,
     mmd_dir_bl0, gpio20,
@@ -91,24 +135,25 @@ define_pins! {
     mmd_stepper42_nEN0, gpio22,
     mmd_stepper42_diag0, gpio28,
     // 42 motor1
-    mmd_stepper42_step1, gpio21,
+    mmd_stepper42_step1, gpio19,
     mmd_stepper42_dir1, gpio23,
-    mmd_stepper42_nEN1, gpio25,
+    mmd_stepper42_nEN1, gpio25,	// not exists, in v1.5.1, 42_nEN0/1 are connected to gpio22
     mmd_stepper42_diag1, gpio29,
     // 57 motor
     mmd_stepper57_nEN, gpio24,
-    mmd_stepper57_step, gpio14,
+    mmd_stepper57_step, gpio13,
     mmd_stepper57_dir, gpio17,
     // tmc related interface
     mmd_tmc_uart_tx, gpio12,
-    mmd_tmc_uart_rx, gpio13,
-    mmd_tmc_5160_addr, gpio29,
+    //mmd_tmc_uart_rx, gpio13,	// not exists
+    //mmd_tmc_5160_addr, gpio29,	// not exists
     // proximity sensors
-    mmd_proximity_sensor0, gpio15,
-    mmd_proximity_sensor1, gpio19,
+    //mmd_proximity_sensor0, gpio15, // not exists
+    //mmd_proximity_sensor1, gpio19, // not exists
     // limit switchs
     mmd_limit0, gpio26,
     mmd_limit1, gpio27,
+
 
     // HPD: HighPowerMotorDriver
     // 150w brush motor

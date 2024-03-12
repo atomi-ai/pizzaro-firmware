@@ -41,7 +41,9 @@ config! {
 
 parameters! {
     HPD_PID: (f32, f32, f32)= (0.013, 0.0, 0.0), // ok
+    // 左转最高速度，左转最小速度，右转最小速度，右转最高速度
     HPD_BR_THRESHOLD: (f32, f32, f32, f32) = (0.03, 0.45, 0.55, 0.97),			   // ok
+    // 定位误差，pid和机械部分调的足够好之后，可以不需要这个误差值
     // HPD_POSITION_ERROR: u32 = 100,
     // for MC
     WEIGHT_SENSOR0_IDX: usize = 0,
