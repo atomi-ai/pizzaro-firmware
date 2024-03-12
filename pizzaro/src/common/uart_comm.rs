@@ -1,14 +1,15 @@
 use alloc::vec;
 
-use defmt::{info, Debug2Format, Format};
+use defmt::{Debug2Format, Format, info};
 use embedded_hal::serial::{Read, Write};
+use futures::future::{Either, select};
+use futures::pin_mut;
 use serde::{Deserialize, Serialize};
 
 use generic::atomi_error::AtomiError;
+use crate::common::global_timer::{AtomiDuration, Delay};
 
 use crate::common::uart::uart_read;
-
-use super::{global_timer::AtomiDuration, uart::uart_read_timeout};
 
 pub struct UartComm<'a, T: Read<u8> + Write<u8>> {
     uart: &'a mut T,
@@ -25,21 +26,18 @@ impl<'a, T: Read<u8> + Write<u8>> UartComm<'a, T> {
 
     fn bwrite_all(&mut self, buffer: &[u8]) -> Result<(), AtomiError> {
         for word in buffer {
-            nb::block!(self.uart.write(word.clone())).map_err(|_| AtomiError::UartWriteError)?;
+            nb::block!(self.uart.write(word.clone()))
+                .map_err(|_| AtomiError::UartWriteError)?;
         }
 
         Ok(())
     }
 
     pub fn send<U: Format + Serialize>(&mut self, message: U) -> Result<(), AtomiError> {
-        let out = postcard::to_allocvec::<U>(&message).map_err(|_| AtomiError::UartInvalidInput)?;
+        let out = postcard::to_allocvec::<U>(&message)
+            .map_err(|_| AtomiError::UartInvalidInput)?;
 
-        info!(
-            "Send data: ({}, {}), original = {}",
-            out.len(),
-            Debug2Format(&out),
-            message
-        );
+        info!("Send data: ({}, {}), original = {}", out.len(), Debug2Format(&out), message);
         // 发送长度和数据
         // TODO(zephyr): 看看怎么wrap T::Error到PizzaroError里面去.
         self.bwrite_all(&[out.len() as u8])
@@ -48,38 +46,25 @@ impl<'a, T: Read<u8> + Write<u8>> UartComm<'a, T> {
             .map_err(|_| AtomiError::UartWriteError)
     }
 
-    pub async fn try_recv<U, F>(
-        &mut self,
-        processor: F,
-        timeout: Option<AtomiDuration>,
-    ) -> Result<U, AtomiError>
-    where
-        F: Fn(&[u8]) -> Option<U>,
-    {
-        let mut length_buffer = [0u8; 1];
-
-        loop {
-            match uart_read_timeout(self.uart, &mut length_buffer, timeout).await {
-                Ok(()) => {
-                    if let Some(result) = processor(&length_buffer) {
-                        return Ok(result);
-                    } else if timeout.is_some() {
-                        return Err(AtomiError::IgnoredMsg);
-                    }
-                }
-                Err(_) => return Err(AtomiError::UartReadError),
-            }
+    pub async fn recv_timeout<U>(&mut self, timeout: AtomiDuration) -> Result<U, AtomiError>
+        where U: for<'b> Deserialize<'b> {
+        let recv_future = self.recv();
+        let timeout_future = Delay::new(timeout);
+        pin_mut!(recv_future);
+        pin_mut!(timeout_future);
+        match select(recv_future, timeout_future).await {
+            Either::Left((uart_result, _)) => uart_result,
+            Either::Right(_) => {Err(AtomiError::UartReadTimeout)},
         }
     }
 
     pub async fn recv<U>(&mut self) -> Result<U, AtomiError>
-    where
-        U: for<'b> Deserialize<'b>,
+        where
+            U: for<'b> Deserialize<'b>,
     {
         // 读取响应长度
         let mut length_buffer = [0u8; 1];
-        uart_read(self.uart, &mut length_buffer)
-            .await
+        uart_read(self.uart, &mut length_buffer).await
             .map_err(|_| AtomiError::UartReadError)?;
 
         let response_length = length_buffer[0] as usize;
@@ -90,14 +75,11 @@ impl<'a, T: Read<u8> + Write<u8>> UartComm<'a, T> {
 
         // 读取响应数据
         let mut response_buffer = vec![0; response_length];
-        uart_read(self.uart, &mut response_buffer)
-            .await
+        uart_read(self.uart, &mut response_buffer).await
             .map_err(|_| AtomiError::UartReadError)?;
 
-        info!(
-            "UartComm::recv() 6: got data = {}",
-            Debug2Format(&response_buffer)
-        );
-        postcard::from_bytes::<U>(&response_buffer).map_err(|_| AtomiError::UartInvalidData)
+        info!("UartComm::recv() 6: got data = {}", Debug2Format(&response_buffer));
+        postcard::from_bytes::<U>(&response_buffer)
+            .map_err(|_| AtomiError::UartInvalidData)
     }
 }

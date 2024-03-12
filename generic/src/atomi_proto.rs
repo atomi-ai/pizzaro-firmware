@@ -2,6 +2,7 @@
 // dependencies of PizzaroProtocol.
 use defmt::Format;
 use serde::{Deserialize, Serialize};
+use crate::atomi_error::AtomiError;
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, defmt::Format)]
 pub enum AtomiProto {
@@ -11,6 +12,8 @@ pub enum AtomiProto {
     Mc(McCommand),
     Mmd(MmdCommand),
     Hpd(HpdCommand),
+
+    AtomiError(AtomiError),
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
@@ -47,4 +50,8 @@ pub enum HpdCommand {
 
     // Return status
     HpdBusy,
+}
+
+pub fn wrap_result_into_proto(res: Result<AtomiProto, AtomiError>) -> AtomiProto {
+    res.unwrap_or_else(|err| AtomiProto::AtomiError(err))
 }

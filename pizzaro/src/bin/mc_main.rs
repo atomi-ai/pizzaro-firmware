@@ -8,8 +8,7 @@ use alloc::boxed::Box;
 use cortex_m::peripheral::NVIC;
 use defmt::{error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
-use pizzaro::bsp::{mc_ui_uart_irq, McUart, McUiScreenPins, McUiUart};
-use pizzaro::mc::touch_screen::{self, TouchScreenEnum};
+use pizzaro::bsp::{mc_ui_uart_irq, McUart, McUiUart};
 use pizzaro::{mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
@@ -29,8 +28,8 @@ use usb_device::UsbError;
 use usbd_serial::SerialPort;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{AtomiProto, McCommand};
-use pizzaro::common::consts::{UART_EXPECTED_RESPONSE_LENGTH, UI_UART_MAX_RESPONSE_LENGTH};
+use generic::atomi_proto::{AtomiProto, McCommand, wrap_result_into_proto};
+use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, now, Delay};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
@@ -193,8 +192,8 @@ async fn process_messages(mut uart: UartType) {
         };
         info!("Processed result: {}", msg);
 
-        let res = (|| -> Result<(), AtomiError> {
-            let binding = postcard::to_allocvec(&msg?).map_err(|_| AtomiError::DataConvertError)?;
+        match (|| -> Result<(), AtomiError> {
+            let binding = postcard::to_allocvec(&wrap_result_into_proto(msg)).map_err(|_| AtomiError::DataConvertError)?;
             info!("Data to send to PC: {}", Debug2Format(&binding));
             let mut wr_ptr = binding.as_slice();
             while !wr_ptr.is_empty() {
@@ -204,30 +203,13 @@ async fn process_messages(mut uart: UartType) {
                 };
             }
             Ok(())
-        })();
-        info!("Send data back through USBCTRL result: {}", res);
-    }
-}
-
-async fn process_ui_screen(mut ui_uart: UiUartType) {
-    // TODO(zephyr): Do we need to keep connection alive?
-    let mut uart_comm = UartComm::new(&mut ui_uart, UI_UART_MAX_RESPONSE_LENGTH);
-
-    loop {
-        Delay::new(1.millis()).await;
-        let ts_cmd = uart_comm
-            .try_recv(
-                |data| touch_screen::TouchScreenEnum::parse(data).ok(),
-                Some(5.millis()),
-            )
-            .await;
-
-        match ts_cmd {
-            Ok(cmd) => {
-                info!("touch screen cmd:{}", cmd);
-                // TODO: push cmd into queue
+        })() {
+            Ok(_) => {
+                info!("Successfully send data back through USBCTRL");
             }
-            Err(_) => continue,
+            Err(err) => {
+                error!("Errors in sending data back through USBCTRL, {}", err)
+            }
         }
     }
 }
@@ -242,8 +224,8 @@ async fn forward(
         return Err(AtomiError::UartWriteError);
     }
 
-    // 异步读取响应长度
-    uart_comm.recv::<AtomiProto>().await
+    // 异步读取响应长度 or timeout
+    uart_comm.recv_timeout::<AtomiProto>(500.millis()).await
 }
 
 fn process_mc_message(msg: McCommand) -> Result<AtomiProto, AtomiError> {

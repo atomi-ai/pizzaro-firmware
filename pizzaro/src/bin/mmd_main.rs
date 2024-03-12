@@ -153,6 +153,7 @@ unsafe fn UART1_IRQ() {
 
         // 读取一个字节以确定消息长度
         let mut length_buffer = [0; 1];
+        info!("uart length = {}", length_buffer);
         if uart.read_full_blocking(&mut length_buffer).is_err() {
             error!("Errors in reading UART");
             return;

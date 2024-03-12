@@ -1,11 +1,13 @@
+use serde::{Deserialize, Serialize};
 use crate::mmd_status::MmdStatus;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, defmt::Format)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, defmt::Format, Serialize, Deserialize)]
 pub enum AtomiError {
     IgnoredMsg,
     UnaccepableCommand,
 
     UartReadError,
+    UartReadTimeout,
     UartWriteError,
     UartInvalidData,
     UartInvalidInput,
