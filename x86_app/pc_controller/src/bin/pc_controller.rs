@@ -12,7 +12,7 @@ use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::HistoryHinter;
 use rustyline::validate::MatchingBracketValidator;
 use rustyline_derive::{Completer, Helper, Hinter, Validator};
-use serialport::ClearBuffer;
+use pc_controller::find_serial_device;
 
 #[derive(Helper, Completer, Hinter, Validator)]
 struct MyHelper {
@@ -57,7 +57,12 @@ impl Highlighter for MyHelper {
 #[command(next_line_help = true)]
 struct Cli {
     #[arg(long)]
-    port: String,
+    #[arg(required_unless_present("probe"))]
+    port: Option<String>,
+
+    #[arg(long)]
+    #[arg(required_unless_present("port"))]
+    probe: Option<String>,
 }
 
 // To debug rustyline:
@@ -88,7 +93,14 @@ fn main() -> rustyline::Result<()> {
         println!("No previous history.");
     }
 
-    let mut port = serialport::new(cli.port, 115_200)
+    let port_name = match (cli.port, cli.probe) {
+        (Some(port), _) => port,
+        (_, Some(probe)) =>
+            find_serial_device(probe.as_str())
+                .expect(format!("Not found port with probe {}", probe).as_str()),
+        _ => None.expect("No port or probe in your arguments"),
+    };
+    let mut port = serialport::new(port_name, 115_200)
         .timeout(Duration::from_secs(5))
         .open().expect("Failed to open port");
 
