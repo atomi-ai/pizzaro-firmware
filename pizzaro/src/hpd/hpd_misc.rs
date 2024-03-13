@@ -17,23 +17,23 @@ const STATIONARY_POSITION_THRESHOLD: i32 = 10;
 const STATIONARY_TIME_THRESHOLD: AtomiDuration = AtomiDuration::millis(200);
 
 #[derive(Copy, Clone, Debug, Format)]
-pub enum HpdDirection {
+pub enum LinearBullDirection {
     _Top, // Add "Top" back if necessary.
     Bottom,
 }
 
-impl HpdDirection {
+impl LinearBullDirection {
     pub(crate) fn get_most_position(&self) -> i32 {
         match self {
-            HpdDirection::_Top => MAX_POSITION,
-            HpdDirection::Bottom => MIN_POSITION,
+            LinearBullDirection::_Top => MAX_POSITION,
+            LinearBullDirection::Bottom => MIN_POSITION,
         }
     }
 
     pub(crate) fn get_dir_seg(&self) -> f32 {
         match self {
-            HpdDirection::_Top => 1.0,
-            HpdDirection::Bottom => -1.0,
+            LinearBullDirection::_Top => 1.0,
+            LinearBullDirection::Bottom => -1.0,
         }
     }
 }

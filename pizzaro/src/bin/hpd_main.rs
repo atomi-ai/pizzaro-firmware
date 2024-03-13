@@ -11,15 +11,16 @@ use cortex_m::peripheral::NVIC;
 use defmt::{Debug2Format, error, info};
 use fugit::{ExtU64, RateExtU32};
 use rp2040_hal::{clocks::{Clock, init_clocks_and_plls}, pac, sio::Sio, Timer, uart::UartPeripheral, watchdog::Watchdog};
-use rp2040_hal::gpio::{FunctionUart, Pin, PullDown};
-use rp2040_hal::gpio::bank0::{Gpio8, Gpio9};
+use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::multicore::{Multicore, Stack};
-use rp2040_hal::uart::{DataBits, Enabled, StopBits, UartConfig};
+use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
-use rp_pico::pac::{interrupt, UART1};
+use rp_pico::pac::{interrupt};
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::AtomiProto;
+use generic::atomi_proto::{AtomiProto, HpdCommand};
+use pizzaro::{hpd_sys_rx, hpd_sys_tx, hpd_uart};
+use pizzaro::bsp::{hpd_uart_irq, HpdUart};
 use pizzaro::bsp::config::{HPD_BR_THRESHOLD, REVERT_HPD_BR_DIRECTION, REVERT_HPD_LINEARSCALE_DIRECTION};
 use pizzaro::common::async_initialization;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
@@ -30,10 +31,8 @@ use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
 use pizzaro::hpd::hpd_misc::{LinearScale, MOTOR150_PWM_TOP, PwmMotor};
-use pizzaro::hpd::hpd_processor::HpdProcessor;
+use pizzaro::hpd::linear_bull_processor::{LinearBullProcessor, linear_bull_input_mq, process_linear_bull_message, linear_bull_output_mq};
 use pizzaro::hpd::linear_scale::{core1_task, read_and_update_linear_scale};
-use pizzaro::{hpd_sys_rx, hpd_sys_tx, hpd_uart};
-use pizzaro::bsp::{hpd_uart_irq, HpdUart};
 
 struct GlobalContainer {
     linear_scale: Option<LinearScale>,
@@ -102,7 +101,7 @@ fn main() -> ! {
         pwm.channel_b.output_to(pins.gpio17);
         pwm.channel_b.set_inverted();
 
-        let processor = HpdProcessor::new(
+        let processor = LinearBullProcessor::new(
             linear_scale_rc1,
             PwmMotor::new(
                 pins.gpio18.into_push_pull_output().into_dyn_pin(),
@@ -113,7 +112,8 @@ fn main() -> ! {
             ),
         );
 
-        spawn_task(hpd_process_messages(processor));
+        spawn_task(process_linear_bull_message(processor));
+        spawn_task(hpd_process_messages());
     }
 
     {
@@ -143,9 +143,10 @@ fn main() -> ! {
     }
 }
 
-async fn hpd_process_messages(mut hpd_processor: HpdProcessor) {
+async fn hpd_process_messages() {
     let uart = unsafe { UART.as_mut().unwrap() };
     let mut uart_comm = UartComm::new(uart, UART_EXPECTED_RESPONSE_LENGTH);
+    let mut linear_bull_available = true;
     loop {
         Delay::new(1.millis()).await;
 
@@ -153,12 +154,30 @@ async fn hpd_process_messages(mut hpd_processor: HpdProcessor) {
             info!("[HPD] process_messages() 1.1 | dequeued message: {}", message);
             // 处理消息
             let res = match message {
-                AtomiProto::Hpd(msg) => hpd_processor.process_hpd_message(&mut uart_comm, msg).await,
+                AtomiProto::Hpd(HpdCommand::HpdPing) => {
+                    uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdPong))
+                }
+                AtomiProto::Hpd(HpdCommand::HpdLinearBull(cmd)) => {
+                    if linear_bull_available {
+                        let res = uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdAck));
+                        linear_bull_input_mq().enqueue(cmd);
+                        linear_bull_available = false;
+                        res
+                    } else {
+                        let _ = uart_comm.send(AtomiProto::AtomiError(AtomiError::HpdUnavailable));
+                        Err(AtomiError::HpdUnavailable)
+                    }
+                },
                 _ => Err(AtomiError::IgnoredMsg), // Ignore unrelated commands
             };
             if let Err(err) = res {
                 info!("[HPD] message processing error: {}", err);
             }
+        }
+
+        if let Some(linear_bull_resp) = linear_bull_output_mq().dequeue() {
+            info!("[MMD] get response from linear bull: {}", linear_bull_resp);
+            linear_bull_available = true;
         }
     }
 }

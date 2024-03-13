@@ -1,5 +1,5 @@
 use crate::atomi_error::AtomiError;
-use crate::atomi_proto::{AtomiProto, HpdCommand, LinearStepperCommand, McCommand, MmdCommand};
+use crate::atomi_proto::{AtomiProto, HpdCommand, LinearBullCommand, LinearStepperCommand, McCommand, MmdCommand};
 
 pub fn parse_protocol(line: &str) -> AtomiProto {
     let mut tokens = line.split_whitespace();
@@ -81,17 +81,25 @@ fn parse_hpd_command<'a, I>(tokens: &mut I) -> AtomiProto
     match tokens.next() {
         Some("ping") => AtomiProto::Hpd(HpdCommand::HpdPing),
         Some("pong") => AtomiProto::Hpd(HpdCommand::HpdPong),
-        Some("home") => AtomiProto::Hpd(HpdCommand::HpdHome),
+        Some("home") => AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::Home)),
         Some("move_rel") => {
             if let Ok(distance) = parse_int(tokens.next()) {
-                AtomiProto::Hpd(HpdCommand::HpdMoveToRelative {distance})
+                AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveToRelative {distance}))
             } else {
                 AtomiProto::Unknown
             }
         }
         Some("move_to") => {
             if let Ok(position) = parse_int(tokens.next()) {
-                AtomiProto::Hpd(HpdCommand::HpdMoveTo {position})
+                AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {position}))
+            } else {
+                AtomiProto::Unknown
+            }
+        }
+        Some("dummy") => {
+            if let Ok(seconds) = parse_int(tokens.next()) {
+                AtomiProto::Hpd(HpdCommand::HpdLinearBull(
+                    LinearBullCommand::DummyWait {seconds}))
             } else {
                 AtomiProto::Unknown
             }

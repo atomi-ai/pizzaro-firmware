@@ -16,7 +16,7 @@ use pizzaro::common::global_timer::{init_global_timer, Delay};
 use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::hpd::hpd_misc::{LinearScale, PwmMotor, MOTOR150_PWM_TOP};
-use pizzaro::hpd::hpd_processor::HpdProcessor;
+use pizzaro::hpd::linear_bull_processor::LinearBullProcessor;
 use pizzaro::hpd::linear_scale::{core1_task, read_and_update_linear_scale};
 use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b, smart_led};
 
@@ -93,7 +93,7 @@ fn main() -> ! {
         pwm.channel_b.output_to(hpd_br_pwm_b!(pins));
         pwm.channel_b.set_inverted();
 
-        let processor = HpdProcessor::new(
+        let processor = LinearBullProcessor::new(
             linear_scale_rc1,
             PwmMotor::new(
                 hpd_br_nEN!(pins).into_push_pull_output().into_dyn_pin(),
@@ -130,7 +130,7 @@ fn main() -> ! {
     }
 }
 
-async fn hpd_home(mut processor: HpdProcessor) {
+async fn hpd_home(mut processor: LinearBullProcessor) {
     let mut t = processor.home().await.unwrap();
     info!(
         "xfguo: position after homing: {}, start move to relative 10000",

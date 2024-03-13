@@ -57,13 +57,26 @@ pub enum HpdCommand {
     HpdError,
     HpdPing,
     HpdPong,
+    HpdAck,
 
-    HpdHome,
-    HpdMoveTo { position: i32 },
-    HpdMoveToRelative { distance: i32 },
+    HpdLinearBull(LinearBullCommand),
 
     // Return status
     HpdBusy,
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+pub enum LinearBullCommand {
+    Home,
+    MoveTo { position: i32 },
+    MoveToRelative { distance: i32 },
+    DummyWait { seconds: i32 },
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+pub enum LinearBullResponse {
+    Error(AtomiError),
+    Done,
 }
 
 pub fn wrap_result_into_proto(res: Result<AtomiProto, AtomiError>) -> AtomiProto {

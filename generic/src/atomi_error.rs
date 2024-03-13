@@ -25,6 +25,7 @@ pub enum AtomiError {
     MmdPinError,
     MmdNotAcceptedPosition,
 
+    HpdUnavailable,
     HpdNotHomed,
     HpdNeedToHome,
     HpdCannotStart,
