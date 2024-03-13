@@ -20,10 +20,10 @@ use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, DelayCreator};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::mmd::linear_stepper::LinearStepper;
-use pizzaro::mmd::mmd_processor::MmdProcessor;
 use pizzaro::mmd::stepper::Stepper;
 use rp2040_hal::pio::PIOExt;
 use ws2812_pio::Ws2812Direct;
+use pizzaro::mmd::mmd_dispatcher::LinearStepperType;
 
 #[entry]
 fn main() -> ! {
@@ -60,12 +60,12 @@ fn main() -> ! {
         let left_limit_pin = mmd_limit0!(pins).into_pull_down_input();
         let right_limit_pin = mmd_limit1!(pins).into_pull_down_input();
         let delay_creator = DelayCreator::new();
-        let processor = MmdProcessor::new(LinearStepper::new(
+        let linear_stepper = LinearStepper::new(
             Stepper::new(enable_pin, dir_pin, step_pin, delay_creator),
             left_limit_pin,
             right_limit_pin,
-        ));
-        spawn_task(mmd_home(processor));
+        );
+        spawn_task(mmd_home(linear_stepper));
     }
 
     {
@@ -94,17 +94,17 @@ fn main() -> ! {
     }
 }
 
-async fn mmd_home(mut mmd_processor: MmdProcessor) {
-    let t = mmd_processor.move_to_relative(100).await;
+async fn mmd_home(mut linear_stepper: LinearStepperType) {
+    let t = linear_stepper.move_to_relative(100).await;
     info!("Result of move before homing: {}", t);
 
-    let t = mmd_processor.home().await;
+    let t = linear_stepper.home().await;
     info!("Home done, t = {}", t);
 
-    let _t = mmd_processor.move_to_relative(100).await;
-    let _t = mmd_processor.move_to_relative(100).await;
-    let _t = mmd_processor.move_to_relative(-100).await;
-    let _t = mmd_processor.move_to_relative(100).await;
-    let _t = mmd_processor.move_to(100).await;
-    let _t = mmd_processor.move_to(500).await;
+    let _t = linear_stepper.move_to_relative(100).await;
+    let _t = linear_stepper.move_to_relative(100).await;
+    let _t = linear_stepper.move_to_relative(-100).await;
+    let _t = linear_stepper.move_to_relative(100).await;
+    let _t = linear_stepper.move_to(100).await;
+    let _t = linear_stepper.move_to(500).await;
 }

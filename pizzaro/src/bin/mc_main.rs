@@ -193,12 +193,20 @@ async fn process_messages(mut uart: UartType) {
         info!("Processed result: {}", msg);
 
         match (|| -> Result<(), AtomiError> {
-            let binding = postcard::to_allocvec(&wrap_result_into_proto(msg)).map_err(|_| AtomiError::DataConvertError)?;
-            info!("Data to send to PC: {}", Debug2Format(&binding));
+            let wrapped_msg = wrap_result_into_proto(msg);
+            let binding = postcard::to_allocvec(&wrapped_msg).map_err(|_| AtomiError::DataConvertError)?;
+            info!("Data to send to PC: {}, wrapped_msg: {}", Debug2Format(&binding), wrapped_msg);
             let mut wr_ptr = binding.as_slice();
             while !wr_ptr.is_empty() {
                 match serial.write(wr_ptr) {
-                    Ok(len) => wr_ptr = &wr_ptr[len..],
+                    Ok(len) => {
+                        info!("process_mc_message() 5.4, len = {}", len);
+                        if len > wr_ptr.len() {
+                            error!("process_messages() 5.5: overflow happens");
+                            return Err(AtomiError::UsbCtrlWriteError);
+                        }
+                        wr_ptr = &wr_ptr[len..]
+                    },
                     Err(_) => Err(AtomiError::UsbCtrlWriteError)?,
                 };
             }

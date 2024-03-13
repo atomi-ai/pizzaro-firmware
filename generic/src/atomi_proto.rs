@@ -28,14 +28,28 @@ pub enum MmdCommand {
     MmdError,
     MmdPing,
     MmdPong,
+    MmdAck,
 
-    MmdHome,
-    MmdMoveTo { position : i32 },
-    MmdMoveToRelative { steps: i32 },
+    MmdLinearStepper(LinearStepperCommand),
 
-    MmdBusy,
-    MmdOnMove,
+    // TODO(zephyr): Remove enums below.
     MmdInHoming,
+    MmdOnMove,
+    MmdBusy,
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+pub enum LinearStepperCommand {
+    Home,
+    MoveTo { position : i32 },
+    MoveToRelative { steps: i32 },
+    DummyWait { seconds: i32 },
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+pub enum LinearStepperResponse {
+    Error(AtomiError),
+    Done,
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]

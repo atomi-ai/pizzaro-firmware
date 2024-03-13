@@ -28,8 +28,9 @@ use rp_pico::pac::interrupt;
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::AtomiProto;
+use generic::atomi_proto::{AtomiProto, MmdCommand};
 use generic::atomi_proto::MmdCommand::MmdBusy;
+use generic::mmd_status::MmdStatus;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_status::{get_status, set_status, FutureStatus, FutureType};
@@ -39,9 +40,10 @@ use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
 use pizzaro::mmd::linear_stepper::LinearStepper;
-use pizzaro::mmd::mmd_processor::{MmdProcessor, MmdUartType};
+use pizzaro::mmd::mmd_dispatcher::MmdUartType;
 use pizzaro::mmd::stepper::Stepper;
 use pizzaro::{common::async_initialization, mmd_sys_rx, mmd_sys_tx};
+use pizzaro::mmd::linear_stepper_processor::{linear_stepper_input_mq, linear_stepper_output_mq, LinearStepperProcessor, process_mmd_linear_stepper_message};
 
 static mut UART: Option<MmdUartType> = None;
 
@@ -93,6 +95,7 @@ fn main() -> ! {
         NVIC::unmask(mmd_uart_irq());
     }
 
+    info!("hello world");
     {
         let enable_pin = mmd_stepper42_nEN0!(pins).into_push_pull_output();
         let dir_pin = mmd_stepper42_dir0!(pins).into_push_pull_output();
@@ -100,12 +103,13 @@ fn main() -> ! {
         let left_limit_pin = mmd_limit0!(pins).into_pull_down_input();
         let right_limit_pin = mmd_limit1!(pins).into_pull_down_input();
         let delay_creator = DelayCreator::new();
-        let processor = MmdProcessor::new(LinearStepper::new(
+        let processor = LinearStepperProcessor::new(LinearStepper::new(
             Stepper::new(enable_pin, dir_pin, step_pin, delay_creator),
             left_limit_pin,
             right_limit_pin,
         ));
-        spawn_task(mmd_process_messages(processor));
+        spawn_task(mmd_process_messages());
+        spawn_task(process_mmd_linear_stepper_message(processor));
     }
 
     start_global_executor();
@@ -117,27 +121,44 @@ fn main() -> ! {
 }
 
 // MMD main future
-async fn mmd_process_messages(mut mmd_processor: MmdProcessor) {
-    set_status(FutureType::Mmd, FutureStatus::MmdAvailable);
+async fn mmd_process_messages() {
+    info!("[MMD] mmd_process_messages 0");
     let uart = unsafe { UART.as_mut().unwrap() };
     let mut uart_comm = UartComm::new(uart, UART_EXPECTED_RESPONSE_LENGTH);
+    let mut mmd_available = true;
     loop {
         if let Some(message) = get_mq().dequeue() {
-            info!(
-                "[MMD] process_messages() 1.1 | dequeued message: {}",
-                message
-            );
+            info!("[MMD] process_messages() 1.1 | dequeued message: {}", message);
+
             // 处理消息
             let res = match message {
-                AtomiProto::Mmd(msg) => {
-                    mmd_processor.process_mmd_message(&mut uart_comm, msg).await
+                AtomiProto::Mmd(MmdCommand::MmdPing) => {
+                    uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdPong))
+                }
+                AtomiProto::Mmd(MmdCommand::MmdLinearStepper(cmd)) => {
+                    if mmd_available {
+                        let res = uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck));
+                        linear_stepper_input_mq().enqueue(cmd);
+                        mmd_available = false;
+                        res
+                    } else {
+                        let _ = uart_comm.send(AtomiProto::AtomiError(
+                            AtomiError::MmdUnavailable(MmdStatus::Unavailable)));
+                        Err(AtomiError::MmdUnavailable(MmdStatus::Unavailable))
+                    }
                 }
                 _ => Err(AtomiError::IgnoredMsg), // Ignore unrelated commands
             };
+
             if let Err(err) = res {
                 info!("[MMD] message processing error: {}", err);
                 continue;
             }
+        }
+
+        if let Some(linear_stepper_resp) = linear_stepper_output_mq().dequeue() {
+            info!("[MMD] get response from linear stepper: {}", linear_stepper_resp);
+            mmd_available = true;
         }
 
         // 延迟一段时间

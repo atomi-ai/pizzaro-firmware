@@ -20,6 +20,7 @@ pub enum AtomiError {
     MmdUnavailable(MmdStatus),
     MmdStepperHomingError,
     MmdStepperNeedToHome,
+    MmdLinearStepperUnrelated,
     MmdMoveWithZeroSpeed,
     MmdPinError,
     MmdNotAcceptedPosition,

@@ -108,11 +108,11 @@ fn main() -> rustyline::Result<()> {
                 let data = postcard::to_vec::<AtomiProto, 8>(&msg).unwrap();
                 println!("Line: {}, protocol: {:?}, data = {:?}", line, msg, data);
                 port.write(&data).expect(&format!("errors in sending request '{:?}'", data));
-                let mut buf: Vec<u8> = vec![0; 8];
+                let mut buf: Vec<u8> = vec![0u8; 64];
                 let len = port.read(buf.as_mut_slice()).expect("errors in recving response");
                 let resp = postcard::from_bytes::<AtomiProto>(&buf[..len]);
                 println!("Got response: ({len}) {:?}, msg: {:?}", &buf[..len], resp);
-                port.clear(ClearBuffer::All).expect("Errors in clearing buffer for serial port");
+                // port.clear(ClearBuffer::All).expect("Errors in clearing buffer for serial port");
             }
             Err(ReadlineError::Interrupted) => {
                 println!("Interrupted");
