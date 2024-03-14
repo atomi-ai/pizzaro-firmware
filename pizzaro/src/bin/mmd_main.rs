@@ -8,42 +8,45 @@ use alloc::vec;
 
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
-use defmt::{Debug2Format, error, info};
+use defmt::{error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
-use rp2040_hal::{
-    clocks::{Clock, init_clocks_and_plls},
-    pac,
-    sio::Sio,
-    Timer,
-    uart::UartPeripheral,
-    watchdog::Watchdog,
-};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
-use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
+use rp2040_hal::{
+    clocks::{init_clocks_and_plls, Clock},
+    pac,
+    sio::Sio,
+    uart::UartPeripheral,
+    watchdog::Watchdog,
+    Timer,
+};
 use rp_pico::pac::interrupt;
+use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{AtomiProto, MmdCommand};
 use generic::atomi_proto::MmdCommand::MmdBusy;
+use generic::atomi_proto::{AtomiProto, MmdCommand};
 use generic::mmd_status::MmdStatus;
-use pizzaro::{
-    mmd_limit0, mmd_limit1, mmd_stepper42_dir0, mmd_stepper42_nEN0, mmd_stepper42_step0,
-};
-use pizzaro::{common::async_initialization, mmd_sys_rx, mmd_sys_tx};
 use pizzaro::bsp::mmd_uart_irq;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_status::{FutureStatus, FutureType, get_status};
-use pizzaro::common::global_timer::{Delay, DelayCreator, init_global_timer, now};
+use pizzaro::common::global_status::{get_status, FutureStatus, FutureType};
+use pizzaro::common::global_timer::{init_global_timer, now, Delay, DelayCreator};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
 use pizzaro::mmd::linear_stepper::LinearStepper;
-use pizzaro::mmd::linear_stepper_processor::{linear_stepper_input_mq, linear_stepper_output_mq, LinearStepperProcessor, process_mmd_linear_stepper_message};
+use pizzaro::mmd::linear_stepper_processor::{
+    linear_stepper_input_mq, linear_stepper_output_mq, process_mmd_linear_stepper_message,
+    LinearStepperProcessor,
+};
 use pizzaro::mmd::mmd_dispatcher::MmdUartType;
 use pizzaro::mmd::stepper::Stepper;
+use pizzaro::{common::async_initialization, mmd_sys_rx, mmd_sys_tx};
+use pizzaro::{
+    mmd_limit0, mmd_limit1, mmd_stepper42_dir0, mmd_stepper42_nEN0, mmd_stepper42_step0, mmd_uart,
+};
 
 static mut UART: Option<MmdUartType> = None;
 
@@ -82,7 +85,7 @@ fn main() -> ! {
         mmd_sys_tx!(pins).into_function::<FunctionUart>(), // TX, not used in this program
         mmd_sys_rx!(pins).into_function::<FunctionUart>(), // RX
     );
-    let mut uart = UartPeripheral::new(pac.UART1, uart_pins, &mut pac.RESETS)
+    let mut uart = UartPeripheral::new(mmd_uart!(pac), uart_pins, &mut pac.RESETS)
         .enable(
             UartConfig::new(115200.Hz(), DataBits::Eight, None, StopBits::One),
             clocks.peripheral_clock.freq(),
@@ -128,7 +131,10 @@ async fn mmd_process_messages() {
     let mut mmd_available = true;
     loop {
         if let Some(message) = get_mq().dequeue() {
-            info!("[MMD] process_messages() 1.1 | dequeued message: {}", message);
+            info!(
+                "[MMD] process_messages() 1.1 | dequeued message: {}",
+                message
+            );
 
             // 处理消息
             let res = match message {
@@ -142,8 +148,9 @@ async fn mmd_process_messages() {
                         mmd_available = false;
                         res
                     } else {
-                        let _ = uart_comm.send(AtomiProto::AtomiError(
-                            AtomiError::MmdUnavailable(MmdStatus::Unavailable)));
+                        let _ = uart_comm.send(AtomiProto::AtomiError(AtomiError::MmdUnavailable(
+                            MmdStatus::Unavailable,
+                        )));
                         Err(AtomiError::MmdUnavailable(MmdStatus::Unavailable))
                     }
                 }
@@ -157,7 +164,10 @@ async fn mmd_process_messages() {
         }
 
         if let Some(linear_stepper_resp) = linear_stepper_output_mq().dequeue() {
-            info!("[MMD] get response from linear stepper: {}", linear_stepper_resp);
+            info!(
+                "[MMD] get response from linear stepper: {}",
+                linear_stepper_resp
+            );
             mmd_available = true;
         }
 

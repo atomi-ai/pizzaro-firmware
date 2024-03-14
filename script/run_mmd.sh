@@ -1,1 +1,1 @@
-tarcargo run --package multi_motor_driver --example controller_async --config 'target."cfg(all(target_arch = \"arm\", target_os = \"none\"))".runner="probe-rs run --probe 2e8a:000c:454741505A8D477A --chip RP2040 --protocol swd --speed 1000"'
+cargo run --bin mmd_main --release --config 'target."cfg(all(target_arch = \"arm\", target_os = \"none\"))".runner="probe-rs run --probe 2e8a:000c:454741505A8D477A --chip RP2040 --protocol swd --speed 1000"'
