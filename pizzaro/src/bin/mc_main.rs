@@ -8,8 +8,8 @@ use alloc::boxed::Box;
 use cortex_m::peripheral::NVIC;
 use defmt::{error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
-use pizzaro::bsp::{mc_ui_uart_irq, McUart, McUiUart};
-use pizzaro::{mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
+use pizzaro::bsp::{mc_ui_uart_irq, McUartDirPinType, McUartType, McUiUartType};
+use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
@@ -28,7 +28,7 @@ use usb_device::UsbError;
 use usbd_serial::SerialPort;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{AtomiProto, McCommand, wrap_result_into_proto};
+use generic::atomi_proto::{wrap_result_into_proto, AtomiProto, McCommand};
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, now, Delay};
@@ -89,7 +89,9 @@ fn main() -> ! {
                 clocks.peripheral_clock.freq(),
             )
             .unwrap();
-        spawn_task(process_messages(uart));
+        let uart_dir = mc_485_dir!(pins).reconfigure();
+
+        spawn_task(process_messages(uart, Some(uart_dir)));
     }
 
     {
@@ -169,12 +171,13 @@ fn main() -> ! {
     }
 }
 
-type UartType = McUart;
-type UiUartType = McUiUart;
+type UartType = McUartType;
+type UartDirType = McUartDirPinType;
+type UiUartType = McUiUartType;
 
-async fn process_messages(mut uart: UartType) {
+async fn process_messages(mut uart: UartType, mut uart_dir: Option<UartDirType>) {
     // TODO(zephyr): Do we need to keep connection alive?
-    let mut uart_comm = UartComm::new(&mut uart, UART_EXPECTED_RESPONSE_LENGTH);
+    let mut uart_comm = UartComm::new(&mut uart, &mut uart_dir, UART_EXPECTED_RESPONSE_LENGTH);
     let serial = unsafe { USB_SERIAL.as_mut().unwrap() };
 
     loop {
@@ -194,8 +197,13 @@ async fn process_messages(mut uart: UartType) {
 
         match (|| -> Result<(), AtomiError> {
             let wrapped_msg = wrap_result_into_proto(msg);
-            let binding = postcard::to_allocvec(&wrapped_msg).map_err(|_| AtomiError::DataConvertError)?;
-            info!("Data to send to PC: {}, wrapped_msg: {}", Debug2Format(&binding), wrapped_msg);
+            let binding =
+                postcard::to_allocvec(&wrapped_msg).map_err(|_| AtomiError::DataConvertError)?;
+            info!(
+                "Data to send to PC: {}, wrapped_msg: {}",
+                Debug2Format(&binding),
+                wrapped_msg
+            );
             let mut wr_ptr = binding.as_slice();
             while !wr_ptr.is_empty() {
                 match serial.write(wr_ptr) {
@@ -206,7 +214,7 @@ async fn process_messages(mut uart: UartType) {
                             return Err(AtomiError::UsbCtrlWriteError);
                         }
                         wr_ptr = &wr_ptr[len..]
-                    },
+                    }
                     Err(_) => Err(AtomiError::UsbCtrlWriteError)?,
                 };
             }
@@ -223,7 +231,7 @@ async fn process_messages(mut uart: UartType) {
 }
 
 async fn forward(
-    uart_comm: &mut UartComm<'_, UartType>,
+    uart_comm: &mut UartComm<'_, UartDirType, UartType>,
     msg: AtomiProto,
 ) -> Result<AtomiProto, AtomiError> {
     info!("Forward msg: {}", msg);

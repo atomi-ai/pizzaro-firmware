@@ -30,24 +30,24 @@ impl<OP1: OutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay> Stepper<OP1,
     pub fn enable(&mut self) -> Result<(), AtomiError> {
         self.enable_pin
             .set_low()
-            .map_err(|_| AtomiError::MmdPinError)
+            .map_err(|_| AtomiError::GpioPinError)
     }
 
     pub fn disable(&mut self) -> Result<(), AtomiError> {
         self.enable_pin
             .set_high()
-            .map_err(|_| AtomiError::MmdPinError)
+            .map_err(|_| AtomiError::GpioPinError)
     }
 
     pub fn set_direction(&mut self, forward: bool) -> Result<(), AtomiError> {
         if forward {
             self.dir_pin
                 .set_high()
-                .map_err(|_| AtomiError::MmdPinError)?;
+                .map_err(|_| AtomiError::GpioPinError)?;
         } else {
             self.dir_pin
                 .set_low()
-                .map_err(|_| AtomiError::MmdPinError)?;
+                .map_err(|_| AtomiError::GpioPinError)?;
         }
         Ok(())
     }
@@ -65,11 +65,11 @@ impl<OP1: OutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay> Stepper<OP1,
         }
         self.step_pin
             .set_high()
-            .map_err(|_| AtomiError::MmdPinError)?;
+            .map_err(|_| AtomiError::GpioPinError)?;
         self.async_delay.delay(self.wait_period.micros()).await;
         self.step_pin
             .set_low()
-            .map_err(|_| AtomiError::MmdPinError)?;
+            .map_err(|_| AtomiError::GpioPinError)?;
         self.async_delay.delay(self.wait_period.micros()).await;
         Ok(())
     }

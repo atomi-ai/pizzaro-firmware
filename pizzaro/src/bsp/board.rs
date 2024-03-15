@@ -1,11 +1,20 @@
 // BSP version: 1.5.4
 use rp2040_hal::{
     gpio::{
-        bank0::{Gpio12, Gpio13, Gpio4, Gpio5, Gpio8, Gpio9},
-        FunctionUart, Pin, PullDown,
+        bank0::{
+            Gpio11, Gpio12, Gpio13, Gpio17, Gpio18, Gpio19, Gpio21, Gpio22, Gpio23, Gpio24, Gpio25,
+            Gpio26, Gpio27, Gpio4, Gpio5, Gpio8, Gpio9,
+        },
+        FunctionSio, FunctionSioOutput, FunctionUart, Pin, PullDown, PullUp, SioInput, SioOutput,
     },
     pac::{Interrupt, UART0, UART1},
+    pwm::{Pwm0, Pwm4, Pwm5},
     uart::{Enabled, UartPeripheral},
+};
+
+use crate::{
+    common::global_timer::DelayCreator,
+    mmd::{linear_stepper::LinearStepper, pwm_motor::PwmMotor, stepper::Stepper},
 };
 
 macro_rules! define_pins {
@@ -25,25 +34,75 @@ pub type HpdUartPins = (
     Pin<Gpio8, FunctionUart, PullDown>,
     Pin<Gpio9, FunctionUart, PullDown>,
 );
-pub type HpdUart = UartPeripheral<Enabled, UART1, HpdUartPins>;
+pub type HpdUartType = UartPeripheral<Enabled, UART1, HpdUartPins>;
+pub type HpdUartDirPinType = Pin<Gpio12, FunctionSioOutput, PullUp>;
 
 pub type MmdUartPins = (
     Pin<Gpio4, FunctionUart, PullDown>,
     Pin<Gpio5, FunctionUart, PullDown>,
 );
-pub type MmdUart = UartPeripheral<Enabled, UART1, MmdUartPins>;
+pub type MmdUartType = UartPeripheral<Enabled, UART1, MmdUartPins>;
+pub type MmdUartDirPinType = Pin<Gpio21, FunctionSioOutput, PullUp>;
 
 pub type McUartPins = (
     Pin<Gpio12, FunctionUart, PullDown>,
     Pin<Gpio13, FunctionUart, PullDown>,
 );
-pub type McUart = UartPeripheral<Enabled, UART0, McUartPins>;
+pub type McUartType = UartPeripheral<Enabled, UART0, McUartPins>;
+pub type McUartDirPinType = Pin<Gpio11, FunctionSioOutput, PullUp>;
 
 pub type McUiScreenPins = (
     Pin<Gpio8, FunctionUart, PullDown>,
     Pin<Gpio9, FunctionUart, PullDown>,
 );
-pub type McUiUart = UartPeripheral<Enabled, UART1, McUiScreenPins>;
+pub type McUiUartType = UartPeripheral<Enabled, UART1, McUiScreenPins>;
+
+// 42 motor0(and check pins defined in macros)
+pub type MmdStepper42_0EnablePinType = Pin<Gpio22, FunctionSio<SioOutput>, PullDown>;
+pub type MmdStepper42_0DirPinType = Pin<Gpio18, FunctionSio<SioOutput>, PullDown>;
+pub type MmdStepper42_0StepPinType = Pin<Gpio11, FunctionSio<SioOutput>, PullDown>;
+pub type ConveyorBeltRotationMotorType = Stepper<
+    MmdStepper42_0EnablePinType,
+    MmdStepper42_0DirPinType,
+    MmdStepper42_0StepPinType,
+    DelayCreator,
+>;
+
+// 42 motor1(and check pins defined in macros)
+pub type MmdStepper42_1EnablePinType = Pin<Gpio25, FunctionSio<SioOutput>, PullDown>;
+pub type MmdStepper42_1DirPinType = Pin<Gpio23, FunctionSio<SioOutput>, PullDown>;
+pub type MmdStepper42_1StepPinType = Pin<Gpio19, FunctionSio<SioOutput>, PullDown>;
+pub type MmdLimitSwitch0 = Pin<Gpio26, FunctionSio<SioInput>, PullDown>;
+pub type MmdLimitSwitch1 = Pin<Gpio27, FunctionSio<SioInput>, PullDown>;
+pub type ConveyorBeltLinearStepperType = Stepper<
+    MmdStepper42_1EnablePinType,
+    MmdStepper42_1DirPinType,
+    MmdStepper42_1StepPinType,
+    DelayCreator,
+>;
+pub type ConveyorBeltLinearBullType = LinearStepper<
+    MmdLimitSwitch0,
+    MmdLimitSwitch1,
+    MmdStepper42_1EnablePinType,
+    MmdStepper42_1DirPinType,
+    MmdStepper42_1StepPinType,
+    DelayCreator,
+>;
+
+// 57 motor(and check pins defined in macros)
+pub type MmdStepper57EnablePinType = Pin<Gpio24, FunctionSio<SioOutput>, PullDown>;
+pub type MmdStepper57DirPinType = Pin<Gpio17, FunctionSio<SioOutput>, PullDown>;
+pub type MmdStepper57StepPinType = Pin<Gpio13, FunctionSio<SioOutput>, PullDown>;
+pub type PresserRotationMotorType = Stepper<
+    MmdStepper57EnablePinType,
+    MmdStepper57DirPinType,
+    MmdStepper57StepPinType,
+    DelayCreator,
+>;
+
+pub type MmdDisperser0MotorType = PwmMotor<Pwm4>;
+pub type MmdDisperser1MotorType = PwmMotor<Pwm5>;
+pub type MmdPeristalicPumpMotorType = PwmMotor<Pwm0>;
 
 define_pins! {
     mc_uart, UART0,
@@ -130,7 +189,7 @@ define_pins! {
     mmd_dir_bl1, gpio7,
     mmd_spd_ctrl_bl1, gpio10,
     // 42 motor0
-    mmd_stepper42_step0, gpio11,
+    mmd_stepper42_step0, gpio11, // PWM5
     mmd_stepper42_dir0, gpio18,
     mmd_stepper42_nEN0, gpio22,
     mmd_stepper42_diag0, gpio28,
@@ -219,6 +278,8 @@ define_pins! {
     mmd_bl2_sense_channel, channel_a,
     mmd_bl1_ctl_channel, channel_b,
     mmd_bl2_ctl_channel, channel_a,
+    mmd_br_channel_a, channel_a,
+    mmd_br_channel_b, channel_b,
 
     hpd_motor_pwm_a_channel, channel_a,
     hpd_motor_pwm_b_channel, channel_b,

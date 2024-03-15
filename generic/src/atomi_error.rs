@@ -1,7 +1,9 @@
-use serde::{Deserialize, Serialize};
 use crate::mmd_status::MmdStatus;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, defmt::Format, Serialize, Deserialize)]
+#[derive(
+    Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, defmt::Format, Serialize, Deserialize,
+)]
 pub enum AtomiError {
     IgnoredMsg,
     UnaccepableCommand,
@@ -9,21 +11,26 @@ pub enum AtomiError {
     UartReadError,
     UartReadTimeout,
     UartWriteError,
+    UartFlushError,
     UartInvalidData,
     UartInvalidInput,
+    UartSetDirError,
 
     UsbCtrlInvalidInput,
     UsbCtrlWriteError,
     UnsupportMcCommand,
     DataConvertError,
 
+    GpioPinError,
+
     MmdUnavailable(MmdStatus),
     MmdStepperHomingError,
     MmdStepperNeedToHome,
     MmdLinearStepperUnrelated,
     MmdMoveWithZeroSpeed,
-    MmdPinError,
     MmdNotAcceptedPosition,
+    MmdUnknownDispenserIdx,
+    MmdCannotStart,
 
     HpdUnavailable,
     HpdNotHomed,
@@ -32,5 +39,4 @@ pub enum AtomiError {
 
     // Used by AtomiProto parsing
     NotIntStr,
-
 }

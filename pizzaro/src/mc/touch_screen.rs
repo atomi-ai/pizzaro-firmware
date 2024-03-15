@@ -67,7 +67,7 @@ impl TouchScreenEnum {
     }
     pub fn new_text(screen_id: u16, object_id: u16, content: &str) -> Self {
         let mut content_bytes = [0u8; MAX_TEXT_LENGTH];
-        content_bytes.copy_from_slice(&content.as_bytes());
+        content_bytes.copy_from_slice(content.as_bytes());
         Self::Text {
             screen_id,
             object_id,
