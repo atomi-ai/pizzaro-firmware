@@ -64,7 +64,7 @@ impl LinearScale {
         self.home_position = Some(self.position.load(Ordering::Relaxed));
     }
 
-    pub(crate) fn get_rel_position(&self) -> Result<i32, AtomiError> {
+    pub fn get_rel_position(&self) -> Result<i32, AtomiError> {
         Ok(self.position.load(Ordering::Relaxed))
     }
 
