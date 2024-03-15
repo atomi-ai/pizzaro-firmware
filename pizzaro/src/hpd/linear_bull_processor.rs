@@ -90,17 +90,12 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
         self.pwm_motor.enable()?;
 
         let dir = LinearBullDirection::Bottom;
-        info!(
-            "xfguo: Home to one direction, dir: {}, from: {}, to: {}",
-            dir,
-            self.linear_scale.get_rel_position(),
-            dir.get_most_position()
-        );
+        info!("xfguo: Home to one direction, dir: {}, from: {}, to: {}",
+            dir, self.linear_scale.get_rel_position(), dir.get_most_position());
         self.home_on_direction(dir).await?;
-        debug!("xfguo: After homed, linear_scale = {}", Debug2Format(self.linear_scale));
+        info!("xfguo: After homed, linear_scale = {}", Debug2Format(self.linear_scale));
         self.linear_scale.set_home();
         info!("xfguo: After homed 2, linear_scale = {}", Debug2Format(self.linear_scale));
-
         self.linear_scale.get_abs_position()
     }
 
