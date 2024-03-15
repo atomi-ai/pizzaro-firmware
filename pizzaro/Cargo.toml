@@ -29,6 +29,9 @@ smart-leds-trait = "0.2.1"
 ws2812-pio = "0.7.0"
 bitfield = "0.14.0"
 
+pio-proc = "0.2"
+pio = "0.2"
+
 [dev-dependencies]
 
 [features]
