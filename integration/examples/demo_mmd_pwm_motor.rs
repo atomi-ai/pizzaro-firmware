@@ -165,11 +165,11 @@ pub async fn process_pwm_motor() {
 
         Delay::new(1.secs()).await;
 
-        // brush_motor_processor.process(PeristalticPumpCommand::SetRotation { speed: 0 });
-        // brushless_motor_processor.process(DispenserCommand::SetRotation { idx: 0, speed: 0 });
-        // brushless_motor_processor.process(DispenserCommand::SetRotation { idx: 1, speed: 0 });
+        brush_motor_processor.process(PeristalticPumpCommand::SetRotation { speed: 0 });
+        brushless_motor_processor.process(DispenserCommand::SetRotation { idx: 0, speed: 0 });
+        brushless_motor_processor.process(DispenserCommand::SetRotation { idx: 1, speed: 0 });
 
-        // Delay::new(1.secs()).await;
+        Delay::new(1.secs()).await;
 
         brush_motor_processor.process(PeristalticPumpCommand::SetRotation { speed: -500 });
         brushless_motor_processor

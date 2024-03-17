@@ -81,12 +81,19 @@ pub type ConveyorBeltLinearBullType = LinearStepper<
 
 // 57 motor(and check pins defined in macros)
 #[allow(non_upper_case_globals)]
-pub const MmdMotor57StepChannel: PwmChannels = PwmChannels::channel_a;
+pub const MmdMotor57StepChannel: PwmChannels = PwmChannels::channel_b;
 pub type MmdPresserMotorType = PwmStepper<Pwm6>;
 
 pub type MmdDisperser0MotorType = BrushlessMotor<Pwm4>;
 pub type MmdDisperser1MotorType = BrushlessMotor<Pwm5>;
 pub type MmdPeristalicPumpMotorType = BrushMotor<Pwm0>;
+
+/// 反相电机, 42步进0
+pub const MMD_STEPPER42_0_REVERT_DIR: bool = false;
+/// 反相电机, 42步进1
+pub const MMD_STEPPER42_1_REVERT_DIR: bool = false;
+/// 反相电机, 57步进
+pub const MMD_STEPPER57_REVERT_DIR: bool = false;
 
 define_pins! {
     mc_uart, UART0,
@@ -110,49 +117,6 @@ pub fn mc_ui_uart_irq() -> Interrupt {
 define_pins! {
     // ws2812b led on mc/mmd/hpd
     smart_led, gpio16,
-
-    // // V1.5.4
-    // // MMD: MultiMotorDriver
-    // // brush motor
-    // mmd_br_pwm_a, gpio0,
-    // mmd_br_pwm_b, gpio1,
-    // mmd_br_nEN, gpio3,
-    // // 485 interface
-    // mmd_sys_tx, gpio4,
-    // mmd_sys_rx, gpio5,
-    // mmd_485_dir, gpio8,
-    // // brushless motor0
-    // mmd_spd_sense_bl0, gpio2,
-    // mmd_dir_bl0, gpio20,
-    // mmd_spd_ctrl_bl0, gpio9,
-    // // brushless motor1
-    // mmd_spd_sense_bl1, gpio6,
-    // mmd_dir_bl1, gpio7,
-    // mmd_spd_ctrl_bl1, gpio10,
-    // // 42 motor0
-    // mmd_stepper42_step0, gpio11,
-    // mmd_stepper42_dir0, gpio18,
-    // mmd_stepper42_nEN0, gpio22,
-    // mmd_stepper42_diag0, gpio28,
-    // // 42 motor1
-    // mmd_stepper42_step1, gpio21,
-    // mmd_stepper42_dir1, gpio23,
-    // mmd_stepper42_nEN1, gpio25,
-    // mmd_stepper42_diag1, gpio29,
-    // // 57 motor
-    // mmd_stepper57_nEN, gpio24,
-    // mmd_stepper57_step, gpio14,
-    // mmd_stepper57_dir, gpio17,
-    // // tmc related interface
-    // mmd_tmc_uart_tx, gpio12,
-    // mmd_tmc_uart_rx, gpio13,
-    // mmd_tmc_5160_addr, gpio29,
-    // // proximity sensors
-    // mmd_proximity_sensor0, gpio15,
-    // mmd_proximity_sensor1, gpio19,
-    // // limit switchs
-    // mmd_limit0, gpio26,
-    // mmd_limit1, gpio27,
 
     // rollback to HW version V1.5.1
     // MMD: MultiMotorDriver
@@ -242,8 +206,11 @@ define_pins! {
     demo_ols_b, gpio11
 }
 
-define_none! {
-    mmd_stepper42_nEN1
+#[macro_export]
+macro_rules! mmd_stepper42_nEN1 {
+    ($pins:expr) => {
+        None
+    };
 }
 
 // define pwm slices

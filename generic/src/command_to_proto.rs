@@ -48,7 +48,19 @@ where
     match tokens.next() {
         Some("ping") => AtomiProto::Mmd(MmdCommand::MmdPing),
         Some("pong") => AtomiProto::Mmd(MmdCommand::MmdPong),
+        Some("trigger") => AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
+            LinearStepperCommand::GetTriggerStatus,
+        )),
         Some("home") => AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::Home)),
+        Some("force_move") => {
+            if let Ok(steps) = parse_int(tokens.next()) {
+                AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
+                    LinearStepperCommand::MoveToRelativeForce { steps },
+                ))
+            } else {
+                AtomiProto::Unknown
+            }
+        }
         Some("move_rel") => {
             if let Ok(steps) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
@@ -70,7 +82,7 @@ where
 
         // belt rotating
         Some("belt_on") => AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-            RotationStepperCommand::SetConveyorBeltRotation { speed: 1000 },
+            RotationStepperCommand::SetConveyorBeltRotation { speed: 290 },
         )),
         Some("belt_off") => AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
             RotationStepperCommand::SetConveyorBeltRotation { speed: 0 },
@@ -106,13 +118,13 @@ where
         Some("dispenser0_on") => {
             AtomiProto::Mmd(MmdCommand::MmdDisperser(DispenserCommand::SetRotation {
                 idx: 0,
-                speed: 1000,
+                speed: -1000,
             }))
         }
         Some("dispenser1_on") => {
             AtomiProto::Mmd(MmdCommand::MmdDisperser(DispenserCommand::SetRotation {
                 idx: 1,
-                speed: 1000,
+                speed: -1000,
             }))
         }
         Some("dispenser0_off") => {

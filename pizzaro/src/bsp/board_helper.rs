@@ -12,9 +12,3 @@ macro_rules! define_pins {
         )*
     };
 }
-
-// #[cfg(feature = "bsp_early_release")]
-// pub use super::board_early_release::*;
-
-// #[cfg(feature = "bsp_v1_5_4")]
-// pub use super::board_v1_5_4::*;

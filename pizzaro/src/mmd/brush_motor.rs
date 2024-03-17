@@ -7,6 +7,7 @@ use rp2040_hal::pwm::{FreeRunning, Slice, SliceId};
 
 pub const MMD_PWM_TOP: u16 = 5000;
 
+#[allow(non_snake_case)]
 pub struct BrushMotor<S: SliceId> {
     enable_pin: Option<Pin<DynPinId, FunctionSio<SioOutput>, PullDown>>,
     pwm: Slice<S, FreeRunning>,
@@ -25,7 +26,7 @@ impl<S: SliceId> BrushMotor<S> {
         pwm: Slice<S, FreeRunning>,
         thres_speed: (f32, f32, f32, f32),
         revert_dir: bool,
-        is_nEN: bool,
+        #[allow(non_snake_case)] is_nEN: bool,
     ) -> Self {
         Self {
             enable_pin,
@@ -43,10 +44,22 @@ impl<S: SliceId> BrushMotor<S> {
             } else {
                 en.set_high()
             })
-            .or(Err(AtomiError::MmdCannotStart))
-        } else {
-            Ok(())
+            .or(Err(AtomiError::MmdCannotStart));
         }
+        self.pwm.enable();
+
+        Ok(())
+    }
+
+    pub(crate) fn stop(&mut self) {
+        if let Some(ref mut en) = self.enable_pin {
+            if self.is_nEN {
+                en.set_high().unwrap();
+            } else {
+                en.set_low().unwrap();
+            }
+        }
+        self.pwm.disable()
     }
 
     pub(crate) fn apply_speed(&mut self, speed: f32) {
@@ -63,10 +76,13 @@ impl<S: SliceId> BrushMotor<S> {
         };
 
         let spd_mapped = if spd > 0.0 {
+            self.start_pwm_motor().unwrap();
             spd * (s4 - s3) + s3
         } else if spd < 0.0 {
+            self.start_pwm_motor().unwrap();
             (spd + 1.0) * (s2 - s1) + s1
         } else {
+            self.stop();
             0.5
         };
 

@@ -4,7 +4,8 @@ use rp2040_hal::{
         bank0::{
             Gpio11, Gpio12, Gpio13, Gpio18, Gpio22, Gpio26, Gpio27, Gpio4, Gpio5, Gpio8, Gpio9,
         },
-        FunctionSio, FunctionSioOutput, FunctionUart, Pin, PullDown, PullUp, SioInput, SioOutput,
+        DynPinId, FunctionSio, FunctionSioOutput, FunctionUart, Pin, Pins, PullDown, PullUp,
+        SioInput, SioOutput,
     },
     pac::{Interrupt, UART0, UART1},
     pwm::{Pwm0, Pwm2, Pwm4, Pwm5, Pwm7},
@@ -87,6 +88,13 @@ pub type MmdDisperser0MotorType = BrushlessMotor<Pwm4>;
 pub type MmdDisperser1MotorType = BrushlessMotor<Pwm5>;
 pub type MmdPeristalicPumpMotorType = BrushMotor<Pwm0>;
 
+/// 反相电机, 42步进0
+pub const MMD_STEPPER42_0_REVERT_DIR: bool = false;
+/// 反相电机, 42步进1
+pub const MMD_STEPPER42_1_REVERT_DIR: bool = false;
+/// 反相电机, 57步进
+pub const MMD_STEPPER57_REVERT_DIR: bool = false;
+
 define_pins! {
     mc_uart, UART0,
     mc_ui_uart, UART1,
@@ -136,7 +144,7 @@ define_pins! {
     // 42 motor1
     mmd_stepper42_step1, gpio21,
     mmd_stepper42_dir1, gpio23,
-    mmd_stepper42_nEN1, gpio25,
+    // mmd_stepper42_nEN1, gpio25,
     mmd_stepper42_diag1, gpio29,
     // 57 motor
     mmd_stepper57_nEN, gpio24,
@@ -195,6 +203,13 @@ define_pins! {
     demo_pwm_en, gpio2,
     demo_ols_a, gpio10,
     demo_ols_b, gpio11
+}
+
+#[macro_export]
+macro_rules! mmd_stepper42_nEN1 {
+    ($pins:expr) => {
+        Some($pins.gpio25.reconfigure().into_dyn_pin())
+    };
 }
 
 // define pwm slices

@@ -49,7 +49,7 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
-    let mut dir_485 = pins.gpio8.into_push_pull_output();
+    let mut test_gpio_pin = pins.gpio13.into_push_pull_output();
 
     let mut my_led = MyLED::new(
         (5, 5, 5).into(),
@@ -64,11 +64,11 @@ fn main() -> ! {
 
     loop {
         my_led.ledon();
-        dir_485.set_high().unwrap();
+        test_gpio_pin.set_high().unwrap();
         delay.delay_ms(200);
 
         my_led.ledoff();
-        dir_485.set_low().unwrap();
+        test_gpio_pin.set_low().unwrap();
         delay.delay_ms(200);
     }
 }

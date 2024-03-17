@@ -9,7 +9,7 @@ use generic::atomi_error::AtomiError;
 use crate::common::global_timer::AsyncDelay;
 use crate::mmd::stepper::Stepper;
 
-const FAST_SPEED: u32 = 100; // steps / second
+const FAST_SPEED: u32 = 400; // steps / second
 const SLOW_SPEED: u32 = 50; // steps / second
 const SMALL_DISTANCE: i32 = 50; // steps
 
@@ -101,6 +101,10 @@ where
         self.move_to_relative_internal(FAST_SPEED, steps).await
     }
 
+    pub async fn move_to_relative_by_force(&mut self, steps: i32) -> Result<i32, AtomiError> {
+        self.move_to_relative_internal(FAST_SPEED, steps).await
+    }
+
     pub async fn move_to(&mut self, position: i32) -> Result<i32, AtomiError> {
         if position < 0 {
             return Err(AtomiError::MmdNotAcceptedPosition);
@@ -126,22 +130,31 @@ where
         Ok(delta)
     }
 
+    pub fn get_limit_status(&mut self) -> (bool, bool) {
+        let l = self.limit_left.is_high().unwrap_or(false);
+        let r = self.limit_right.is_high().unwrap_or(false);
+        (l, r)
+    }
+
     async fn move_to_relative_internal(
         &mut self,
         speed: u32,
         steps: i32,
     ) -> Result<i32, AtomiError> {
-        let forward = steps > 0;
+        let moving_right = steps > 0;
         self.stepper.set_speed(speed);
-        self.stepper.set_direction(forward)?;
+        self.stepper.set_direction(moving_right)?;
         for i in 0..steps.abs() {
             let l = self.limit_left.is_high().unwrap_or(false);
             let r = self.limit_right.is_high().unwrap_or(false);
-            // info!("[MMD: Debug] forward = {}, limit_left = {}, limit_right = {}", forward, l, r);
+            info!(
+                "[MMD: Debug] moving_right = {}, limit_left = {}, limit_right = {}",
+                moving_right, l, r
+            );
             // 在每一步之前检查限位开关
-            if forward && l {
+            if moving_right && r {
                 return self.update_position_and_return(i);
-            } else if !forward && r {
+            } else if !moving_right && l {
                 return self.update_position_and_return(-i);
             }
             self.stepper.step().await?;

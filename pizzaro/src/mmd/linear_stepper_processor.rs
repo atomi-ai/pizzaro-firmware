@@ -5,7 +5,7 @@ use crate::common::once::Once;
 use defmt::info;
 use fugit::ExtU64;
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{LinearStepperCommand, LinearStepperResponse};
+use generic::atomi_proto::{LinearStepperCommand, LinearStepperResponse, TriggerStatusResponse};
 
 static mut LINEAR_STEPPER_INPUT_MQ_ONCE: Once<MessageQueueWrapper<LinearStepperCommand>> =
     Once::new();
@@ -39,6 +39,13 @@ impl LinearStepperProcessor {
             LinearStepperCommand::MoveToRelative { steps } => {
                 self.linear_stepper.move_to_relative(steps).await
             }
+            LinearStepperCommand::MoveToRelativeForce { steps } => {
+                self.linear_stepper.move_to_relative_by_force(steps).await
+            }
+            LinearStepperCommand::GetTriggerStatus => {
+                // 在调用这个函数之前已经独立处理了，这里不应该进入这个分支，所以不需要做任何事情
+                Ok(0)
+            }
             LinearStepperCommand::DummyWait { seconds } => {
                 // Testing only.
                 let _ = Delay::new((seconds as u64).secs()).await;
@@ -58,6 +65,12 @@ pub async fn process_mmd_linear_stepper_message(mut processor: LinearStepperProc
                 "process_mmd_linear_stepper_message() 3.1: process msg {}",
                 msg
             );
+            if msg == LinearStepperCommand::GetTriggerStatus {
+                let (l, r) = processor.linear_stepper.get_limit_status();
+                mq_out.enqueue(LinearStepperResponse::TriggerStatus(
+                    TriggerStatusResponse { left: l, right: r },
+                ));
+            }
             let res = match processor.process_linear_stepper_request(msg).await {
                 Ok(_) => LinearStepperResponse::Done,
                 Err(err) => LinearStepperResponse::Error(err),

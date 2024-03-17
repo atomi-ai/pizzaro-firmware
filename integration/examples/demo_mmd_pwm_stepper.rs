@@ -82,17 +82,10 @@ fn main() -> ! {
 
     {
         // 使用第二个通道连接驱动传送带旋转的电机
-        let enable_pin_42 = Some(
-            mmd_stepper42_nEN1!(pins)
-                .into_push_pull_output()
-                .into_dyn_pin(),
-        );
-        // // rollback的板子没有独立的en
-        // let enable_pin_42 = None;
+        let enable_pin_42 = mmd_stepper42_nEN1!(pins);
         let dir_pin_42 = mmd_stepper42_dir1!(pins)
             .into_push_pull_output()
             .into_dyn_pin();
-        //let step_pin_42 = mmd_stepper42_step1!(pins).into_push_pull_output();
 
         let mut pwm_42 = mmd_motor42_pwm_slice1!(pwm_slices);
         mmd_motor42_step1_channel!(pwm_42).output_to(mmd_stepper42_step1!(pins));
@@ -146,13 +139,13 @@ fn main() -> ! {
 pub async fn process_rotation_stepper(mut processor: RotationStepperProcessor) {
     info!("process_mmd_rotation_stepper_message() 0");
     loop {
-        processor
-            .process_rotation_stepper_request(
-                generic::atomi_proto::RotationStepperCommand::SetConveyorBeltRotation {
-                    speed: 1000,
-                },
-            )
-            .await;
+        // processor
+        //     .process_rotation_stepper_request(
+        //         generic::atomi_proto::RotationStepperCommand::SetConveyorBeltRotation {
+        //             speed: 200,
+        //         },
+        //     )
+        //     .await;
         processor
             .process_rotation_stepper_request(
                 generic::atomi_proto::RotationStepperCommand::SetPresserRotation { speed: 1000 },
@@ -173,13 +166,13 @@ pub async fn process_rotation_stepper(mut processor: RotationStepperProcessor) {
             .await;
 
         Delay::new(1.secs()).await;
-        processor
-            .process_rotation_stepper_request(
-                generic::atomi_proto::RotationStepperCommand::SetConveyorBeltRotation {
-                    speed: -500,
-                },
-            )
-            .await;
+        // processor
+        //     .process_rotation_stepper_request(
+        //         generic::atomi_proto::RotationStepperCommand::SetConveyorBeltRotation {
+        //             speed: -100,
+        //         },
+        //     )
+        //     .await;
         processor
             .process_rotation_stepper_request(
                 generic::atomi_proto::RotationStepperCommand::SetPresserRotation { speed: -500 },

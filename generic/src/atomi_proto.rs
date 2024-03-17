@@ -42,6 +42,12 @@ pub enum MmdCommand {
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+pub struct TriggerStatusResponse {
+    pub left: bool,
+    pub right: bool,
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum PeristalticPumpCommand {
     SetRotation { speed: i32 }, // 0-1000 => 0.0% - 100.0%
 }
@@ -77,6 +83,8 @@ pub enum LinearStepperCommand {
     Home,
     MoveTo { position: i32 },
     MoveToRelative { steps: i32 },
+    MoveToRelativeForce { steps: i32 },
+    GetTriggerStatus,
     DummyWait { seconds: i32 },
 }
 
@@ -88,6 +96,7 @@ pub enum RotationStepperResponse {
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum LinearStepperResponse {
+    TriggerStatus(TriggerStatusResponse),
     Error(AtomiError),
     Done,
 }
