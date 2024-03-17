@@ -1,3 +1,4 @@
+use defmt::info;
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::PwmPin;
 use generic::atomi_error::AtomiError;
@@ -6,7 +7,7 @@ use rp2040_hal::pwm::{FreeRunning, Slice, SliceId};
 
 pub const MMD_PWM_TOP: u16 = 5000;
 
-pub struct PwmMotor<S: SliceId> {
+pub struct BrushMotor<S: SliceId> {
     enable_pin: Option<Pin<DynPinId, FunctionSio<SioOutput>, PullDown>>,
     pwm: Slice<S, FreeRunning>,
     /// 有些驱动的最大速度不能到100%，此外电机需要克服阻力才能启动，因此也需要知道它的最小启动速度
@@ -15,29 +16,29 @@ pub struct PwmMotor<S: SliceId> {
     /// 电机正负如果接反，运转方向会相反
     revert_dir: bool,
     /// 有些电机驱动器的en逻辑是反的
-    revert_en: bool,
+    is_nEN: bool,
 }
 
-impl<S: SliceId> PwmMotor<S> {
+impl<S: SliceId> BrushMotor<S> {
     pub fn new(
         enable_pin: Option<Pin<DynPinId, FunctionSio<SioOutput>, PullDown>>,
         pwm: Slice<S, FreeRunning>,
         thres_speed: (f32, f32, f32, f32),
         revert_dir: bool,
-        revert_en: bool,
+        is_nEN: bool,
     ) -> Self {
         Self {
             enable_pin,
             pwm,
             thres_speed,
             revert_dir,
-            revert_en,
+            is_nEN,
         }
     }
 
     pub(crate) fn start_pwm_motor(&mut self) -> Result<(), AtomiError> {
         if let Some(ref mut en) = self.enable_pin {
-            (if self.revert_en {
+            (if self.is_nEN {
                 en.set_low()
             } else {
                 en.set_high()
@@ -71,10 +72,10 @@ impl<S: SliceId> PwmMotor<S> {
 
         //let t = ((if self.revert_dir { -speed } else { speed }) * 33.0) as i32;
         let duty_scaled = ((MMD_PWM_TOP as f32) * spd_mapped) as u32;
-        // info!(
-        //     "speed = {}, spd_mapped = {}, duty_scaled = {}, revert_dir={}",
-        //     speed, spd_mapped, duty_scaled, self.revert_dir,
-        // );
+        info!(
+            "speed = {}, spd_mapped = {}, duty_scaled = {}, revert_dir={}",
+            speed, spd_mapped, duty_scaled, self.revert_dir,
+        );
         self.pwm.channel_a.set_duty(duty_scaled as u16);
         self.pwm.channel_b.set_duty(duty_scaled as u16);
     }

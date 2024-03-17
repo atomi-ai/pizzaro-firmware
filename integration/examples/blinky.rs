@@ -3,6 +3,7 @@
 
 use defmt::*;
 use defmt_rtt as _;
+use embedded_hal::digital::v2::OutputPin;
 use panic_probe as _;
 use pizzaro::common::led_controller::MyLED;
 use pizzaro::smart_led;
@@ -48,8 +49,10 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
+    let mut dir_485 = pins.gpio8.into_push_pull_output();
+
     let mut my_led = MyLED::new(
-        (255, 255, 255).into(),
+        (5, 5, 5).into(),
         (0, 0, 0).into(),
         Ws2812Direct::new(
             smart_led!(pins).into_function().into_dyn_pin(),
@@ -61,8 +64,11 @@ fn main() -> ! {
 
     loop {
         my_led.ledon();
+        dir_485.set_high().unwrap();
         delay.delay_ms(200);
+
         my_led.ledoff();
+        dir_485.set_low().unwrap();
         delay.delay_ms(200);
     }
 }

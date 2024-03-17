@@ -8,14 +8,16 @@ use alloc::vec;
 
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
-use defmt::{error, info, Debug2Format};
+use defmt::{debug, error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
 use pizzaro::mmd::brush_motor_processor::BrushMotorProcessor;
 use pizzaro::mmd::brushless_motor_processor::BrushlessMotorProcessor;
 use pizzaro::mmd::pwm_motor::{PwmMotor, MMD_PWM_TOP};
+use pizzaro::mmd::pwm_stepper::PwmStepper;
 use pizzaro::mmd::rotation_stepper_processor::{
     process_mmd_rotation_stepper_message, rotation_stepper_input_mq, RotationStepperProcessor,
 };
+
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
@@ -32,7 +34,9 @@ use generic::atomi_error::AtomiError;
 use generic::atomi_proto::MmdCommand::MmdBusy;
 use generic::atomi_proto::{AtomiProto, MmdCommand};
 use generic::mmd_status::MmdStatus;
-use pizzaro::bsp::{mmd_uart_irq, MmdUartDirPinType, MmdUartType};
+use pizzaro::bsp::{
+    mmd_uart_irq, MmdMotor42Step1Channel, MmdMotor57StepChannel, MmdUartDirPinType, MmdUartType,
+};
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_status::{get_status, FutureStatus, FutureType};
@@ -51,10 +55,11 @@ use pizzaro::{common::async_initialization, mmd_sys_rx, mmd_sys_tx};
 use pizzaro::{
     mmd_485_dir, mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel,
     mmd_bl2_ctl_pwm_slice, mmd_br0_pwm_slice, mmd_br_channel_a, mmd_br_channel_b, mmd_br_nEN,
-    mmd_br_pwm_a, mmd_br_pwm_b, mmd_limit0, mmd_limit1, mmd_spd_ctrl_bl0, mmd_spd_ctrl_bl1,
-    mmd_stepper42_dir0, mmd_stepper42_dir1, mmd_stepper42_nEN0, mmd_stepper42_nEN1,
-    mmd_stepper42_step0, mmd_stepper42_step1, mmd_stepper57_dir, mmd_stepper57_nEN,
-    mmd_stepper57_step, mmd_uart,
+    mmd_br_pwm_a, mmd_br_pwm_b, mmd_limit0, mmd_limit1, mmd_motor42_pwm_slice1,
+    mmd_motor42_step1_channel, mmd_spd_ctrl_bl0, mmd_spd_ctrl_bl1, mmd_stepper42_dir0,
+    mmd_stepper42_dir1, mmd_stepper42_nEN0, mmd_stepper42_nEN1, mmd_stepper42_step0,
+    mmd_stepper42_step1, mmd_stepper57_dir, mmd_stepper57_nEN, mmd_stepper57_pwm_slice,
+    mmd_stepper57_step, mmd_stepper57_step_channel, mmd_uart,
 };
 use rp_pico::XOSC_CRYSTAL_FREQ;
 
@@ -163,9 +168,10 @@ fn main() -> ! {
         spawn_task(mmd_process_messages());
     }
     {
-        let enable_pin = mmd_stepper42_nEN1!(pins).into_push_pull_output();
-        let dir_pin = mmd_stepper42_dir1!(pins).into_push_pull_output();
-        let step_pin = mmd_stepper42_step1!(pins).into_push_pull_output();
+        // 使用第一个通道连接驱动伸缩的电机
+        let enable_pin = mmd_stepper42_nEN0!(pins).into_push_pull_output();
+        let dir_pin = mmd_stepper42_dir0!(pins).into_push_pull_output();
+        let step_pin = mmd_stepper42_step0!(pins).into_push_pull_output();
         let left_limit_pin = mmd_limit0!(pins).into_pull_down_input();
         let right_limit_pin = mmd_limit1!(pins).into_pull_down_input();
         let delay_creator = DelayCreator::new();
@@ -177,18 +183,57 @@ fn main() -> ! {
         spawn_task(process_mmd_linear_stepper_message(processor));
     }
     {
-        let enable_pin_42 = mmd_stepper42_nEN0!(pins).into_push_pull_output();
-        let dir_pin_42 = mmd_stepper42_dir0!(pins).into_push_pull_output();
-        let step_pin_42 = mmd_stepper42_step0!(pins).into_push_pull_output();
-
-        let enable_pin_57 = mmd_stepper57_nEN!(pins).into_push_pull_output();
-        let dir_pin_57 = mmd_stepper57_dir!(pins).into_push_pull_output();
-        let step_pin_57 = mmd_stepper57_step!(pins).into_push_pull_output();
-
-        let processor = RotationStepperProcessor::new(
-            Stepper::new(enable_pin_42, dir_pin_42, step_pin_42, DelayCreator::new()),
-            Stepper::new(enable_pin_57, dir_pin_57, step_pin_57, DelayCreator::new()),
+        // 使用第二个通道连接驱动传送带旋转的电机
+        let enable_pin_42 = Some(
+            mmd_stepper42_nEN1!(pins)
+                .into_push_pull_output()
+                .into_dyn_pin(),
         );
+        // // rollback的板子没有独立的en
+        // let enable_pin_42 = None;
+        let dir_pin_42 = mmd_stepper42_dir1!(pins)
+            .into_push_pull_output()
+            .into_dyn_pin();
+        //let step_pin_42 = mmd_stepper42_step1!(pins).into_push_pull_output();
+
+        let mut pwm_42 = mmd_motor42_pwm_slice1!(pwm_slices);
+        mmd_motor42_step1_channel!(pwm_42).output_to(mmd_stepper42_step1!(pins));
+
+        // init 57
+        let enable_pin_57 = Some(
+            mmd_stepper57_nEN!(pins)
+                .into_push_pull_output()
+                .into_dyn_pin(),
+        );
+        let dir_pin_57 = mmd_stepper57_dir!(pins)
+            .into_push_pull_output()
+            .into_dyn_pin();
+        //let step_pin_57 = mmd_stepper57_step!(pins).into_push_pull_output();
+
+        let mut pwm_57 = mmd_stepper57_pwm_slice!(pwm_slices);
+        mmd_stepper57_step_channel!(pwm_57).output_to(mmd_stepper57_step!(pins));
+
+        let mut processor = RotationStepperProcessor::new(
+            PwmStepper::new(
+                enable_pin_42,
+                dir_pin_42,
+                MmdMotor42Step1Channel,
+                clocks.peripheral_clock.freq(),
+                pwm_42,
+                200, // 无细分，一圈200脉冲
+                false,
+            ),
+            PwmStepper::new(
+                enable_pin_57,
+                dir_pin_57,
+                MmdMotor57StepChannel,
+                clocks.peripheral_clock.freq(),
+                pwm_57,
+                200, // 无细分，一圈200脉冲
+                false,
+            ),
+        );
+        processor.enable();
         spawn_task(process_mmd_rotation_stepper_message(processor));
     }
 
@@ -235,21 +280,22 @@ async fn mmd_process_messages() {
                 }
 
                 AtomiProto::Mmd(MmdCommand::MmdRotationStepper(cmd)) => {
-                    let res = uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck));
+                    info!("pre rotation");
                     rotation_stepper_input_mq().enqueue(cmd);
-                    res
+                    info!("send ack 0");
+                    uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
                 }
 
                 AtomiProto::Mmd(MmdCommand::MmdDisperser(cmd)) => {
-                    let res = uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck));
                     brushless_motor_processor.process(cmd).unwrap();
-                    res
+                    info!("send ack 1");
+                    uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
                 }
 
                 AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(cmd)) => {
-                    let res = uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck));
                     brush_motor_processor.process(cmd).unwrap();
-                    res
+                    info!("send ack 2");
+                    uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
                 }
 
                 _ => Err(AtomiError::IgnoredMsg), // Ignore unrelated commands
@@ -276,15 +322,19 @@ async fn mmd_process_messages() {
 
 #[interrupt]
 unsafe fn UART1_IRQ() {
-    info!("UART1_IRQ 0");
+    //info!("UART1_IRQ 0");
     if let Some((uart, uart_dir)) = UART.as_mut() {
         // TODO(zephyr): Move the variable below to global static.
 
         // 读取一个字节以确定消息长度
         let mut length_buffer = [0; 1];
-        info!("uart length = {}", length_buffer);
+        //        info!("uart length = {}", length_buffer);
+        // info!(
+        //     "uart dir state = high?: {}",
+        //     uart_dir.as_ref().expect("wtf").is_set_high()
+        // );
         if uart.read_full_blocking(&mut length_buffer).is_err() {
-            error!("Errors in reading UART");
+            debug!("Errors in reading UART in first byte");
             return;
         }
 

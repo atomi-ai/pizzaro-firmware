@@ -13,20 +13,6 @@ macro_rules! define_pins {
     };
 }
 
-#[macro_export]
-macro_rules! define_none {
-    ($($alias:ident),*) => {
-        $(
-	    #[macro_export]
-            macro_rules! $alias {
-                ($(_:tt)*) => {
-                    None
-                };
-            }
-        )*
-    };
-}
-
 // #[cfg(feature = "bsp_early_release")]
 // pub use super::board_early_release::*;
 

@@ -1,4 +1,4 @@
-use crate::common::message_queue::MessageQueueInterface;
+use crate::{bsp::MmdPresserMotorType, common::message_queue::MessageQueueInterface};
 use defmt::info;
 use fugit::ExtU64;
 use generic::{
@@ -7,7 +7,7 @@ use generic::{
 };
 
 use crate::{
-    bsp::{ConveyorBeltRotationMotorType, PresserRotationMotorType},
+    bsp::ConveyorBeltRotationMotorType,
     common::{global_timer::Delay, message_queue::MessageQueueWrapper, once::Once},
 };
 
@@ -24,13 +24,13 @@ pub fn rotation_stepper_output_mq() -> &'static mut MessageQueueWrapper<Rotation
 
 pub struct RotationStepperProcessor {
     conveyor_rotation_stepper: ConveyorBeltRotationMotorType,
-    presser_rotation_stepper: PresserRotationMotorType,
+    presser_rotation_stepper: MmdPresserMotorType,
 }
 
 impl RotationStepperProcessor {
     pub fn new(
         conveyor_rotation_stepper: ConveyorBeltRotationMotorType,
-        presser_rotation_stepper: PresserRotationMotorType,
+        presser_rotation_stepper: MmdPresserMotorType,
     ) -> Self {
         Self {
             conveyor_rotation_stepper,
@@ -38,21 +38,25 @@ impl RotationStepperProcessor {
         }
     }
 
+    pub fn enable(&mut self) -> Result<(), AtomiError> {
+        self.conveyor_rotation_stepper.enable()?;
+        self.presser_rotation_stepper.enable()?;
+        Ok(())
+    }
+
     pub async fn process_rotation_stepper_request(
         &mut self,
         msg: RotationStepperCommand,
     ) -> Result<(), AtomiError> {
+        info!("process_rotation_stepper_request: {}", msg);
         match msg {
             RotationStepperCommand::SetConveyorBeltRotation { speed } => {
-                self.conveyor_rotation_stepper.set_direction(speed > 0)?;
-                self.conveyor_rotation_stepper
-                    .set_speed(speed.unsigned_abs());
+                info!("set conveyor belt rotation, spd:{}", speed);
+                self.conveyor_rotation_stepper.set_speed(speed);
                 Ok(())
             }
             RotationStepperCommand::SetPresserRotation { speed } => {
-                self.presser_rotation_stepper.set_direction(speed > 0)?;
-                self.presser_rotation_stepper
-                    .set_speed(speed.unsigned_abs());
+                self.presser_rotation_stepper.set_speed(speed);
                 Ok(())
             }
         }

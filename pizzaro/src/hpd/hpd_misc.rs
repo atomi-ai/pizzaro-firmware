@@ -139,7 +139,7 @@ impl LinearScale {
 }
 
 pub struct PwmMotor {
-    enable_pin: Pin<DynPinId, FunctionSio<SioOutput>, PullDown>,
+    enable_pin: Option<Pin<DynPinId, FunctionSio<SioOutput>, PullDown>>,
     pwm: Slice<Pwm0, FreeRunning>,
     thres_speed: (f32, f32, f32, f32),
     revert_dir: bool,
@@ -148,7 +148,7 @@ pub struct PwmMotor {
 
 impl PwmMotor {
     pub fn new(
-        enable_pin: Pin<DynPinId, FunctionSio<SioOutput>, PullDown>,
+        enable_pin: Option<Pin<DynPinId, FunctionSio<SioOutput>, PullDown>>,
         pwm: Slice<Pwm0, FreeRunning>,
         thres_speed: (f32, f32, f32, f32),
         revert_dir: bool,
@@ -165,9 +165,15 @@ impl PwmMotor {
 
     pub(crate) fn start_pwm_motor(&mut self) -> Result<(), AtomiError> {
         (if self.revert_en {
-            self.enable_pin.set_low()
+            if let Some(ref mut en) = self.enable_pin {
+                en.set_low()
+            } else {
+                Ok(())
+            }
+        } else if let Some(ref mut en) = self.enable_pin {
+            en.set_high()
         } else {
-            self.enable_pin.set_high()
+            Ok(())
         })
         .or(Err(AtomiError::HpdCannotStart))
     }

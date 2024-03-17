@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use defmt::{info, Debug2Format, Format};
+use defmt::{error, info, Debug2Format, Format};
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::serial::{Read, Write};
 use futures::future::{select, Either};
@@ -37,19 +37,8 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
     }
 
     fn bwrite_all(&mut self, buffer: &[u8]) -> Result<(), AtomiError> {
-        if let Some(n_re) = self.dir_pin {
-            n_re.set_high()
-                .map_err(|_| AtomiError::UartSetDirError)
-                .unwrap();
-        }
         for word in buffer {
             nb::block!(self.uart.write(word.clone())).map_err(|_| AtomiError::UartWriteError)?;
-        }
-        nb::block!(self.uart.flush()).map_err(|_| AtomiError::UartFlushError)?;
-        if let Some(n_re) = self.dir_pin {
-            n_re.set_low()
-                .map_err(|_| AtomiError::UartSetDirError)
-                .unwrap();
         }
 
         Ok(())
@@ -66,10 +55,37 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
         );
         // 发送长度和数据
         // TODO(zephyr): 看看怎么wrap T::Error到PizzaroError里面去.
-        self.bwrite_all(&[out.len() as u8])
-            .map_err(|_| AtomiError::UartWriteError)?;
-        self.bwrite_all(&out)
-            .map_err(|_| AtomiError::UartWriteError)
+
+        if let Some(n_re) = self.dir_pin {
+            n_re.set_high()
+                .map_err(|_| AtomiError::UartSetDirError)
+                .unwrap();
+        }
+
+        // let bw_res0 = self
+        //     .bwrite_all(&[out.len() as u8])
+        //     .map_err(|_| AtomiError::UartWriteError);
+        // let bw_res = if bw_res0.is_ok() {
+        //     self.bwrite_all(&out)
+        //         .map_err(|_| AtomiError::UartWriteError)
+        // } else {
+        //     bw_res0
+        // };
+
+        let res = (|| {
+            self.bwrite_all(&[out.len() as u8])
+                .map_err(|_| AtomiError::UartWriteError)?;
+            self.bwrite_all(&out)
+                .map_err(|_| AtomiError::UartWriteError)?;
+            nb::block!(self.uart.flush()).map_err(|_| AtomiError::UartFlushError)
+        })();
+
+        if let Some(n_re) = self.dir_pin {
+            n_re.set_low()
+                .map_err(|_| AtomiError::UartSetDirError)
+                .unwrap();
+        }
+        res
     }
 
     pub async fn recv_timeout<U>(&mut self, timeout: AtomiDuration) -> Result<U, AtomiError>
@@ -92,9 +108,20 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
     {
         // 读取响应长度
         let mut length_buffer = [0u8; 1];
-        uart_read(self.uart, &mut length_buffer)
-            .await
-            .map_err(|_| AtomiError::UartReadError)?;
+
+        // retry 3 times to make sure you read the correct length
+        let mut correct = false;
+        for _ in 0..3 {
+            if uart_read(self.uart, &mut length_buffer).await.is_ok() {
+                correct = true;
+                break;
+            }
+            info!("Errors in reading UART's first byte, try again");
+        }
+        if !correct {
+            error!("Errors in reading UART");
+            return Err(AtomiError::UartReadError);
+        }
 
         let response_length = length_buffer[0] as usize;
         if response_length == 0 || response_length > self.expected_response_length {

@@ -85,6 +85,23 @@ where
             }
         }
 
+        // presser platform rotating
+        Some("pr_on") => AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
+            RotationStepperCommand::SetPresserRotation { speed: 1000 },
+        )),
+        Some("pr_off") => AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
+            RotationStepperCommand::SetPresserRotation { speed: 0 },
+        )),
+        Some("pr_spd") => {
+            if let Ok(speed) = parse_int(tokens.next()) {
+                AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
+                    RotationStepperCommand::SetPresserRotation { speed },
+                ))
+            } else {
+                AtomiProto::Unknown
+            }
+        }
+
         // dispenser command: on, off, set speed
         Some("dispenser0_on") => {
             AtomiProto::Mmd(MmdCommand::MmdDisperser(DispenserCommand::SetRotation {
