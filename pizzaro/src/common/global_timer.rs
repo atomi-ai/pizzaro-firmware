@@ -89,6 +89,12 @@ impl DelayCreator {
     }
 }
 
+impl Default for DelayCreator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AsyncDelay for DelayCreator {
     async fn delay(&mut self, duration: AtomiDuration) {
         Delay::new(duration).await

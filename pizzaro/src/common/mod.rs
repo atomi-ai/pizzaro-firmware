@@ -3,16 +3,19 @@ extern crate alloc;
 use crate::common::global_allocator::init_allocator;
 use crate::common::global_status::initialize_status;
 
-pub mod global_timer;
-pub mod global_status;
-pub mod global_allocator;
-pub mod uart;
-pub mod executor;
-pub mod rp2040_timer;
-pub mod once;
 pub mod consts;
-pub mod uart_comm;
+pub mod executor;
+pub mod global_allocator;
+pub mod global_status;
+pub mod global_timer;
+pub mod led_controller;
 pub mod message_queue;
+pub mod once;
+pub mod rp2040_timer;
+pub mod tmc2209;
+pub mod tmc5160;
+pub mod uart;
+pub mod uart_comm;
 
 pub fn async_initialization() {
     init_allocator();

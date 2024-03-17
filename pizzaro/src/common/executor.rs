@@ -7,7 +7,7 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use critical_section::Mutex;
-use defmt::{Format, Formatter, info};
+use defmt::{info, Format, Formatter};
 use fugit::ExtU64;
 use futures::task::noop_waker;
 use heapless::spsc::Queue;
@@ -23,7 +23,12 @@ pub struct Executor {
 
 impl Format for Executor {
     fn format(&self, fmt: Formatter) {
-        defmt::write!(fmt, "Executor({}): task_num = {}", self.id, self.get_tasks_len());
+        defmt::write!(
+            fmt,
+            "Executor({}): task_num = {}",
+            self.id,
+            self.get_tasks_len()
+        );
     }
 }
 
@@ -36,26 +41,19 @@ impl Executor {
     }
 
     fn get_tasks_len(&self) -> usize {
-        critical_section::with(|cs| {
-            self.tasks.borrow(cs).borrow().len()
-        })
+        critical_section::with(|cs| self.tasks.borrow(cs).borrow().len())
     }
 
     fn pop_task(&self) -> Option<Pin<Box<dyn Future<Output = ()> + Send>>> {
-        critical_section::with(|cs| {
-            self.tasks.borrow(cs).borrow_mut().dequeue()
-        })
+        critical_section::with(|cs| self.tasks.borrow(cs).borrow_mut().dequeue())
     }
-
 
     fn push_task(&self, fut_pin: Pin<Box<dyn Future<Output = ()> + Send + 'static>>) {
         // let free_bytes = global_allocator::ALLOCATOR.free();
         // info!("Free bytes in heap: {}", free_bytes);
         // log_stack_usage();
 
-        let _t = critical_section::with(|cs| {
-            self.tasks.borrow(cs).borrow_mut().enqueue(fut_pin)
-        });
+        let _t = critical_section::with(|cs| self.tasks.borrow(cs).borrow_mut().enqueue(fut_pin));
     }
 
     pub fn spawn_internal(&self, fut: impl Future<Output = ()> + Send + 'static) {

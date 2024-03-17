@@ -5,8 +5,8 @@ use core::fmt::Debug;
 use defmt::info;
 use fugit::ExtU64;
 
-use pizzaro::common::global_status::{FutureStatus, FutureType, set_status};
-use pizzaro::common::global_timer::{Delay, now};
+use pizzaro::common::global_status::{set_status, FutureStatus, FutureType};
+use pizzaro::common::global_timer::{now, Delay};
 
 use crate::mock_stepper::x::StepperAdapter;
 
@@ -180,28 +180,19 @@ pub async fn homing<S: Stepper + defmt::Format>(mut stepper: S, fast_speed: i64,
     // 第一阶段：快速左移直到触发限位
     info!("Move left to MIN");
     stepper.move_to_relative(Direction::Left, i64::MIN, fast_speed);
-    set_status(
-        FutureType::StepperHoming,
-        FutureStatus::HomingStage1,
-    );
+    set_status(FutureType::StepperHoming, FutureStatus::HomingStage1);
     wait_to_finish(&stepper).await;
 
     // 第二阶段：稍微右移一点
     info!("Move right for 3 steps");
     stepper.move_to_relative(Direction::Right, fast_speed, fast_speed);
-    set_status(
-        FutureType::StepperHoming,
-        FutureStatus::HomingStage2,
-    );
+    set_status(FutureType::StepperHoming, FutureStatus::HomingStage2);
     wait_to_finish(&stepper).await;
 
     // 第三阶段：慢速左移直到再次触发限位
     info!("Move left again");
     stepper.move_to_relative(Direction::Left, -fast_speed, slow_speed);
-    set_status(
-        FutureType::StepperHoming,
-        FutureStatus::HomingStage3,
-    );
+    set_status(FutureType::StepperHoming, FutureStatus::HomingStage3);
     wait_to_finish(&stepper).await;
 
     set_status(FutureType::StepperHoming, FutureStatus::HomingDone);
