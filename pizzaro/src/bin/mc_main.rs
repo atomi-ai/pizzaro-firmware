@@ -424,7 +424,7 @@ async fn autorun_logic() {
             match step.clone() {
                 AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)) => {
                     loop {
-                        get_autorun_mq().clear();
+                        get_autorun_resp_mq().clear();
                         get_mq().enqueue(step.clone());
 
                         let resp = get_autorun_resp_mq().dequeue();
@@ -439,6 +439,7 @@ async fn autorun_logic() {
                 }
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle)) => {
                     loop {
+                        get_autorun_resp_mq().clear();
                         get_mq().enqueue(step.clone());
                         let resp = get_autorun_resp_mq().dequeue();
                         if let Some(resp) = resp {
