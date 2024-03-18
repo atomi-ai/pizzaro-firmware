@@ -13,16 +13,27 @@ use rp2040_hal::{
 };
 
 use crate::{
-    common::global_timer::DelayCreator,
-    define_pins,
-    mmd::{
+    common::{
         brush_motor::BrushMotor,
         brushless_motor::BrushlessMotor,
-        linear_stepper::LinearStepper,
+        global_timer::DelayCreator,
         pwm_stepper::{PwmChannels, PwmStepper},
-        stepper::Stepper,
     },
+    define_pins,
+    mmd::{linear_stepper::LinearStepper, stepper::Stepper},
 };
+
+// use crate::{
+//     common::global_timer::DelayCreator,
+//     define_pins,
+//     mmd::{
+//         brush_motor::BrushMotor,
+//         brushless_motor::BrushlessMotor,
+//         linear_stepper::LinearStepper,
+//         pwm_stepper::{PwmChannels, PwmStepper},
+//         stepper::Stepper,
+//     },
+// };
 
 pub type HpdUartPins = (
     Pin<Gpio8, FunctionUart, PullDown>,
@@ -53,7 +64,8 @@ pub type McUiUartType = UartPeripheral<Enabled, UART1, McUiScreenPins>;
 
 /// 使用第二个通道连接驱动传送带旋转的电机
 // 42 motor1(and check pins defined in macros)
-pub type ConveyorBeltRotationMotorType = PwmStepper<Pwm2>;
+pub type MmdStepper42_1EnablePinType = Pin<DynPinId, FunctionSio<SioOutput>, PullDown>;
+pub type ConveyorBeltRotationMotorType = PwmStepper<Pwm2, MmdStepper42_1EnablePinType>;
 #[allow(non_upper_case_globals)]
 pub const MmdMotor42Step1Channel: PwmChannels = PwmChannels::channel_b;
 

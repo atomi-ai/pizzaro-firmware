@@ -46,6 +46,12 @@ impl LinearStepperProcessor {
                 // 在调用这个函数之前已经独立处理了，这里不应该进入这个分支，所以不需要做任何事情
                 Ok(0)
             }
+            LinearStepperCommand::WaitIdle => {
+                while !self.linear_stepper.is_idle() {
+                    let _ = Delay::new(10.millis()).await;
+                }
+                Ok(0)
+            }
             LinearStepperCommand::DummyWait { seconds } => {
                 // Testing only.
                 let _ = Delay::new((seconds as u64).secs()).await;

@@ -2,11 +2,7 @@ use crate::bsp::config::REVERT_HPD_LINEARSCALE_DIRECTION;
 use crate::common::global_timer::{now, AtomiDuration, AtomiInstant};
 use core::sync::atomic::{AtomicI32, Ordering};
 use defmt::{info, Format};
-use embedded_hal::digital::v2::OutputPin;
-use embedded_hal::PwmPin;
 use generic::atomi_error::AtomiError;
-use rp2040_hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, SioOutput};
-use rp2040_hal::pwm::{FreeRunning, Pwm0, Slice};
 
 pub const MOTOR150_PWM_TOP: u16 = 5000;
 // const LITTLE_DISTANCE: i32 = 1000;  // 10mm
@@ -138,74 +134,102 @@ impl LinearScale {
     }
 }
 
-pub struct PwmMotor {
-    enable_pin: Option<Pin<DynPinId, FunctionSio<SioOutput>, PullDown>>,
-    pwm: Slice<Pwm0, FreeRunning>,
-    thres_speed: (f32, f32, f32, f32),
-    revert_dir: bool,
-    revert_en: bool,
-}
+// #[allow(non_snake_case)]
+// pub struct PwmMotor<E: StatefulOutputPin> {
+//     enable_pin: Option<E>,
+//     pwm: Slice<Pwm0, FreeRunning>,
+//     thres_speed: (f32, f32, f32, f32),
+//     revert_dir: bool,
+//     is_nEN: bool,
+// }
 
-impl PwmMotor {
-    pub fn new(
-        enable_pin: Option<Pin<DynPinId, FunctionSio<SioOutput>, PullDown>>,
-        pwm: Slice<Pwm0, FreeRunning>,
-        thres_speed: (f32, f32, f32, f32),
-        revert_dir: bool,
-        revert_en: bool,
-    ) -> Self {
-        Self {
-            enable_pin,
-            pwm,
-            thres_speed,
-            revert_dir,
-            revert_en,
-        }
-    }
+// impl<E: StatefulOutputPin> PwmMotor<E> {
+//     pub fn new(
+//         enable_pin: Option<E>,
+//         pwm: Slice<Pwm0, FreeRunning>,
+//         thres_speed: (f32, f32, f32, f32),
+//         revert_dir: bool,
+//         #[allow(non_snake_case)] is_nEN: bool,
+//     ) -> Self {
+//         let mut motor = Self {
+//             enable_pin,
+//             pwm,
+//             thres_speed,
+//             revert_dir,
+//             is_nEN,
+//         };
+//         motor.apply_speed(0.0);
+//         motor
+//     }
 
-    pub(crate) fn start_pwm_motor(&mut self) -> Result<(), AtomiError> {
-        (if self.revert_en {
-            if let Some(ref mut en) = self.enable_pin {
-                en.set_low()
-            } else {
-                Ok(())
-            }
-        } else if let Some(ref mut en) = self.enable_pin {
-            en.set_high()
-        } else {
-            Ok(())
-        })
-        .or(Err(AtomiError::HpdCannotStart))
-    }
+//     pub fn ensure_enable(&mut self) -> Result<(), AtomiError> {
+//         if let Some(ref mut en) = self.enable_pin {
+//             if en.is_set_low().map_err(|_| AtomiError::GpioPinError)? != self.is_nEN {
+//                 return self.enable();
+//             }
+//         }
 
-    pub(crate) fn apply_speed(&mut self, speed: f32) {
-        // speed范围-1.0~1.0
-        // 这里duty需要注意，静止为0.5，但最小最大值不能到0-1.0，必须限制在大致0.03~0.97的范围内。
-        // 此外，因为阻力的缘故，启动速度也要加一个偏置，比如0.54才开始转。
-        // 此外还需要注意，正向偏置和负向偏置还未必一致，所以最终实际的速度按照占空比来算大致是（0.03~0.45, 0.55~0.97这样的
+//         Ok(())
+//     }
 
-        let (s1, s2, s3, s4) = self.thres_speed;
-        let spd = if self.revert_dir {
-            -speed.clamp(-1.0, 1.0)
-        } else {
-            speed.clamp(-1.0, 1.0)
-        };
+//     pub(crate) fn enable(&mut self) -> Result<(), AtomiError> {
+//         (if self.is_nEN {
+//             if let Some(ref mut en) = self.enable_pin {
+//                 en.set_low()
+//             } else {
+//                 Ok(())
+//             }
+//         } else if let Some(ref mut en) = self.enable_pin {
+//             en.set_high()
+//         } else {
+//             Ok(())
+//         })
+//         .or(Err(AtomiError::HpdCannotStart))
+//     }
 
-        let spd_mapped = if spd > 0.0 {
-            spd * (s4 - s3) + s3
-        } else if spd < 0.0 {
-            (spd + 1.0) * (s2 - s1) + s1
-        } else {
-            0.5
-        };
+//     pub(crate) fn disable(&mut self) -> Result<(), AtomiError> {
+//         if let Some(ref mut en) = self.enable_pin {
+//             if self.is_nEN {
+//                 en.set_high().map_err(|_| AtomiError::GpioPinError)?
+//             } else {
+//                 en.set_low().map_err(|_| AtomiError::GpioPinError)?
+//             }
+//         }
 
-        //let t = ((if self.revert_dir { -speed } else { speed }) * 33.0) as i32;
-        let duty_scaled = ((MOTOR150_PWM_TOP as f32) * spd_mapped) as u32;
-        // info!(
-        //     "speed = {}, spd_mapped = {}, duty_scaled = {}, revert_dir={}",
-        //     speed, spd_mapped, duty_scaled, self.revert_dir,
-        // );
-        self.pwm.channel_a.set_duty(duty_scaled as u16);
-        self.pwm.channel_b.set_duty(duty_scaled as u16);
-    }
-}
+//         self.pwm.disable();
+//         Ok(())
+//     }
+
+//     pub(crate) fn apply_speed(&mut self, speed: f32) {
+//         // speed范围-1.0~1.0
+//         // 这里duty需要注意，静止为0.5，但最小最大值不能到0-1.0，必须限制在大致0.03~0.97的范围内。
+//         // 此外，因为阻力的缘故，启动速度也要加一个偏置，比如0.54才开始转。
+//         // 此外还需要注意，正向偏置和负向偏置还未必一致，所以最终实际的速度按照占空比来算大致是（0.03~0.45, 0.55~0.97这样的
+
+//         let (s1, s2, s3, s4) = self.thres_speed;
+//         let spd = if self.revert_dir {
+//             -speed.clamp(-1.0, 1.0)
+//         } else {
+//             speed.clamp(-1.0, 1.0)
+//         };
+
+//         let spd_mapped = if spd > 0.0 {
+//             spd * (s4 - s3) + s3
+//         } else if spd < 0.0 {
+//             (spd + 1.0) * (s2 - s1) + s1
+//         } else {
+//             self.disable().expect("Failed to disable motor");
+//             0.5
+//         };
+
+//         //let t = ((if self.revert_dir { -speed } else { speed }) * 33.0) as i32;
+//         let duty_scaled = ((MOTOR150_PWM_TOP as f32) * spd_mapped) as u32;
+//         // info!(
+//         //     "speed = {}, spd_mapped = {}, duty_scaled = {}, revert_dir={}",
+//         //     speed, spd_mapped, duty_scaled, self.revert_dir,
+//         // );
+//         self.pwm.channel_a.set_duty(duty_scaled as u16);
+//         self.pwm.channel_b.set_duty(duty_scaled as u16);
+//         self.ensure_enable().expect("Failed to enable motor");
+//     }
+// }

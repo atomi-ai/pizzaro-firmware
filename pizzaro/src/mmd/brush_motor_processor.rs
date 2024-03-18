@@ -10,8 +10,7 @@ pub struct BrushMotorProcessor {
 }
 
 impl BrushMotorProcessor {
-    pub fn new(mut peristaltic_pump_motor: MmdPeristalicPumpMotorType) -> Self {
-        peristaltic_pump_motor.start_pwm_motor().unwrap();
+    pub fn new(peristaltic_pump_motor: MmdPeristalicPumpMotorType) -> Self {
         Self {
             peristaltic_pump_motor,
         }

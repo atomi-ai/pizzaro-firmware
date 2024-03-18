@@ -10,11 +10,11 @@ use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
 use defmt::{debug, error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
-use pizzaro::mmd::brush_motor::{BrushMotor, MMD_PWM_TOP};
+use pizzaro::common::brush_motor::{BrushMotor, MMD_PWM_TOP};
+use pizzaro::common::brushless_motor::BrushlessMotor;
+use pizzaro::common::pwm_stepper::PwmStepper;
 use pizzaro::mmd::brush_motor_processor::BrushMotorProcessor;
-use pizzaro::mmd::brushless_motor::BrushlessMotor;
 use pizzaro::mmd::brushless_motor_processor::BrushlessMotorProcessor;
-use pizzaro::mmd::pwm_stepper::PwmStepper;
 use pizzaro::mmd::rotation_stepper_processor::{
     process_mmd_rotation_stepper_message, rotation_stepper_input_mq, rotation_stepper_output_mq,
     RotationStepperProcessor,
@@ -164,7 +164,7 @@ fn main() -> ! {
         pwm.channel_b.set_inverted();
 
         let peristaltic_pump_motor = BrushMotor::new(
-            Some(mmd_br_nEN!(pins).into_push_pull_output().into_dyn_pin()),
+            mmd_br_nEN!(pins).into_push_pull_output().into_dyn_pin(),
             pwm,
             (0.03, 0.45, 0.55, 0.97),
             false,
@@ -227,7 +227,7 @@ fn main() -> ! {
         let mut pwm_57 = mmd_stepper57_pwm_slice!(pwm_slices);
         mmd_stepper57_step_channel!(pwm_57).output_to(mmd_stepper57_step!(pins));
 
-        let mut processor = RotationStepperProcessor::new(
+        let processor = RotationStepperProcessor::new(
             PwmStepper::new(
                 enable_pin_42,
                 dir_pin_42,
@@ -247,7 +247,6 @@ fn main() -> ! {
                 MMD_STEPPER57_REVERT_DIR,
             ),
         );
-        processor.enable().unwrap();
         spawn_task(process_mmd_rotation_stepper_message(processor));
     }
 

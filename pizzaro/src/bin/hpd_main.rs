@@ -8,8 +8,10 @@ use alloc::vec;
 
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
-use defmt::{error, info, Debug2Format};
+use defmt::{debug, error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
+use pizzaro::common::brush_motor::BrushMotor;
+use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::multicore::{Multicore, Stack};
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
@@ -26,9 +28,7 @@ use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{AtomiProto, HpdCommand};
-use pizzaro::bsp::config::{
-    HPD_BR_THRESHOLD, REVERT_HPD_BR_DIRECTION, REVERT_HPD_LINEARSCALE_DIRECTION,
-};
+use pizzaro::bsp::config::{HPD_BR_DRIVER_N_EN, HPD_BR_THRESHOLD, REVERT_HPD_BR_DIRECTION};
 use pizzaro::bsp::{hpd_uart_irq, HpdUartType};
 use pizzaro::common::async_initialization;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
@@ -38,7 +38,7 @@ use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper}
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
-use pizzaro::hpd::hpd_misc::{LinearScale, PwmMotor, MOTOR150_PWM_TOP};
+use pizzaro::hpd::hpd_misc::{LinearScale, MOTOR150_PWM_TOP};
 use pizzaro::hpd::linear_bull_processor::{
     linear_bull_input_mq, linear_bull_output_mq, process_linear_bull_message, LinearBullProcessor,
 };
@@ -106,18 +106,20 @@ fn main() -> ! {
         pwm.set_ph_correct();
         pwm.set_top(MOTOR150_PWM_TOP);
         pwm.enable();
-        pwm.channel_a.output_to(pins.gpio16);
-        pwm.channel_b.output_to(pins.gpio17);
+        // pwm.channel_a.output_to(pins.gpio16);
+        // pwm.channel_b.output_to(pins.gpio17);
+        pwm.channel_a.output_to(hpd_br_pwm_a!(pins));
+        pwm.channel_b.output_to(hpd_br_pwm_b!(pins));
         pwm.channel_b.set_inverted();
 
         let processor = LinearBullProcessor::new(
             linear_scale_rc1,
-            PwmMotor::new(
-                pins.gpio18.into_push_pull_output().into_dyn_pin(),
+            BrushMotor::new(
+                hpd_br_nEN!(pins).into_push_pull_output().into_dyn_pin(),
                 pwm,
                 HPD_BR_THRESHOLD,
                 REVERT_HPD_BR_DIRECTION,
-                REVERT_HPD_LINEARSCALE_DIRECTION,
+                HPD_BR_DRIVER_N_EN,
             ),
         );
 
@@ -205,7 +207,7 @@ unsafe fn UART1_IRQ() {
         // 读取一个字节以确定消息长度
         let mut length_buffer = [0; 1];
         if uart.read_full_blocking(&mut length_buffer).is_err() {
-            error!("Errors in reading UART");
+            debug!("Errors in reading UART");
             return;
         }
 

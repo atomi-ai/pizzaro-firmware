@@ -6,7 +6,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 
 use cortex_m::peripheral::NVIC;
-use defmt::{error, info, Debug2Format};
+use defmt::{error, info, warn, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
 use pizzaro::bsp::{mc_ui_uart_irq, McUartDirPinType, McUartType, McUiUartType};
 use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
@@ -28,7 +28,11 @@ use usb_device::UsbError;
 use usbd_serial::SerialPort;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{wrap_result_into_proto, AtomiProto, McCommand};
+use generic::atomi_proto::{
+    wrap_result_into_proto, AtomiAutorun, AtomiProto, DispenserCommand, HpdCommand,
+    LinearBullCommand, LinearStepperCommand, McCommand, MmdCommand, PeristalticPumpCommand,
+    RotationStepperCommand,
+};
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, now, Delay};
@@ -43,8 +47,13 @@ static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
 static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
 static mut UIUART: Option<UiUartType> = None;
 static mut FROM_PC_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
+static mut AUTORUN_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiAutorun>> = Once::new();
 fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
     unsafe { FROM_PC_MESSAGE_QUEUE.get_mut() }
+}
+
+fn get_autorun_mq() -> &'static mut MessageQueueWrapper<AtomiAutorun> {
+    unsafe { AUTORUN_MESSAGE_QUEUE.get_mut() }
 }
 
 #[entry]
@@ -163,6 +172,7 @@ fn main() -> ! {
         };
     }
 
+    spawn_task(autorun_logic());
     // spawn_task(dump_executor_status());
     start_global_executor();
 
@@ -190,7 +200,15 @@ async fn process_messages(mut uart: UartType, mut uart_dir: Option<UartDirType>)
         }
         let msg = match t {
             None => continue, // no data, ignore
+            Some(AtomiProto::Autorun(AtomiAutorun::Wait { seconds })) => {
+                let _ = Delay::new((seconds as u64).secs()).await;
+                Ok(AtomiProto::Autorun(AtomiAutorun::Done))
+            }
             Some(AtomiProto::Mc(mc_cmd)) => process_mc_message(mc_cmd),
+            Some(AtomiProto::Autorun(cmd)) => {
+                get_autorun_mq().enqueue(cmd);
+                Ok(AtomiProto::Autorun(AtomiAutorun::Done))
+            }
             Some(msg) => forward(&mut uart_comm, msg).await,
         };
         info!("Processed result: {}", msg);
@@ -299,5 +317,102 @@ unsafe fn USBCTRL_IRQ() {
                 }
             }
         }
+    }
+}
+
+fn check_autorun_status() -> Option<AtomiAutorun> {
+    match get_autorun_mq().dequeue() {
+        None => None,
+        Some(auto_run) => Some(auto_run),
+    }
+}
+
+//type ScriptType = (AtomiProto, i32);
+type ScriptType = AtomiProto;
+
+async fn autorun_logic() {
+    let mut engage = false;
+    const SCRIPT: &[ScriptType] = &[
+        // 流程启动
+        // 伸缩传送带归位
+        AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::MoveTo {
+            position: 0,
+        })),
+        // 压饼
+        // AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {
+        //     position: 300,
+        // })),
+        // 等待执行到位
+        // AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)),
+
+        // 收回
+        AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {
+            position: 0,
+        })),
+        // 等待执行到位
+        // AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)),
+
+        // 启动蠕动泵
+        AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
+            PeristalticPumpCommand::SetRotation { speed: 300 },
+        )),
+        // 启动按压平台旋转
+        AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
+            RotationStepperCommand::SetPresserRotation { speed: 200 },
+        )),
+        // 伸缩传送带伸出，此时均匀铺番茄酱
+        AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::MoveTo {
+            position: 200,
+        })),
+        // 等待执行到位
+        AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle)),
+        // 停止蠕动泵
+        AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
+            PeristalticPumpCommand::SetRotation { speed: 0 },
+        )),
+        // 传送带旋转
+        AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
+            RotationStepperCommand::SetConveyorBeltRotation { speed: 200 },
+        )),
+        // 启动起司料斗
+        AtomiProto::Mmd(MmdCommand::MmdDisperser(DispenserCommand::SetRotation {
+            idx: 0,
+            speed: 1000,
+        })),
+        // 伸缩带退回
+        AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::MoveTo {
+            position: 0,
+        })),
+        // 等待执行到位
+        AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle)),
+        // 传送带停止
+        AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
+            RotationStepperCommand::SetConveyorBeltRotation { speed: 0 },
+        )),
+        // 起司料斗停止
+        AtomiProto::Mmd(MmdCommand::MmdDisperser(DispenserCommand::SetRotation {
+            idx: 0,
+            speed: 0,
+        })),
+        // 流程结束
+    ];
+    loop {
+        Delay::new(1.millis()).await;
+
+        for step in SCRIPT {
+            // waiting for engaging
+            while !engage {
+                Delay::new(1.millis()).await;
+                match check_autorun_status() {
+                    Some(AtomiAutorun::Start) => engage = true,
+                    Some(AtomiAutorun::Stop) => engage = false,
+                    _ => (),
+                }
+            }
+
+            warn!("auto run:{}", step);
+            get_mq().enqueue(step.clone());
+        }
+        engage = false;
     }
 }

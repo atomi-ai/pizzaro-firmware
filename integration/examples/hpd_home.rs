@@ -7,15 +7,16 @@ use alloc::boxed::Box;
 
 use cortex_m::asm::delay;
 use defmt::info;
-use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
 
-use pizzaro::bsp::config::{HPD_BR_THRESHOLD, REVERT_HPD_BR_DIRECTION, REVERT_HPD_EN_SIGNAL};
+use pizzaro::bsp::config::{HPD_BR_DRIVER_N_EN, HPD_BR_THRESHOLD, REVERT_HPD_BR_DIRECTION};
 use pizzaro::common::async_initialization;
+use pizzaro::common::brush_motor::BrushMotor;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, Delay};
 use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::hpd::hpd_misc::{LinearScale, PwmMotor, MOTOR150_PWM_TOP};
+use pizzaro::hpd::hpd_misc::{LinearScale, MOTOR150_PWM_TOP};
 use pizzaro::hpd::linear_bull_processor::LinearBullProcessor;
 use pizzaro::hpd::linear_scale::{core1_task, read_and_update_linear_scale};
 use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b, smart_led};
@@ -25,6 +26,7 @@ use rp2040_hal::fugit::ExtU64;
 use rp2040_hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, SioOutput};
 use rp2040_hal::multicore::{Multicore, Stack};
 use rp2040_hal::pio::PIOExt;
+use rp2040_hal::pwm::SliceId;
 use rp2040_hal::{entry, pac, Clock, Sio, Timer, Watchdog};
 
 use rp_pico::XOSC_CRYSTAL_FREQ;
@@ -95,12 +97,12 @@ fn main() -> ! {
 
         let processor = LinearBullProcessor::new(
             linear_scale_rc1,
-            PwmMotor::new(
+            BrushMotor::new(
                 hpd_br_nEN!(pins).into_push_pull_output().into_dyn_pin(),
                 pwm,
                 HPD_BR_THRESHOLD,
                 REVERT_HPD_BR_DIRECTION,
-                REVERT_HPD_EN_SIGNAL,
+                HPD_BR_DRIVER_N_EN,
             ),
         );
         spawn_task(hpd_home(processor));
@@ -130,7 +132,7 @@ fn main() -> ! {
     }
 }
 
-async fn hpd_home(mut processor: LinearBullProcessor) {
+async fn hpd_home<S: SliceId, E: StatefulOutputPin>(mut processor: LinearBullProcessor<S, E>) {
     let mut t = processor.home().await.unwrap();
     info!(
         "xfguo: position after homing: {}, start move to relative 10000",
