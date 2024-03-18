@@ -27,7 +27,7 @@ use rp_pico::pac::interrupt;
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{AtomiProto, HpdCommand};
+use generic::atomi_proto::{AtomiProto, HpdCommand, LinearBullCommand};
 use pizzaro::bsp::config::{HPD_BR_DRIVER_N_EN, HPD_BR_THRESHOLD, REVERT_HPD_BR_DIRECTION};
 use pizzaro::bsp::{hpd_uart_irq, HpdUartType};
 use pizzaro::common::async_initialization;
@@ -172,6 +172,13 @@ async fn hpd_process_messages() {
                 AtomiProto::Hpd(HpdCommand::HpdPing) => {
                     uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdPong))
                 }
+
+                AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)) => {
+                    let res = uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdAck));
+                    linear_bull_input_mq().enqueue(LinearBullCommand::WaitIdle);
+                    res
+                }
+
                 AtomiProto::Hpd(HpdCommand::HpdLinearBull(cmd)) => {
                     if linear_bull_available {
                         let res = uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdAck));

@@ -10,7 +10,8 @@ use crate::common::global_timer::AsyncDelay;
 use crate::common::state::{LinearMotionState, MotionState};
 use crate::mmd::stepper::Stepper;
 
-const FAST_SPEED: u32 = 400; // steps / second
+//const FAST_SPEED: u32 = 400; // steps / second
+const FAST_SPEED: u32 = 100; // steps / second
 const SLOW_SPEED: u32 = 50; // steps / second
 const SMALL_DISTANCE: i32 = 50; // steps
 
@@ -62,6 +63,7 @@ where
     }
 
     pub fn is_idle(&mut self) -> bool {
+        info!("cur state: {}", self.state);
         self.state.is_idle()
     }
 
@@ -70,6 +72,7 @@ where
         self.is_home.store(false, Relaxed);
 
         self.state.push(LinearMotionState::HOMING)?;
+        info!("homing start, state: {}", self.state);
         // 第一步：快速向前直到触发限位开关
         info!("[MMD] Home 1: move to max with fast speed till reach the limit");
         let mut steps = self
@@ -112,6 +115,7 @@ where
         self.is_home.store(true, Relaxed);
 
         self.state.pop();
+        info!("homing done, state: {}", self.state);
         Ok(0)
     }
 
@@ -170,6 +174,8 @@ where
         self.stepper.ensure_enable()?;
 
         self.state.push(LinearMotionState::MOVING)?;
+        info!("moving start, state: {}", self.state);
+
         let moving_right = steps > 0;
         self.stepper.set_speed(speed);
         self.stepper.set_direction(moving_right).map_err(|e| {
@@ -179,14 +185,16 @@ where
         for i in 0..steps.abs() {
             let l = self.limit_left.is_high().unwrap_or(false);
             let r = self.limit_right.is_high().unwrap_or(false);
-            info!(
-                "[MMD: Debug] moving_right = {}, limit_left = {}, limit_right = {}",
-                moving_right, l, r
-            );
+            // info!(
+            //     "[MMD: Debug] moving_right = {}, limit_left = {}, limit_right = {}",
+            //     moving_right, l, r
+            // );
             // 在每一步之前检查限位开关
             if moving_right && r {
+                self.state.pop();
                 return self.update_position_and_return(i);
             } else if !moving_right && l {
+                self.state.pop();
                 return self.update_position_and_return(-i);
             }
             self.stepper.step().await.map_err(|e| {
@@ -196,6 +204,7 @@ where
         }
         let result = self.update_position_and_return(steps);
         self.state.pop();
+        info!("moving done, state: {}", self.state);
         result
     }
 }

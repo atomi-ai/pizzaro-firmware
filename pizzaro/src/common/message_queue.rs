@@ -6,6 +6,7 @@ use critical_section::Mutex;
 pub trait MessageQueueInterface<T> {
     fn enqueue(&mut self, message: T);
     fn dequeue(&mut self) -> Option<T>;
+    fn clear(&mut self);
 }
 
 pub struct MessageQueue<T> {
@@ -34,6 +35,10 @@ impl<T> MessageQueueInterface<T> for MessageQueue<T> {
     fn dequeue(&mut self) -> Option<T> {
         self.queue.pop_front()
     }
+
+    fn clear(&mut self) {
+        self.queue.clear()
+    }
 }
 
 pub struct MessageQueueWrapper<T>(Mutex<RefCell<MessageQueue<T>>>);
@@ -51,5 +56,9 @@ impl<T> MessageQueueInterface<T> for MessageQueueWrapper<T> {
 
     fn dequeue(&mut self) -> Option<T> {
         critical_section::with(|cs| self.0.borrow(cs).borrow_mut().dequeue())
+    }
+
+    fn clear(&mut self) {
+        critical_section::with(|cs| self.0.borrow(cs).borrow_mut().clear())
     }
 }

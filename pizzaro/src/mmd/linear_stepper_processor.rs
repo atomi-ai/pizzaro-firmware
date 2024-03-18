@@ -48,7 +48,8 @@ impl LinearStepperProcessor {
             }
             LinearStepperCommand::WaitIdle => {
                 while !self.linear_stepper.is_idle() {
-                    let _ = Delay::new(10.millis()).await;
+                    let _ = Delay::new(300.millis()).await;
+                    info!("wait idle...")
                 }
                 Ok(0)
             }

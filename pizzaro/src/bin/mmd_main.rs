@@ -34,7 +34,7 @@ use rp2040_hal::{
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::MmdCommand::MmdBusy;
-use generic::atomi_proto::{AtomiProto, MmdCommand};
+use generic::atomi_proto::{AtomiProto, LinearStepperCommand, MmdCommand};
 use generic::mmd_status::MmdStatus;
 use pizzaro::bsp::{
     mmd_uart_irq, MmdMotor42Step1Channel, MmdMotor57StepChannel, MmdUartDirPinType, MmdUartType,
@@ -161,7 +161,7 @@ fn main() -> ! {
         pwm.enable();
         mmd_br_channel_a!(pwm).output_to(mmd_br_pwm_a!(pins));
         mmd_br_channel_b!(pwm).output_to(mmd_br_pwm_b!(pins));
-        pwm.channel_b.set_inverted();
+        mmd_br_channel_b!(pwm).set_inverted();
 
         let peristaltic_pump_motor = BrushMotor::new(
             mmd_br_nEN!(pins).into_push_pull_output().into_dyn_pin(),
@@ -279,6 +279,22 @@ async fn mmd_process_messages() {
                     uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdPong))
                 }
 
+                AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle)) => {
+                    // // 处理wait idle 不能受 mmd_linear_stepper_available限制，先用这个办法workaround掉
+                    // let res = uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck));
+                    // linear_stepper_input_mq().enqueue(LinearStepperCommand::WaitIdle);
+                    // res
+
+                    if mmd_linear_stepper_available {
+                        uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
+                    } else {
+                        let _ = uart_comm.send(AtomiProto::AtomiError(AtomiError::MmdUnavailable(
+                            MmdStatus::Unavailable,
+                        )));
+                        Err(AtomiError::MmdUnavailable(MmdStatus::Unavailable))
+                    }
+                }
+
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(cmd)) => {
                     if mmd_linear_stepper_available {
                         let res = uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck));
@@ -294,21 +310,21 @@ async fn mmd_process_messages() {
                 }
 
                 AtomiProto::Mmd(MmdCommand::MmdRotationStepper(cmd)) => {
-                    info!("pre rotation");
+                    // info!("pre rotation");
                     rotation_stepper_input_mq().enqueue(cmd);
-                    info!("send ack 0");
+                    // info!("send ack 0");
                     uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
                 }
 
                 AtomiProto::Mmd(MmdCommand::MmdDisperser(cmd)) => {
                     brushless_motor_processor.process(cmd).unwrap();
-                    info!("send ack 1");
+                    // info!("send ack 1");
                     uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
                 }
 
                 AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(cmd)) => {
                     brush_motor_processor.process(cmd).unwrap();
-                    info!("send ack 2");
+                    // info!("send ack 2");
                     uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
                 }
 

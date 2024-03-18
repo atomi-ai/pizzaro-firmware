@@ -48,12 +48,17 @@ static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
 static mut UIUART: Option<UiUartType> = None;
 static mut FROM_PC_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 static mut AUTORUN_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiAutorun>> = Once::new();
+static mut AUTORUN_RESPONSE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
     unsafe { FROM_PC_MESSAGE_QUEUE.get_mut() }
 }
 
 fn get_autorun_mq() -> &'static mut MessageQueueWrapper<AtomiAutorun> {
     unsafe { AUTORUN_MESSAGE_QUEUE.get_mut() }
+}
+
+fn get_autorun_resp_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
+    unsafe { AUTORUN_RESPONSE_QUEUE.get_mut() }
 }
 
 #[entry]
@@ -200,11 +205,13 @@ async fn process_messages(mut uart: UartType, mut uart_dir: Option<UartDirType>)
         }
         let msg = match t {
             None => continue, // no data, ignore
+            // 处理autorun内部的延迟需求（这个有必要么？）
             Some(AtomiProto::Autorun(AtomiAutorun::Wait { seconds })) => {
                 let _ = Delay::new((seconds as u64).secs()).await;
                 Ok(AtomiProto::Autorun(AtomiAutorun::Done))
             }
             Some(AtomiProto::Mc(mc_cmd)) => process_mc_message(mc_cmd),
+            // 所有autorun请求丢给autorun的task
             Some(AtomiProto::Autorun(cmd)) => {
                 get_autorun_mq().enqueue(cmd);
                 Ok(AtomiProto::Autorun(AtomiAutorun::Done))
@@ -215,6 +222,7 @@ async fn process_messages(mut uart: UartType, mut uart_dir: Option<UartDirType>)
 
         match (|| -> Result<(), AtomiError> {
             let wrapped_msg = wrap_result_into_proto(msg);
+            get_autorun_resp_mq().enqueue(wrapped_msg);
             let binding =
                 postcard::to_allocvec(&wrapped_msg).map_err(|_| AtomiError::DataConvertError)?;
             info!(
@@ -340,7 +348,7 @@ async fn autorun_logic() {
         })),
         // 压饼
         // AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {
-        //     position: 300,
+        //     position: 53200,
         // })),
         // 等待执行到位
         // AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)),
@@ -353,9 +361,9 @@ async fn autorun_logic() {
         // AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)),
 
         // 启动蠕动泵
-        AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
-            PeristalticPumpCommand::SetRotation { speed: 300 },
-        )),
+        // AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
+        //     PeristalticPumpCommand::SetRotation { speed: 300 },
+        // )),
         // 启动按压平台旋转
         AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
             RotationStepperCommand::SetPresserRotation { speed: 200 },
@@ -367,9 +375,9 @@ async fn autorun_logic() {
         // 等待执行到位
         AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle)),
         // 停止蠕动泵
-        AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
-            PeristalticPumpCommand::SetRotation { speed: 0 },
-        )),
+        // AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
+        //     PeristalticPumpCommand::SetRotation { speed: 0 },
+        // )),
         // 传送带旋转
         AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
             RotationStepperCommand::SetConveyorBeltRotation { speed: 200 },
@@ -411,6 +419,39 @@ async fn autorun_logic() {
             }
 
             warn!("auto run:{}", step);
+            // 如果step为wait_idle，需要一直等到成功为止
+            // 但在那里收返回的应答呢？mc会把所有的应答直接一股脑的forward到usb，
+            match step.clone() {
+                AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)) => {
+                    loop {
+                        get_autorun_mq().clear();
+                        get_mq().enqueue(step.clone());
+
+                        let resp = get_autorun_resp_mq().dequeue();
+                        if let Some(resp) = resp {
+                            if resp == AtomiProto::Hpd(HpdCommand::HpdAck) {
+                                //got idle signal
+                                break;
+                            }
+                        }
+                        Delay::new(100.millis()).await;
+                    }
+                }
+                AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle)) => {
+                    loop {
+                        get_mq().enqueue(step.clone());
+                        let resp = get_autorun_resp_mq().dequeue();
+                        if let Some(resp) = resp {
+                            if resp == AtomiProto::Mmd(MmdCommand::MmdAck) {
+                                //got idle signal
+                                break;
+                            }
+                        }
+                        Delay::new(100.millis()).await;
+                    }
+                }
+                _ => (),
+            }
             get_mq().enqueue(step.clone());
         }
         engage = false;

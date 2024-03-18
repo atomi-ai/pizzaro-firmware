@@ -15,6 +15,21 @@ pub struct MotionState {
     state: Vec<LinearMotionState, 16>,
 }
 
+impl Format for MotionState {
+    fn format(&self, fmt: defmt::Formatter) {
+        defmt::write!(fmt, "MotionState {{ state: [");
+
+        for (i, s) in self.state.iter().enumerate() {
+            if i != 0 {
+                defmt::write!(fmt, ", ");
+            }
+            defmt::write!(fmt, "{:?}", s);
+        }
+
+        defmt::write!(fmt, "] }}");
+    }
+}
+
 impl MotionState {
     pub fn new() -> Self {
         let state_array = [LinearMotionState::IDLE];
