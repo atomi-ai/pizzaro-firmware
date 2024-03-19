@@ -1,11 +1,11 @@
-use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
 use fugit::ExtU64;
 
 use generic::atomi_error::AtomiError;
 
 use crate::common::global_timer::AsyncDelay;
 
-pub struct Stepper<OP1: OutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay> {
+pub struct Stepper<OP1: StatefulOutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay> {
     enable_pin: OP1,
     dir_pin: OP2,
     step_pin: OP3,
@@ -16,7 +16,9 @@ pub struct Stepper<OP1: OutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay
     async_delay: D,
 }
 
-impl<OP1: OutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay> Stepper<OP1, OP2, OP3, D> {
+impl<OP1: StatefulOutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay>
+    Stepper<OP1, OP2, OP3, D>
+{
     pub fn new(
         enable_pin: OP1,
         dir_pin: OP2,
@@ -45,6 +47,18 @@ impl<OP1: OutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay> Stepper<OP1,
         self.enable_pin
             .set_high()
             .map_err(|_| AtomiError::GpioPinError)
+    }
+
+    pub fn ensure_enable(&mut self) -> Result<(), AtomiError> {
+        if self
+            .enable_pin
+            .is_set_high()
+            .map_err(|_| AtomiError::GpioPinError)?
+        {
+            self.enable()
+        } else {
+            Ok(())
+        }
     }
 
     pub fn set_direction(&mut self, forward: bool) -> Result<(), AtomiError> {

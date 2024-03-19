@@ -12,11 +12,11 @@ pub struct BrushlessMotorProcessor {
 
 impl BrushlessMotorProcessor {
     pub fn new(
-        mut dispenser0_motor: MmdDisperser0MotorType,
-        mut dispenser1_motor: MmdDisperser1MotorType,
+        dispenser0_motor: MmdDisperser0MotorType,
+        dispenser1_motor: MmdDisperser1MotorType,
     ) -> Self {
-        dispenser0_motor.start_pwm_motor().unwrap();
-        dispenser1_motor.start_pwm_motor().unwrap();
+        // dispenser0_motor.enable().unwrap();
+        // dispenser1_motor.enable().unwrap();
         Self {
             dispenser0_motor,
             dispenser1_motor,

@@ -39,8 +39,8 @@ impl RotationStepperProcessor {
     }
 
     pub fn enable(&mut self) -> Result<(), AtomiError> {
-        self.conveyor_rotation_stepper.enable()?;
-        self.presser_rotation_stepper.enable()?;
+        // self.conveyor_rotation_stepper.enable()?;
+        // self.presser_rotation_stepper.enable()?;
         Ok(())
     }
 

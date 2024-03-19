@@ -1,14 +1,18 @@
-use defmt::{Debug2Format, info};
+use defmt::{info, Debug2Format};
+use embedded_hal::digital::v2::StatefulOutputPin;
 use fugit::ExtU64;
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{LinearBullCommand, LinearBullResponse};
+use rp2040_hal::pwm::SliceId;
 
 use crate::bsp::config::LINEAR_BULL;
-use crate::common::global_timer::{Delay, now};
+use crate::common::brush_motor::BrushMotor;
+use crate::common::global_timer::{now, Delay};
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use crate::common::once::Once;
-use crate::hpd::hpd_misc::{LinearBullDirection, LinearScale, PwmMotor};
+use crate::common::state::{LinearMotionState, MotionState};
+use crate::hpd::hpd_misc::{LinearBullDirection, LinearScale};
 use crate::hpd::pid::PIDController;
 
 static mut LINEAR_BULL_INPUT_MQ_ONCE: Once<MessageQueueWrapper<LinearBullCommand>> = Once::new();
@@ -20,7 +24,9 @@ pub fn linear_bull_output_mq() -> &'static mut MessageQueueWrapper<LinearBullRes
     unsafe { LINEAR_BULL_OUTPUT_MQ_ONCE.get_mut() }
 }
 
-pub async fn process_linear_bull_message(mut processor: LinearBullProcessor) {
+pub async fn process_linear_bull_message<S: SliceId, E: StatefulOutputPin>(
+    mut processor: LinearBullProcessor<S, E>,
+) {
     info!("process_linear_bull_message() 0");
     let mq_in = linear_bull_input_mq();
     let mq_out = linear_bull_output_mq();
@@ -38,24 +44,39 @@ pub async fn process_linear_bull_message(mut processor: LinearBullProcessor) {
     }
 }
 
-pub struct LinearBullProcessor {
+pub struct LinearBullProcessor<S: SliceId, E: StatefulOutputPin> {
     linear_scale: &'static mut LinearScale,
-    pwm_motor: PwmMotor,
+    pwm_motor: BrushMotor<S, E>,
+    state: MotionState,
 }
 
-impl LinearBullProcessor {
-    pub fn new(linear_scale: &'static mut LinearScale, pwm_motor: PwmMotor) -> Self {
+impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
+    pub fn new(linear_scale: &'static mut LinearScale, pwm_motor: BrushMotor<S, E>) -> Self {
         Self {
             linear_scale,
             pwm_motor,
+            state: MotionState::new(),
         }
     }
 
-    pub async fn process_linear_bull_message<'a>(&mut self, msg: LinearBullCommand) -> Result<i32, AtomiError> {
+    pub fn is_idle(&mut self) -> bool {
+        self.state.is_idle()
+    }
+
+    pub async fn process_linear_bull_message<'a>(
+        &mut self,
+        msg: LinearBullCommand,
+    ) -> Result<i32, AtomiError> {
         match msg {
             LinearBullCommand::Home => self.home().await,
             LinearBullCommand::MoveTo { position } => self.move_to(position).await,
             LinearBullCommand::MoveToRelative { distance } => self.move_to_relative(distance).await,
+            LinearBullCommand::WaitIdle => {
+                while !self.is_idle() {
+                    let _ = Delay::new(10.millis()).await;
+                }
+                Ok(0)
+            }
             LinearBullCommand::DummyWait { seconds } => {
                 let _ = Delay::new((seconds as u64).secs()).await;
                 Ok(0)
@@ -68,7 +89,7 @@ impl LinearBullProcessor {
     }
 
     pub async fn home(&mut self) -> Result<i32, AtomiError> {
-        self.pwm_motor.start_pwm_motor()?;
+        self.pwm_motor.enable()?;
 
         let dir = LinearBullDirection::Bottom;
         info!(
@@ -92,15 +113,26 @@ impl LinearBullProcessor {
     }
 
     async fn home_on_direction(&mut self, dir: LinearBullDirection) -> Result<i32, AtomiError> {
+        self.state.push(LinearMotionState::HOMING)?;
         info!("home_on_direction 0, now = {}", now().ticks());
         self.move_with_speed(dir.get_dir_seg() * 1.0, 10_000_000)
-            .await?;
+            .await
+            .map_err(|e| {
+                self.state.pop();
+                e
+            })?;
         info!("home_on_direction 2, now = {}", now().ticks());
-        self.move_with_speed(dir.get_dir_seg() * -1.0, 1000).await?;
+        self.move_with_speed(dir.get_dir_seg() * -1.0, 1000)
+            .await
+            .map_err(|e| {
+                self.state.pop();
+                e
+            })?;
         info!("home_on_direction 4, now = {}", now().ticks());
         let t = self
             .move_with_speed(dir.get_dir_seg() * 1.0, 10_000_000)
             .await;
+        self.state.pop();
         info!("home_on_direction 9, now = {}", now().ticks());
         t
     }
@@ -128,9 +160,13 @@ impl LinearBullProcessor {
         let mut pid = PIDController::new(LINEAR_BULL.0, LINEAR_BULL.1, LINEAR_BULL.2, target);
         let dt = 0.01;
 
+        self.state.push(LinearMotionState::MOVING)?;
         loop {
             Delay::new(1.millis()).await;
-            let pos = self.linear_scale.get_rel_position()?;
+            let pos = self.linear_scale.get_rel_position().map_err(|e| {
+                self.state.pop();
+                e
+            })?;
             if pid.reach_target(pos, now()) {
                 break;
             }
@@ -146,6 +182,7 @@ impl LinearBullProcessor {
             self.pwm_motor.apply_speed(speed);
         }
         self.pwm_motor.apply_speed(0.0);
+        self.state.pop();
         self.linear_scale.get_rel_position()
     }
 

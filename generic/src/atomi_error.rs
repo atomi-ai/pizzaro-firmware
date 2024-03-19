@@ -39,4 +39,7 @@ pub enum AtomiError {
 
     // Used by AtomiProto parsing
     NotIntStr,
+
+    // Used by state
+    StateOverflow,
 }

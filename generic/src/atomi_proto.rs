@@ -5,9 +5,18 @@ use defmt::Format;
 use serde::{Deserialize, Serialize};
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, defmt::Format)]
+pub enum AtomiAutorun {
+    Start,
+    Stop,
+    Wait { seconds: i32 },
+    Done,
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, defmt::Format)]
 pub enum AtomiProto {
     Unknown,
     Status,
+    Autorun(AtomiAutorun),
 
     Mc(McCommand),
     Mmd(MmdCommand),
@@ -80,10 +89,11 @@ pub enum RotationStepperCommand {
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum LinearStepperCommand {
-    Home,
-    MoveTo { position: i32 },
-    MoveToRelative { steps: i32 },
-    MoveToRelativeForce { steps: i32 },
+    Home,                               // wait
+    MoveTo { position: i32 },           // wait
+    MoveToRelative { steps: i32 },      // wait
+    MoveToRelativeForce { steps: i32 }, // wait
+    WaitIdle,
     GetTriggerStatus,
     DummyWait { seconds: i32 },
 }
@@ -116,9 +126,10 @@ pub enum HpdCommand {
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum LinearBullCommand {
-    Home,
-    MoveTo { position: i32 },
-    MoveToRelative { distance: i32 },
+    Home,                             // wait
+    MoveTo { position: i32 },         // wait
+    MoveToRelative { distance: i32 }, // wait
+    WaitIdle,
     DummyWait { seconds: i32 },
 }
 

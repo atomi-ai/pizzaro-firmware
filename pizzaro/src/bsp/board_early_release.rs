@@ -5,7 +5,8 @@ use rp2040_hal::{
             Gpio11, Gpio12, Gpio13, Gpio18, Gpio21, Gpio22, Gpio26, Gpio27, Gpio4, Gpio5, Gpio8,
             Gpio9,
         },
-        FunctionSio, FunctionSioOutput, FunctionUart, Pin, PullDown, PullUp, SioInput, SioOutput,
+        DynPinId, FunctionSio, FunctionSioOutput, FunctionUart, Pin, PullDown, PullUp, SioInput,
+        SioOutput,
     },
     pac::{Interrupt, UART0, UART1},
     pwm::{Pwm0, Pwm1, Pwm4, Pwm5, Pwm6},
@@ -13,15 +14,14 @@ use rp2040_hal::{
 };
 
 use crate::{
-    common::global_timer::DelayCreator,
-    define_pins,
-    mmd::{
+    common::{
         brush_motor::BrushMotor,
         brushless_motor::BrushlessMotor,
-        linear_stepper::LinearStepper,
+        global_timer::DelayCreator,
         pwm_stepper::{PwmChannels, PwmStepper},
-        stepper::Stepper,
     },
+    define_pins,
+    mmd::{linear_stepper::LinearStepper, stepper::Stepper},
 };
 
 pub type HpdUartPins = (
@@ -53,7 +53,8 @@ pub type McUiUartType = UartPeripheral<Enabled, UART1, McUiScreenPins>;
 
 /// 使用第二个通道连接驱动传送带旋转的电机
 // 42 motor1(and check pins defined in macros)
-pub type ConveyorBeltRotationMotorType = PwmStepper<Pwm1>;
+pub type MmdStepper42_1EnablePinType = Pin<DynPinId, FunctionSio<SioOutput>, PullDown>;
+pub type ConveyorBeltRotationMotorType = PwmStepper<Pwm1, MmdStepper42_1EnablePinType>;
 #[allow(non_upper_case_globals)]
 pub const MmdMotor42Step1Channel: PwmChannels = PwmChannels::channel_b;
 
@@ -82,11 +83,14 @@ pub type ConveyorBeltLinearBullType = LinearStepper<
 // 57 motor(and check pins defined in macros)
 #[allow(non_upper_case_globals)]
 pub const MmdMotor57StepChannel: PwmChannels = PwmChannels::channel_b;
-pub type MmdPresserMotorType = PwmStepper<Pwm6>;
+pub type MmdStepper57EnablePinType = Pin<DynPinId, FunctionSio<SioOutput>, PullDown>;
+pub type MmdPresserMotorType = PwmStepper<Pwm6, MmdStepper57EnablePinType>;
 
 pub type MmdDisperser0MotorType = BrushlessMotor<Pwm4>;
 pub type MmdDisperser1MotorType = BrushlessMotor<Pwm5>;
-pub type MmdPeristalicPumpMotorType = BrushMotor<Pwm0>;
+
+pub type MmdPresserMotorEnablePinType = Pin<DynPinId, FunctionSio<SioOutput>, PullDown>;
+pub type MmdPeristalicPumpMotorType = BrushMotor<Pwm0, MmdPresserMotorEnablePinType>;
 
 /// 反相电机, 42步进0
 pub const MMD_STEPPER42_0_REVERT_DIR: bool = false;

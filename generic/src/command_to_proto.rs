@@ -1,7 +1,7 @@
 use crate::atomi_error::AtomiError;
 use crate::atomi_proto::{
-    AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McCommand,
-    MmdCommand, PeristalticPumpCommand, RotationStepperCommand,
+    AtomiAutorun, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand,
+    LinearStepperCommand, McCommand, MmdCommand, PeristalticPumpCommand, RotationStepperCommand,
 };
 
 pub fn parse_protocol(line: &str) -> AtomiProto {
@@ -28,6 +28,10 @@ where
     match tokens.next() {
         Some("ping") => AtomiProto::Mc(McCommand::McPing),
         Some("pong") => AtomiProto::Mc(McCommand::McPong),
+
+        Some("autorun") => AtomiProto::Autorun(AtomiAutorun::Start),
+        Some("autostop") => AtomiProto::Autorun(AtomiAutorun::Stop),
+
         _ => AtomiProto::Mc(McCommand::McError),
     }
 }
@@ -177,6 +181,10 @@ where
             }
         }
 
+        Some("wait_idle") => {
+            AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle))
+        }
+
         Some("dummy") => {
             if let Ok(seconds) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
@@ -198,6 +206,7 @@ where
         Some("ping") => AtomiProto::Hpd(HpdCommand::HpdPing),
         Some("pong") => AtomiProto::Hpd(HpdCommand::HpdPong),
         Some("home") => AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::Home)),
+
         Some("move_rel") => {
             if let Ok(distance) = parse_int(tokens.next()) {
                 AtomiProto::Hpd(HpdCommand::HpdLinearBull(
@@ -215,6 +224,10 @@ where
             } else {
                 AtomiProto::Unknown
             }
+        }
+
+        Some("wait_idle") => {
+            AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle))
         }
 
         Some("dummy") => {

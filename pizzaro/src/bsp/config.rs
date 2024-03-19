@@ -33,10 +33,14 @@ config! {
     REVERT_MMD_STEPPER57_DIRECTION: false,
     SWITCH_MMD_LIMIT_SWITCHS: false,
     SWITCH_MMD_PROXIMITY_SENSORS: false,
+
     // for HPD
+    // 是否需要翻转电机方向
     REVERT_HPD_BR_DIRECTION: true, // ok
-    REVERT_HPD_EN_SIGNAL: true,	    // ok
+    // 是否需要翻转光栅尺方向
     REVERT_HPD_LINEARSCALE_DIRECTION: true, // ok
+    // 电机驱动是否是低电平使能
+    HPD_BR_DRIVER_N_EN: true
 }
 
 parameters! {

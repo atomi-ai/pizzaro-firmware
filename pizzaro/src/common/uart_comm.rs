@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use defmt::{error, info, Debug2Format, Format};
+use defmt::{debug, error, info, Debug2Format, Format};
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::serial::{Read, Write};
 use futures::future::{select, Either};
@@ -116,7 +116,7 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
                 correct = true;
                 break;
             }
-            info!("Errors in reading UART's first byte, try again");
+            debug!("Errors in reading UART's first byte, try again");
         }
         if !correct {
             error!("Errors in reading UART");
@@ -135,7 +135,7 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
             .await
             .map_err(|_| AtomiError::UartReadError)?;
 
-        info!(
+        debug!(
             "UartComm::recv() 6: got data = {}",
             Debug2Format(&response_buffer)
         );
