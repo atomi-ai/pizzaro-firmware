@@ -24,6 +24,7 @@ pub enum AtomiError {
     GpioPinError,
 
     McLockedForSystemRun,
+    McForwardTimeout,
 
     MmdUnavailable(MmdStatus),
     MmdStepperHomingError,

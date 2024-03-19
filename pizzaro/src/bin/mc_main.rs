@@ -6,54 +6,37 @@ extern crate alloc;
 use alloc::boxed::Box;
 
 use cortex_m::peripheral::NVIC;
-use defmt::{error, info, warn, Debug2Format};
+use defmt::{Debug2Format, error, info};
 use fugit::{ExtU64, RateExtU32};
-use pizzaro::bsp::{mc_ui_uart_irq, McUartDirPinType, McUartType, McUiUartType};
-use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
-use rp2040_hal::gpio::FunctionUart;
-use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
-    clocks::{init_clocks_and_plls, Clock},
+    clocks::{Clock, init_clocks_and_plls},
     pac,
     sio::Sio,
+    Timer,
     uart::UartPeripheral,
     watchdog::Watchdog,
-    Timer,
 };
-use rp_pico::hal::pac::interrupt;
+use rp2040_hal::gpio::FunctionUart;
+use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp_pico::{entry, hal, XOSC_CRYSTAL_FREQ};
+use rp_pico::hal::pac::interrupt;
 use usb_device::bus::UsbBusAllocator;
 use usb_device::device::{UsbDevice, UsbDeviceBuilder, UsbVidPid};
 use usb_device::UsbError;
 use usbd_serial::SerialPort;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{wrap_result_into_proto, AtomiAutorun, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McCommand, MmdCommand, PeristalticPumpCommand, RotationStepperCommand, McSystemExecutorCmd};
-use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
+use generic::atomi_proto::{AtomiProto, McCommand, McSystemExecutorCmd, McSystemExecutorResponse, wrap_result_into_proto};
+use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
+use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
+use pizzaro::bsp::mc_ui_uart_irq;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{init_global_timer, now, Delay};
+use pizzaro::common::global_timer::{Delay, init_global_timer, now};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::common::uart_comm::UartComm;
-use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
-use pizzaro::mc::system_executor::{forward, process_mc_one_full_run, system_executor_input_mq};
-use pizzaro::mc::{UartDirType, UartType, UiUartType};
-
-struct GlobalContainer {
-    // 这个用法有点危险，虽然它可以工作。正常Uart是不应该作为一个共享变量被多个async future占用的，
-    // 但是这里system_run占用的时候，是会用system_locked锁住的，所以应该还好。
-    // 以后可以想想还有什么更好的办法，就是多个futures里面都需要有这个uart的话，而且我们也不希望
-    // 提供thread-safe的uart的情况下，用什么模式来解决这个问题。
-    uart: Option<UartType>,
-    uart_dir: Option<UartDirType>,
-    uart_comm: Option<UartComm<'static, UartDirType, UartType>>,
-}
-static mut GLOBAL_CONTAINER: GlobalContainer = GlobalContainer {
-    uart: None,
-    uart_dir: None,
-    uart_comm: None
-};
+use pizzaro::mc::UiUartType;
+use pizzaro::mc::system_executor::{McSystemExecutor, process_mc_one_full_run, system_executor_input_mq, system_executor_output_mq, wait_for_forward_dequeue};
 
 // TODO(lv): Put all static variables into GlobalContainer.
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
@@ -110,21 +93,8 @@ fn main() -> ! {
             .unwrap();
         let uart_dir = mc_485_dir!(pins).reconfigure();
 
-        unsafe {
-            GLOBAL_CONTAINER.uart.replace(uart);
-            GLOBAL_CONTAINER.uart_dir.replace(uart_dir);
-            let mut uart_comm = UartComm::new(
-                GLOBAL_CONTAINER.uart.as_mut().unwrap(),
-                &mut GLOBAL_CONTAINER.uart_dir,
-                UART_EXPECTED_RESPONSE_LENGTH,
-            );
-            GLOBAL_CONTAINER.uart_comm.replace(uart_comm);
-        }
-        let uart_comm_rc0 = unsafe { GLOBAL_CONTAINER.uart_comm.as_mut().unwrap() };
-        let uart_comm_rc1 = unsafe { GLOBAL_CONTAINER.uart_comm.as_mut().unwrap() };
-
-        spawn_task(process_messages(uart_comm_rc0));
-        spawn_task(process_mc_one_full_run(uart_comm_rc1));
+        spawn_task(process_messages());
+        spawn_task(process_mc_one_full_run(McSystemExecutor::new(uart, Some(uart_dir))));
     }
 
     {
@@ -204,13 +174,25 @@ fn main() -> ! {
     }
 }
 
-async fn process_messages(uart_comm: &mut UartComm<'_, UartDirType, UartType>) {
+async fn process_messages() {
     // TODO(zephyr): Do we need to keep connection alive?
     let serial = unsafe { USB_SERIAL.as_mut().unwrap() };
     let mut system_locked = false;
 
     loop {
         Delay::new(1.millis()).await;
+
+        if let Some(resp) = system_executor_output_mq().dequeue() {
+            info!("[MC] get response from system executor: {}", resp);
+            match resp {
+                McSystemExecutorResponse::ForwardResponse(_) => {
+                    error!("[MC] Should not get any forward response here")
+                }
+                McSystemExecutorResponse::FinishedOneFullRun => {
+                    system_locked = false;
+                }
+            }
+        }
 
         let t = get_mq().dequeue();
         // TODO(zephyr): simplify the code below.
@@ -235,7 +217,8 @@ async fn process_messages(uart_comm: &mut UartComm<'_, UartDirType, UartType>) {
                 if system_locked {
                     Err(AtomiError::McLockedForSystemRun)
                 } else {
-                    forward(uart_comm, msg).await
+                    system_executor_input_mq().enqueue(McSystemExecutorCmd::ForwardRequest(msg));
+                    wait_for_forward_dequeue().await
                 }
             },
         };

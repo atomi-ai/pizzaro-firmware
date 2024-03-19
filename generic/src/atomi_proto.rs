@@ -35,11 +35,15 @@ pub enum McCommand {
     McAck,
 }
 
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum McSystemExecutorCmd {
+    ForwardRequest(AtomiProto),
     ExecuteOneFullRun,
 }
 
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum McSystemExecutorResponse {
+    ForwardResponse(AtomiProto),
     FinishedOneFullRun,
 }
 
@@ -150,6 +154,7 @@ pub enum LinearBullResponse {
     Done,
 }
 
+// This should be an idempotent function: f(f(x)) = f(x)
 pub fn wrap_result_into_proto(res: Result<AtomiProto, AtomiError>) -> AtomiProto {
     res.unwrap_or_else(AtomiProto::AtomiError)
 }
