@@ -23,6 +23,8 @@ pub enum AtomiError {
 
     GpioPinError,
 
+    McLockedForSystemRun,
+
     MmdUnavailable(MmdStatus),
     MmdStepperHomingError,
     MmdStepperNeedToHome,
@@ -31,6 +33,7 @@ pub enum AtomiError {
     MmdNotAcceptedPosition,
     MmdUnknownDispenserIdx,
     MmdCannotStart,
+    MmdLinearStepperWaitIdleError,
 
     HpdUnavailable,
     HpdNotHomed,

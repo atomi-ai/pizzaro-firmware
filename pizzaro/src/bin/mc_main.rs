@@ -28,11 +28,7 @@ use usb_device::UsbError;
 use usbd_serial::SerialPort;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{
-    wrap_result_into_proto, AtomiAutorun, AtomiProto, DispenserCommand, HpdCommand,
-    LinearBullCommand, LinearStepperCommand, McCommand, MmdCommand, PeristalticPumpCommand,
-    RotationStepperCommand,
-};
+use generic::atomi_proto::{wrap_result_into_proto, AtomiAutorun, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McCommand, MmdCommand, PeristalticPumpCommand, RotationStepperCommand, McSystemExecutorCmd};
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, now, Delay};
@@ -41,24 +37,33 @@ use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
 use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
+use pizzaro::mc::system_executor::{forward, process_mc_one_full_run, system_executor_input_mq};
+use pizzaro::mc::{UartDirType, UartType, UiUartType};
 
+struct GlobalContainer {
+    // 这个用法有点危险，虽然它可以工作。正常Uart是不应该作为一个共享变量被多个async future占用的，
+    // 但是这里system_run占用的时候，是会用system_locked锁住的，所以应该还好。
+    // 以后可以想想还有什么更好的办法，就是多个futures里面都需要有这个uart的话，而且我们也不希望
+    // 提供thread-safe的uart的情况下，用什么模式来解决这个问题。
+    uart: Option<UartType>,
+    uart_dir: Option<UartDirType>,
+    uart_comm: Option<UartComm<'static, UartDirType, UartType>>,
+}
+static mut GLOBAL_CONTAINER: GlobalContainer = GlobalContainer {
+    uart: None,
+    uart_dir: None,
+    uart_comm: None
+};
+
+// TODO(lv): Put all static variables into GlobalContainer.
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
 static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
 static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
 static mut UIUART: Option<UiUartType> = None;
+
 static mut FROM_PC_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
-static mut AUTORUN_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiAutorun>> = Once::new();
-static mut AUTORUN_RESPONSE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
     unsafe { FROM_PC_MESSAGE_QUEUE.get_mut() }
-}
-
-fn get_autorun_mq() -> &'static mut MessageQueueWrapper<AtomiAutorun> {
-    unsafe { AUTORUN_MESSAGE_QUEUE.get_mut() }
-}
-
-fn get_autorun_resp_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
-    unsafe { AUTORUN_RESPONSE_QUEUE.get_mut() }
 }
 
 #[entry]
@@ -105,7 +110,21 @@ fn main() -> ! {
             .unwrap();
         let uart_dir = mc_485_dir!(pins).reconfigure();
 
-        spawn_task(process_messages(uart, Some(uart_dir)));
+        unsafe {
+            GLOBAL_CONTAINER.uart.replace(uart);
+            GLOBAL_CONTAINER.uart_dir.replace(uart_dir);
+            let mut uart_comm = UartComm::new(
+                GLOBAL_CONTAINER.uart.as_mut().unwrap(),
+                &mut GLOBAL_CONTAINER.uart_dir,
+                UART_EXPECTED_RESPONSE_LENGTH,
+            );
+            GLOBAL_CONTAINER.uart_comm.replace(uart_comm);
+        }
+        let uart_comm_rc0 = unsafe { GLOBAL_CONTAINER.uart_comm.as_mut().unwrap() };
+        let uart_comm_rc1 = unsafe { GLOBAL_CONTAINER.uart_comm.as_mut().unwrap() };
+
+        spawn_task(process_messages(uart_comm_rc0));
+        spawn_task(process_mc_one_full_run(uart_comm_rc1));
     }
 
     {
@@ -177,7 +196,6 @@ fn main() -> ! {
         };
     }
 
-    spawn_task(autorun_logic());
     // spawn_task(dump_executor_status());
     start_global_executor();
 
@@ -186,14 +204,10 @@ fn main() -> ! {
     }
 }
 
-type UartType = McUartType;
-type UartDirType = McUartDirPinType;
-type UiUartType = McUiUartType;
-
-async fn process_messages(mut uart: UartType, mut uart_dir: Option<UartDirType>) {
+async fn process_messages(uart_comm: &mut UartComm<'_, UartDirType, UartType>) {
     // TODO(zephyr): Do we need to keep connection alive?
-    let mut uart_comm = UartComm::new(&mut uart, &mut uart_dir, UART_EXPECTED_RESPONSE_LENGTH);
     let serial = unsafe { USB_SERIAL.as_mut().unwrap() };
+    let mut system_locked = false;
 
     loop {
         Delay::new(1.millis()).await;
@@ -205,24 +219,30 @@ async fn process_messages(mut uart: UartType, mut uart_dir: Option<UartDirType>)
         }
         let msg = match t {
             None => continue, // no data, ignore
-            // 处理autorun内部的延迟需求（这个有必要么？）
-            Some(AtomiProto::Autorun(AtomiAutorun::Wait { seconds })) => {
-                let _ = Delay::new((seconds as u64).secs()).await;
-                Ok(AtomiProto::Autorun(AtomiAutorun::Done))
+            Some(AtomiProto::Mc(McCommand::McPing)) => {
+                Ok(AtomiProto::Mc(McCommand::McPong))
             }
-            Some(AtomiProto::Mc(mc_cmd)) => process_mc_message(mc_cmd),
-            // 所有autorun请求丢给autorun的task
-            Some(AtomiProto::Autorun(cmd)) => {
-                get_autorun_mq().enqueue(cmd);
-                Ok(AtomiProto::Autorun(AtomiAutorun::Done))
+            Some(AtomiProto::Mc(McCommand::FullRun)) => {
+                if system_locked {
+                    Err(AtomiError::McLockedForSystemRun)
+                } else {
+                    system_locked = true;
+                    system_executor_input_mq().enqueue(McSystemExecutorCmd::ExecuteOneFullRun);
+                    Ok(AtomiProto::Mc(McCommand::McAck))
+                }
             }
-            Some(msg) => forward(&mut uart_comm, msg).await,
+            Some(msg) => {
+                if system_locked {
+                    Err(AtomiError::McLockedForSystemRun)
+                } else {
+                    forward(uart_comm, msg).await
+                }
+            },
         };
         info!("Processed result: {}", msg);
 
         match (|| -> Result<(), AtomiError> {
             let wrapped_msg = wrap_result_into_proto(msg);
-            get_autorun_resp_mq().enqueue(wrapped_msg);
             let binding =
                 postcard::to_allocvec(&wrapped_msg).map_err(|_| AtomiError::DataConvertError)?;
             info!(
@@ -253,28 +273,6 @@ async fn process_messages(mut uart: UartType, mut uart_dir: Option<UartDirType>)
                 error!("Errors in sending data back through USBCTRL, {}", err)
             }
         }
-    }
-}
-
-async fn forward(
-    uart_comm: &mut UartComm<'_, UartDirType, UartType>,
-    msg: AtomiProto,
-) -> Result<AtomiProto, AtomiError> {
-    info!("Forward msg: {}", msg);
-    if let Err(e) = uart_comm.send(msg) {
-        error!("Error in sending command, err: {:?}", e);
-        return Err(AtomiError::UartWriteError);
-    }
-
-    // 异步读取响应长度 or timeout
-    uart_comm.recv_timeout::<AtomiProto>(500.millis()).await
-}
-
-fn process_mc_message(msg: McCommand) -> Result<AtomiProto, AtomiError> {
-    info!("Process MC message: {}", &msg);
-    match msg {
-        McCommand::McPing => Ok(AtomiProto::Mc(McCommand::McPong)),
-        _ => Err(AtomiError::UnsupportMcCommand),
     }
 }
 
@@ -325,136 +323,5 @@ unsafe fn USBCTRL_IRQ() {
                 }
             }
         }
-    }
-}
-
-fn check_autorun_status() -> Option<AtomiAutorun> {
-    match get_autorun_mq().dequeue() {
-        None => None,
-        Some(auto_run) => Some(auto_run),
-    }
-}
-
-//type ScriptType = (AtomiProto, i32);
-type ScriptType = AtomiProto;
-
-async fn autorun_logic() {
-    let mut engage = false;
-    const SCRIPT: &[ScriptType] = &[
-        // 流程启动
-        // 伸缩传送带归位
-        AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::MoveTo {
-            position: 0,
-        })),
-        // 压饼
-        // AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {
-        //     position: 53200,
-        // })),
-        // 等待执行到位
-        // AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)),
-
-        // 收回
-        AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {
-            position: 0,
-        })),
-        // 等待执行到位
-        // AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)),
-
-        // 启动蠕动泵
-        // AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
-        //     PeristalticPumpCommand::SetRotation { speed: 300 },
-        // )),
-        // 启动按压平台旋转
-        AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-            RotationStepperCommand::SetPresserRotation { speed: 200 },
-        )),
-        // 伸缩传送带伸出，此时均匀铺番茄酱
-        AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::MoveTo {
-            position: 200,
-        })),
-        // 等待执行到位
-        AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle)),
-        // 停止蠕动泵
-        // AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
-        //     PeristalticPumpCommand::SetRotation { speed: 0 },
-        // )),
-        // 传送带旋转
-        AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-            RotationStepperCommand::SetConveyorBeltRotation { speed: 200 },
-        )),
-        // 启动起司料斗
-        AtomiProto::Mmd(MmdCommand::MmdDisperser(DispenserCommand::SetRotation {
-            idx: 0,
-            speed: 1000,
-        })),
-        // 伸缩带退回
-        AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::MoveTo {
-            position: 0,
-        })),
-        // 等待执行到位
-        AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle)),
-        // 传送带停止
-        AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-            RotationStepperCommand::SetConveyorBeltRotation { speed: 0 },
-        )),
-        // 起司料斗停止
-        AtomiProto::Mmd(MmdCommand::MmdDisperser(DispenserCommand::SetRotation {
-            idx: 0,
-            speed: 0,
-        })),
-        // 流程结束
-    ];
-    loop {
-        Delay::new(1.millis()).await;
-
-        for step in SCRIPT {
-            // waiting for engaging
-            while !engage {
-                Delay::new(1.millis()).await;
-                match check_autorun_status() {
-                    Some(AtomiAutorun::Start) => engage = true,
-                    Some(AtomiAutorun::Stop) => engage = false,
-                    _ => (),
-                }
-            }
-
-            warn!("auto run:{}", step);
-            // 如果step为wait_idle，需要一直等到成功为止
-            // 但在那里收返回的应答呢？mc会把所有的应答直接一股脑的forward到usb，
-            match step.clone() {
-                AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)) => {
-                    loop {
-                        get_autorun_resp_mq().clear();
-                        get_mq().enqueue(step.clone());
-
-                        let resp = get_autorun_resp_mq().dequeue();
-                        if let Some(resp) = resp {
-                            if resp == AtomiProto::Hpd(HpdCommand::HpdAck) {
-                                //got idle signal
-                                break;
-                            }
-                        }
-                        Delay::new(100.millis()).await;
-                    }
-                }
-                AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle)) => {
-                    loop {
-                        get_autorun_resp_mq().clear();
-                        get_mq().enqueue(step.clone());
-                        let resp = get_autorun_resp_mq().dequeue();
-                        if let Some(resp) = resp {
-                            if resp == AtomiProto::Mmd(MmdCommand::MmdAck) {
-                                //got idle signal
-                                break;
-                            }
-                        }
-                        Delay::new(100.millis()).await;
-                    }
-                }
-                _ => (),
-            }
-            get_mq().enqueue(step.clone());
-        }
-        engage = false;
     }
 }

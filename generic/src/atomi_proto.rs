@@ -30,6 +30,17 @@ pub enum McCommand {
     McError,
     McPing,
     McPong,
+
+    FullRun,
+    McAck,
+}
+
+pub enum McSystemExecutorCmd {
+    ExecuteOneFullRun,
+}
+
+pub enum McSystemExecutorResponse {
+    FinishedOneFullRun,
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
