@@ -67,6 +67,11 @@ where
         self.state.is_idle()
     }
 
+    pub fn disable(&mut self) -> Result<(), AtomiError> {
+        self.is_home.store(false, Relaxed);
+        self.stepper.disable()
+    }
+
     pub async fn home(&mut self) -> Result<i32, AtomiError> {
         // Start to re-home
         self.is_home.store(false, Relaxed);

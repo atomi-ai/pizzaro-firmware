@@ -6,7 +6,7 @@ use rp2040_hal::pwm::{FreeRunning, Slice, SliceId};
 
 use super::pwm_stepper::PwmChannels;
 
-pub const MMD_PWM_TOP: u16 = 50000;
+pub const MMD_PWM_TOP: u16 = 5000;
 
 ///基于淘宝上买的MD03驱动板
 //#[allow(non_snake_case)]

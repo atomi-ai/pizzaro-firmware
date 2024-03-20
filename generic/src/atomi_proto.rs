@@ -110,6 +110,7 @@ pub enum LinearStepperCommand {
     MoveToRelativeForce { steps: i32 }, // wait
     WaitIdle,
     GetTriggerStatus,
+    Off,
     DummyWait { seconds: i32 },
 }
 

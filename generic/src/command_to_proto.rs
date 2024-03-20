@@ -56,6 +56,9 @@ where
             LinearStepperCommand::GetTriggerStatus,
         )),
         Some("home") => AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::Home)),
+        Some("stepper_off") => {
+            AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::Off))
+        }
         Some("force_move") => {
             if let Ok(steps) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(

@@ -42,6 +42,10 @@ impl LinearStepperProcessor {
             LinearStepperCommand::MoveToRelativeForce { steps } => {
                 self.linear_stepper.move_to_relative_by_force(steps).await
             }
+            LinearStepperCommand::Off => {
+                self.linear_stepper.disable().unwrap();
+                Ok(0)
+            }
             LinearStepperCommand::GetTriggerStatus => {
                 // 在调用这个函数之前已经独立处理了，这里不应该进入这个分支，所以不需要做任何事情
                 Ok(0)
