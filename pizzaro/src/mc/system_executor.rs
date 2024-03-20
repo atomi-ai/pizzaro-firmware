@@ -133,6 +133,7 @@ pub async fn wait_for_forward_dequeue() -> Result<AtomiProto, AtomiError> {
         Delay::new(unit_delay.millis()).wait();
         if let Some(McSystemExecutorResponse::ForwardResponse(resp))
             = system_executor_output_mq().dequeue() {
+            info!("wait_for_forward_dequeue() 5: got response: {}", resp);
             return Ok(resp)
         }
     }
