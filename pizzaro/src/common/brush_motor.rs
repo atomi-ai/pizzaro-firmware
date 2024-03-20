@@ -73,7 +73,6 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
     }
 
     pub fn ensure_enable(&mut self) -> Result<(), AtomiError> {
-        info!("ensure enable");
         if self
             .enable_pin
             .is_set_low()
