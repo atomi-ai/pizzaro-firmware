@@ -103,7 +103,7 @@ where
 
         // presser platform rotating
         Some("pr_on") => AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-            RotationStepperCommand::SetPresserRotation { speed: 1000 },
+            RotationStepperCommand::SetPresserRotation { speed: 300 },
         )),
         Some("pr_off") => AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
             RotationStepperCommand::SetPresserRotation { speed: 0 },
