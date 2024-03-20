@@ -11,6 +11,10 @@ use cortex_m::peripheral::NVIC;
 use defmt::{debug, error, info, Debug2Format};
 use embedded_hal::digital::v2::OutputPin;
 use fugit::{ExtU64, RateExtU32};
+use pizzaro::bsp::config::{
+    REVERT_MMD_STEPPER42_0_DIRECTION, REVERT_MMD_STEPPER42_1_DIRECTION,
+    REVERT_MMD_STEPPER57_DIRECTION,
+};
 // use pizzaro::common::brush_motor::{BrushMotor, MMD_PWM_TOP};
 use pizzaro::common::brush_motor_patch::{BrushMotorPatch, MMD_PWM_TOP};
 
@@ -42,7 +46,6 @@ use generic::mmd_status::MmdStatus;
 use pizzaro::bsp::{
     mmd_uart_irq, MmdBrushMotorChannel, MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel,
     MmdMotor42Step1Channel, MmdMotor57StepChannel, MmdUartDirPinType, MmdUartType,
-    MMD_STEPPER42_0_REVERT_DIR, MMD_STEPPER42_1_REVERT_DIR, MMD_STEPPER57_REVERT_DIR,
 };
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
@@ -209,7 +212,7 @@ fn main() -> ! {
                 dir_pin,
                 step_pin,
                 delay_creator,
-                MMD_STEPPER42_0_REVERT_DIR,
+                REVERT_MMD_STEPPER42_0_DIRECTION,
             ),
             left_limit_pin,
             right_limit_pin,
@@ -249,7 +252,7 @@ fn main() -> ! {
                 clocks.peripheral_clock.freq(),
                 pwm_42,
                 200, // 无细分，一圈200脉冲
-                MMD_STEPPER42_1_REVERT_DIR,
+                REVERT_MMD_STEPPER42_1_DIRECTION,
             ),
             PwmStepper::new(
                 enable_pin_57,
@@ -258,7 +261,7 @@ fn main() -> ! {
                 clocks.peripheral_clock.freq(),
                 pwm_57,
                 200, // 无细分，一圈200脉冲
-                MMD_STEPPER57_REVERT_DIR,
+                REVERT_MMD_STEPPER57_DIRECTION,
             ),
         );
         spawn_task(process_mmd_rotation_stepper_message(processor));

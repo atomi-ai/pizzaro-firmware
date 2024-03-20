@@ -69,6 +69,16 @@ pub type ConveyorBeltRotationMotorType = PwmStepper<Pwm2, MmdStepper42_1EnablePi
 #[allow(non_upper_case_globals)]
 pub const MmdMotor42Step1Channel: PwmChannels = PwmChannels::channel_b;
 
+// bl0
+#[allow(non_upper_case_globals)]
+pub const MmdBrushlessMotor0Channel: PwmChannels = PwmChannels::channel_b;
+// bl1
+#[allow(non_upper_case_globals)]
+pub const MmdBrushlessMotor1Channel: PwmChannels = PwmChannels::channel_a;
+// brush motor
+#[allow(non_upper_case_globals)]
+pub const MmdBrushMotorChannel: PwmChannels = PwmChannels::channel_a;
+
 // 42 motor0(and check pins defined in macros)
 /// 使用第一个通道连接驱动伸缩的电机
 pub type MmdStepper42_0EnablePinType = Pin<Gpio22, FunctionSio<SioOutput>, PullDown>;
@@ -100,12 +110,12 @@ pub type MmdDisperser0MotorType = BrushlessMotor<Pwm4>;
 pub type MmdDisperser1MotorType = BrushlessMotor<Pwm5>;
 pub type MmdPeristalicPumpMotorType = BrushMotor<Pwm0>;
 
-/// 反相电机, 42步进0
-pub const MMD_STEPPER42_0_REVERT_DIR: bool = false;
-/// 反相电机, 42步进1
-pub const MMD_STEPPER42_1_REVERT_DIR: bool = false;
-/// 反相电机, 57步进
-pub const MMD_STEPPER57_REVERT_DIR: bool = false;
+// /// 反相电机, 42步进0
+// pub const MMD_STEPPER42_0_REVERT_DIR: bool = false;
+// /// 反相电机, 42步进1
+// pub const MMD_STEPPER42_1_REVERT_DIR: bool = false;
+// /// 反相电机, 57步进
+// pub const MMD_STEPPER57_REVERT_DIR: bool = false;
 
 define_pins! {
     mc_uart, UART0,

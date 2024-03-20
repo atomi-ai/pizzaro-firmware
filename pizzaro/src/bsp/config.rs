@@ -22,6 +22,13 @@ macro_rules! parameters {
     };
 }
 
+// /// 反相电机, 42步进0
+// pub const MMD_STEPPER42_0_REVERT_DIR: bool = false;
+// /// 反相电机, 42步进1
+// pub const MMD_STEPPER42_1_REVERT_DIR: bool = false;
+// /// 反相电机, 57步进
+// pub const MMD_STEPPER57_REVERT_DIR: bool = false;
+
 config! {
     // for MMD
     REVERT_MMD_BR_DIRECTION: false,
