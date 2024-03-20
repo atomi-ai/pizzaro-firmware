@@ -1,4 +1,5 @@
-use defmt::{error, info};
+use cortex_m::asm::delay;
+use defmt::{error, info, warn};
 use fugit::ExtU64;
 
 use generic::atomi_error::AtomiError;
@@ -126,17 +127,18 @@ pub async fn process_mc_one_full_run(mut executor: McSystemExecutor) {
 }
 
 // TODO(zephyr): put this into message_queue.rs
-pub async fn wait_for_forward_dequeue() -> Result<AtomiProto, AtomiError> {
+pub fn wait_for_forward_dequeue() -> Result<AtomiProto, AtomiError> {
     let unit_delay = 10;
     let loop_times = 2_000 / unit_delay;
     for _ in 0..loop_times {
-        Delay::new(unit_delay.millis()).wait();
         if let Some(McSystemExecutorResponse::ForwardResponse(resp))
             = system_executor_output_mq().dequeue() {
             info!("wait_for_forward_dequeue() 5: got response: {}", resp);
             return Ok(resp)
         }
+        delay(100_000);
     }
+    warn!("Not getting correct forward response, loop_times = {}", loop_times);
     // timeout
     Err(AtomiError::McForwardTimeout)
 }

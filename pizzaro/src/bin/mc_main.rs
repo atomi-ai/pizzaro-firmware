@@ -218,7 +218,7 @@ async fn process_messages() {
                     Err(AtomiError::McLockedForSystemRun)
                 } else {
                     system_executor_input_mq().enqueue(McSystemExecutorCmd::ForwardRequest(msg));
-                    wait_for_forward_dequeue().await
+                    wait_for_forward_dequeue()
                 }
             },
         };
