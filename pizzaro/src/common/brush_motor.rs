@@ -4,7 +4,7 @@ use embedded_hal::PwmPin;
 use generic::atomi_error::AtomiError;
 use rp2040_hal::pwm::{FreeRunning, Slice, SliceId};
 
-pub const MMD_PWM_TOP: u16 = 5000;
+pub const MMD_PWM_TOP: u16 = 50000;
 
 #[allow(non_snake_case)]
 pub struct BrushMotor<S: SliceId, E: StatefulOutputPin> {
@@ -48,6 +48,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
                 .set_high()
                 .map_err(|_| AtomiError::GpioPinError)?
         }
+        info!("enable motor pwm");
         self.pwm.enable();
 
         Ok(())
@@ -55,20 +56,24 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
 
     pub(crate) fn disable(&mut self) -> Result<(), AtomiError> {
         if self.is_nEN {
+            info!("disable motor, set enable_pin => HIGH");
             self.enable_pin
                 .set_high()
                 .map_err(|_| AtomiError::GpioPinError)?
         } else {
+            info!("disable motor, set enable_pin => LOW");
             self.enable_pin
                 .set_low()
                 .map_err(|_| AtomiError::GpioPinError)?
         }
 
+        info!("disable motor pwm");
         self.pwm.disable();
         Ok(())
     }
 
     pub fn ensure_enable(&mut self) -> Result<(), AtomiError> {
+        info!("ensure enable");
         if self
             .enable_pin
             .is_set_low()
@@ -94,13 +99,15 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
             speed.clamp(-1.0, 1.0)
         };
 
+        info!("spd:{}", spd);
         let spd_mapped = if spd > 0.0 {
-            self.enable().unwrap();
+            self.ensure_enable().expect("Failed to enable motor");
             spd * (s4 - s3) + s3
         } else if spd < 0.0 {
-            self.enable().unwrap();
+            self.ensure_enable().expect("Failed to enable motor");
             (spd + 1.0) * (s2 - s1) + s1
         } else {
+            info!("disable pwm");
             self.disable().expect("Failed to disable motor");
             0.5
         };
@@ -112,7 +119,6 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
             speed, spd_mapped, duty_scaled, self.revert_dir,
         );
         self.pwm.channel_a.set_duty(duty_scaled as u16);
-        self.pwm.channel_b.set_duty(duty_scaled as u16);
-        self.ensure_enable().expect("Failed to enable motor");
+        self.pwm.channel_b.set_duty((duty_scaled) as u16);
     }
 }

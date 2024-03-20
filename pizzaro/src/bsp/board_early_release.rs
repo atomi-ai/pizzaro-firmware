@@ -15,7 +15,7 @@ use rp2040_hal::{
 
 use crate::{
     common::{
-        brush_motor::BrushMotor,
+        brush_motor_patch::BrushMotorPatch,
         brushless_motor::BrushlessMotor,
         global_timer::DelayCreator,
         pwm_stepper::{PwmChannels, PwmStepper},
@@ -58,6 +58,16 @@ pub type ConveyorBeltRotationMotorType = PwmStepper<Pwm1, MmdStepper42_1EnablePi
 #[allow(non_upper_case_globals)]
 pub const MmdMotor42Step1Channel: PwmChannels = PwmChannels::channel_b;
 
+// bl0
+#[allow(non_upper_case_globals)]
+pub const MmdBrushlessMotor0Channel: PwmChannels = PwmChannels::channel_b;
+// bl1
+#[allow(non_upper_case_globals)]
+pub const MmdBrushlessMotor1Channel: PwmChannels = PwmChannels::channel_a;
+// brush motor
+#[allow(non_upper_case_globals)]
+pub const MmdBrushMotorChannel: PwmChannels = PwmChannels::channel_a;
+
 // 42 motor0(and check pins defined in macros)
 /// 使用第一个通道连接驱动伸缩的电机
 pub type MmdStepper42_0EnablePinType = Pin<Gpio22, FunctionSio<SioOutput>, PullDown>;
@@ -90,7 +100,7 @@ pub type MmdDisperser0MotorType = BrushlessMotor<Pwm4>;
 pub type MmdDisperser1MotorType = BrushlessMotor<Pwm5>;
 
 pub type MmdPresserMotorEnablePinType = Pin<DynPinId, FunctionSio<SioOutput>, PullDown>;
-pub type MmdPeristalicPumpMotorType = BrushMotor<Pwm0, MmdPresserMotorEnablePinType>;
+pub type MmdPeristalicPumpMotorType = BrushMotorPatch<Pwm0, MmdPresserMotorEnablePinType>;
 
 /// 反相电机, 42步进0
 pub const MMD_STEPPER42_0_REVERT_DIR: bool = false;

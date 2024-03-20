@@ -4,6 +4,7 @@ use crate::common::global_allocator::init_allocator;
 use crate::common::global_status::initialize_status;
 
 pub mod brush_motor;
+pub mod brush_motor_patch;
 pub mod brushless_motor;
 pub mod consts;
 pub mod executor;

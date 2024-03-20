@@ -9,8 +9,11 @@ use alloc::vec;
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
 use defmt::{debug, error, info, Debug2Format};
+use embedded_hal::digital::v2::OutputPin;
 use fugit::{ExtU64, RateExtU32};
-use pizzaro::common::brush_motor::{BrushMotor, MMD_PWM_TOP};
+// use pizzaro::common::brush_motor::{BrushMotor, MMD_PWM_TOP};
+use pizzaro::common::brush_motor_patch::{BrushMotorPatch, MMD_PWM_TOP};
+
 use pizzaro::common::brushless_motor::BrushlessMotor;
 use pizzaro::common::pwm_stepper::PwmStepper;
 use pizzaro::mmd::brush_motor_processor::BrushMotorProcessor;
@@ -37,7 +40,8 @@ use generic::atomi_proto::MmdCommand::MmdBusy;
 use generic::atomi_proto::{AtomiProto, LinearStepperCommand, MmdCommand};
 use generic::mmd_status::MmdStatus;
 use pizzaro::bsp::{
-    mmd_uart_irq, MmdMotor42Step1Channel, MmdMotor57StepChannel, MmdUartDirPinType, MmdUartType,
+    mmd_uart_irq, MmdBrushMotorChannel, MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel,
+    MmdMotor42Step1Channel, MmdMotor57StepChannel, MmdUartDirPinType, MmdUartType,
     MMD_STEPPER42_0_REVERT_DIR, MMD_STEPPER42_1_REVERT_DIR, MMD_STEPPER57_REVERT_DIR,
 };
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
@@ -57,12 +61,12 @@ use pizzaro::mmd::stepper::Stepper;
 use pizzaro::{common::async_initialization, mmd_sys_rx, mmd_sys_tx};
 use pizzaro::{
     mmd_485_dir, mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel,
-    mmd_bl2_ctl_pwm_slice, mmd_br0_pwm_slice, mmd_br_channel_a, mmd_br_channel_b, mmd_br_nEN,
-    mmd_br_pwm_a, mmd_br_pwm_b, mmd_dir_bl0, mmd_dir_bl1, mmd_limit0, mmd_limit1,
-    mmd_motor42_pwm_slice1, mmd_motor42_step1_channel, mmd_spd_ctrl_bl0, mmd_spd_ctrl_bl1,
-    mmd_stepper42_dir0, mmd_stepper42_dir1, mmd_stepper42_nEN0, mmd_stepper42_nEN1,
-    mmd_stepper42_step0, mmd_stepper42_step1, mmd_stepper57_dir, mmd_stepper57_nEN,
-    mmd_stepper57_pwm_slice, mmd_stepper57_step, mmd_stepper57_step_channel, mmd_uart,
+    mmd_bl2_ctl_pwm_slice, mmd_br0_pwm_slice, mmd_br_channel_a, mmd_br_nEN, mmd_br_pwm_a,
+    mmd_br_pwm_b, mmd_dir_bl0, mmd_dir_bl1, mmd_limit0, mmd_limit1, mmd_motor42_pwm_slice1,
+    mmd_motor42_step1_channel, mmd_spd_ctrl_bl0, mmd_spd_ctrl_bl1, mmd_stepper42_dir0,
+    mmd_stepper42_dir1, mmd_stepper42_nEN0, mmd_stepper42_nEN1, mmd_stepper42_step0,
+    mmd_stepper42_step1, mmd_stepper57_dir, mmd_stepper57_nEN, mmd_stepper57_pwm_slice,
+    mmd_stepper57_step, mmd_stepper57_step_channel, mmd_tmc_uart_tx, mmd_uart,
 };
 use rp_pico::XOSC_CRYSTAL_FREQ;
 
@@ -137,12 +141,14 @@ fn main() -> ! {
         let dispenser0_motor = BrushlessMotor::new(
             mmd_dir_bl0!(pins).into_push_pull_output().into_dyn_pin(),
             pwm0,
+            MmdBrushlessMotor0Channel,
             (0.03, 0.45, 0.55, 0.97),
             false,
         );
         let dispenser1_motor = BrushlessMotor::new(
             mmd_dir_bl1!(pins).into_push_pull_output().into_dyn_pin(),
             pwm1,
+            MmdBrushlessMotor1Channel,
             (0.03, 0.45, 0.55, 0.97),
             false,
         );
@@ -158,23 +164,31 @@ fn main() -> ! {
         let mut pwm = mmd_br0_pwm_slice!(pwm_slices);
         pwm.set_ph_correct();
         pwm.set_top(MMD_PWM_TOP);
+
         pwm.enable();
         mmd_br_channel_a!(pwm).output_to(mmd_br_pwm_a!(pins));
-        mmd_br_channel_b!(pwm).output_to(mmd_br_pwm_b!(pins));
-        mmd_br_channel_b!(pwm).set_inverted();
+        //mmd_br_channel_b!(pwm).output_to(mmd_br_pwm_b!(pins));
+        //mmd_br_channel_b!(pwm).set_inverted();
 
-        let peristaltic_pump_motor = BrushMotor::new(
+        let peristaltic_pump_motor = BrushMotorPatch::new(
             mmd_br_nEN!(pins).into_push_pull_output().into_dyn_pin(),
+            mmd_br_pwm_b!(pins).into_push_pull_output().into_dyn_pin(), // pwmb as dir pin
             pwm,
+            MmdBrushMotorChannel,
             (0.03, 0.45, 0.55, 0.97),
             false,
-            true,
         );
         let brush_motor_processor = BrushMotorProcessor::new(peristaltic_pump_motor);
         unsafe {
             BRUSH_MOTOR_PROCESSOR = Some(brush_motor_processor);
         }
     }
+
+    // init tmc pin
+    let mut tmc_uart = mmd_tmc_uart_tx!(pins)
+        .into_pull_down_disabled()
+        .into_push_pull_output();
+    tmc_uart.set_low().unwrap();
 
     info!("hello world");
     {

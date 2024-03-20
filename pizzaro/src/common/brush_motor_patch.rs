@@ -1,16 +1,18 @@
 use defmt::info;
-use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::digital::v2::StatefulOutputPin;
 use embedded_hal::PwmPin;
 use generic::atomi_error::AtomiError;
-use rp2040_hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, SioOutput};
 use rp2040_hal::pwm::{FreeRunning, Slice, SliceId};
 
 use super::pwm_stepper::PwmChannels;
 
-pub const MMD_PWM_TOP: u16 = 5000;
+pub const MMD_PWM_TOP: u16 = 50000;
 
-pub struct BrushlessMotor<S: SliceId> {
-    dir_pin: Pin<DynPinId, FunctionSio<SioOutput>, PullDown>,
+///基于淘宝上买的MD03驱动板
+//#[allow(non_snake_case)]
+pub struct BrushMotorPatch<S: SliceId, E: StatefulOutputPin> {
+    enable_pin: E,
+    dir_pin: E,
     pwm: Slice<S, FreeRunning>,
     pwm_channel: PwmChannels,
     /// 有些驱动的最大速度不能到100%，此外电机需要克服阻力才能启动，因此也需要知道它的最小启动速度
@@ -18,35 +20,67 @@ pub struct BrushlessMotor<S: SliceId> {
     thres_speed: (f32, f32, f32, f32),
     /// 电机正负如果接反，运转方向会相反
     revert_dir: bool,
+    // /// 有些电机驱动器的en逻辑是反的
+    // is_nEN: bool,
 }
 
-impl<S: SliceId> BrushlessMotor<S> {
+impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatch<S, E> {
     pub fn new(
-        dir_pin: Pin<DynPinId, FunctionSio<SioOutput>, PullDown>,
+        enable_pin: E,
+        dir_pin: E,
         pwm: Slice<S, FreeRunning>,
         pwm_channel: PwmChannels,
         thres_speed: (f32, f32, f32, f32),
         revert_dir: bool,
+        // #[allow(non_snake_case)] is_nEN: bool,
     ) -> Self {
         let mut motor = Self {
+            enable_pin,
             dir_pin,
             pwm,
             pwm_channel,
             thres_speed,
             revert_dir,
+            // is_nEN,
         };
-        motor.stop().expect("Failed to stop motor");
+        motor.disable().expect("Failed to disable motor");
         motor
     }
 
     pub(crate) fn enable(&mut self) -> Result<(), AtomiError> {
+        self.enable_pin
+            .set_high()
+            .map_err(|_| AtomiError::GpioPinError)?;
+
+        info!("enable motor pwm");
         self.pwm.enable();
+
         Ok(())
     }
 
-    pub fn stop(&mut self) -> Result<(), AtomiError> {
-        self.apply_speed(0.0);
+    pub(crate) fn disable(&mut self) -> Result<(), AtomiError> {
+        info!("disable motor, set enable_pin => LOW");
+        self.enable_pin
+            .set_low()
+            .map_err(|_| AtomiError::GpioPinError)?;
+
+        info!("disable motor pwm");
+        self.pwm.disable();
         Ok(())
+    }
+
+    pub fn ensure_enable(&mut self) -> Result<(), AtomiError> {
+        info!("ensure enable");
+        if self
+            .enable_pin
+            .is_set_high()
+            .map_err(|_| AtomiError::GpioPinError)?
+            != true
+        {
+            self.enable()
+        } else {
+            Ok(())
+        }
     }
 
     pub(crate) fn apply_speed(&mut self, speed: f32) {
@@ -55,8 +89,6 @@ impl<S: SliceId> BrushlessMotor<S> {
         // 此外，因为阻力的缘故，启动速度也要加一个偏置，比如0.54才开始转。
         // 此外还需要注意，正向偏置和负向偏置还未必一致，所以最终实际的速度按照占空比来算大致是（0.03~0.45, 0.55~0.97这样的
 
-        self.enable().expect("Failed to enable motor");
-
         let (s1, s2, s3, s4) = self.thres_speed;
         let spd = if self.revert_dir {
             -speed.clamp(-1.0, 1.0)
@@ -64,11 +96,16 @@ impl<S: SliceId> BrushlessMotor<S> {
             speed.clamp(-1.0, 1.0)
         };
 
+        info!("spd:{}", spd);
         let spd_mapped = if spd > 0.0 {
-            spd * (s4 - s3) * 2.0 // 参考s3 ~ s4，但放大到0~1区间
+            self.ensure_enable().expect("Failed to enable motor");
+            spd * (s4 - s3) * 2.0
         } else if spd < 0.0 {
-            (-spd) * (s2 - s1) * 2.0 // 参考s1 ~ s2，但放大到0~1区间，注意此时输入的spd为负
+            self.ensure_enable().expect("Failed to enable motor");
+            (-spd) * (s2 - s1) * 2.0
         } else {
+            info!("disable pwm");
+            self.disable().expect("Failed to disable motor");
             0.0
         };
 
@@ -87,14 +124,17 @@ impl<S: SliceId> BrushlessMotor<S> {
             }
         }
 
-        //self.pwm.channel_a.set_duty(duty_scaled as u16);
-        //self.pwm.channel_b.set_duty(duty_scaled as u16);
-
         // update dir
         if spd < 0.0 {
-            self.dir_pin.set_low().unwrap();
+            self.dir_pin
+                .set_low()
+                .map_err(|_| AtomiError::GpioPinError)
+                .unwrap();
         } else {
-            self.dir_pin.set_high().unwrap();
+            self.dir_pin
+                .set_high()
+                .map_err(|_| AtomiError::GpioPinError)
+                .unwrap();
         }
     }
 }
