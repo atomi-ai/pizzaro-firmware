@@ -177,9 +177,12 @@ async fn hpd_process_messages() {
                 }
 
                 AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)) => {
-                    let res = uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdAck));
-                    linear_bull_input_mq().enqueue(LinearBullCommand::WaitIdle);
-                    res
+                    if linear_bull_available {
+                        uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdAck))
+                    } else {
+                        let _ = uart_comm.send(AtomiProto::AtomiError(AtomiError::HpdUnavailable));
+                        Err(AtomiError::HpdUnavailable)
+                    }
                 }
 
                 AtomiProto::Hpd(HpdCommand::HpdLinearBull(cmd)) => {
@@ -201,7 +204,7 @@ async fn hpd_process_messages() {
         }
 
         if let Some(linear_bull_resp) = linear_bull_output_mq().dequeue() {
-            info!("[MMD] get response from linear bull: {}", linear_bull_resp);
+            info!("[HPD] get response from linear bull: {}", linear_bull_resp);
             linear_bull_available = true;
         }
     }
@@ -209,11 +212,11 @@ async fn hpd_process_messages() {
 
 #[interrupt]
 unsafe fn UART1_IRQ() {
-    info!("UART1_IRQ 0");
+    debug!("UART1_IRQ 0");
     if let Some((uart, _uart_dir)) = UART.as_mut() {
         // TODO(zephyr): Move the variable below to global static.
 
-        info!("UART1_IRQ() 0");
+        debug!("UART1_IRQ() 0");
         // 读取一个字节以确定消息长度
         let mut length_buffer = [0; 1];
         if uart.read_full_blocking(&mut length_buffer).is_err() {
@@ -221,7 +224,7 @@ unsafe fn UART1_IRQ() {
             return;
         }
 
-        info!("UART1_IRQ() 3");
+        debug!("UART1_IRQ() 3");
         let message_length = length_buffer[0] as usize;
         let mut message_buffer = vec![0; message_length];
         if uart.read_full_blocking(&mut message_buffer).is_err() {
@@ -233,7 +236,7 @@ unsafe fn UART1_IRQ() {
         }
 
         // Parse the message
-        info!(
+        debug!(
             "UART1_IRQ() 5, len = {}, data: {}",
             message_length,
             Debug2Format(&message_buffer)
@@ -245,6 +248,6 @@ unsafe fn UART1_IRQ() {
             }
             Err(_) => info!("Failed to parse message"),
         }
-        info!("UART1_IRQ() 9");
+        debug!("UART1_IRQ() 9");
     }
 }

@@ -1,4 +1,4 @@
-use defmt::info;
+use defmt::{debug, info};
 
 use crate::common::global_timer::{AtomiDuration, AtomiInstant};
 
@@ -44,7 +44,7 @@ impl PIDController {
         let error: f32 = self.setpoint - current_position as f32;
         let absolute_error = if error < 0.0 { -error } else { error };
 
-        info!(
+        debug!(
             "reach_target?, error:{}, abs_error:{}, cur_pos:{}, setpoint:{}",
             error, absolute_error, current_position, self.setpoint
         );
@@ -78,10 +78,10 @@ impl PIDController {
         self.integral += error * dt;
         let derivative = (error - self.last_error) / dt;
         let output = self.kp * error + self.ki * self.integral + self.kd * derivative;
-        // info!(
-        //     "PID: current_position: {}, error: {}, der: {}, self: {}, output: {}",
-        //     current_position, error, derivative, self, output
-        // );
+        debug!(
+            "PID: current_position: {}, error: {}, der: {}, self: {}, output: {}",
+            current_position, error, derivative, self, output
+        );
 
         self.last_error = error;
         self.last_pos = current_position;

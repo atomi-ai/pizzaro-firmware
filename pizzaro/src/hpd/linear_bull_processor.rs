@@ -1,4 +1,4 @@
-use defmt::{info, Debug2Format};
+use defmt::{debug, info, Debug2Format};
 use embedded_hal::digital::v2::StatefulOutputPin;
 use fugit::ExtU64;
 
@@ -27,7 +27,7 @@ pub fn linear_bull_output_mq() -> &'static mut MessageQueueWrapper<LinearBullRes
 pub async fn process_linear_bull_message<S: SliceId, E: StatefulOutputPin>(
     mut processor: LinearBullProcessor<S, E>,
 ) {
-    info!("process_linear_bull_message() 0");
+    debug!("process_linear_bull_message() 0");
     let mq_in = linear_bull_input_mq();
     let mq_out = linear_bull_output_mq();
     loop {
@@ -99,7 +99,7 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
             dir.get_most_position()
         );
         self.home_on_direction(dir).await?;
-        info!(
+        debug!(
             "xfguo: After homed, linear_scale = {}",
             Debug2Format(self.linear_scale)
         );
@@ -138,7 +138,7 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
     }
 
     async fn move_with_speed(&mut self, speed: f32, repeat_times: i32) -> Result<i32, AtomiError> {
-        info!("xfguo: speed = {}, repeat_times = {}", speed, repeat_times);
+        debug!("xfguo: speed = {}, repeat_times = {}", speed, repeat_times);
         self.linear_scale.reset_stationary();
         for _ in 0..repeat_times {
             Delay::new(1.millis()).await;
@@ -175,11 +175,11 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
             // }
             // Only trigger PID when the position is changed.
             let speed = pid.calculate(pos, dt);
-            info!(
+            debug!(
                 "Current pos: {}, speed = {}, target = {}",
                 pos, speed, target
             );
-            self.pwm_motor.apply_speed(speed);
+            self.pwm_motor.apply_speed_freerun(speed, false);
         }
         self.pwm_motor.apply_speed(0.0);
         self.state.pop();

@@ -1,4 +1,4 @@
-use defmt::info;
+use defmt::{debug, info};
 use embedded_hal::digital::v2::StatefulOutputPin;
 use embedded_hal::PwmPin;
 use generic::atomi_error::AtomiError;
@@ -71,7 +71,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
                 .map_err(|_| AtomiError::GpioPinError)?
         }
 
-        info!("disable motor pwm");
+        debug!("disable motor pwm");
         self.pwm.disable();
         Ok(())
     }
@@ -90,6 +90,13 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
     }
 
     pub(crate) fn apply_speed(&mut self, speed: f32) {
+        self.apply_speed_freerun(speed, true)
+    }
+
+    /// 设置运行速度
+    /// * speed: 范围-1.0 ~ 1.0
+    /// * freerun: 当速度接近0的时候是否自动切断对电机的控制。
+    pub(crate) fn apply_speed_freerun(&mut self, speed: f32, freerun: bool) {
         // speed范围-1.0~1.0
         // 这里duty需要注意，静止为0.5，但最小最大值不能到0-1.0，必须限制在大致0.03~0.97的范围内。
         // 此外，因为阻力的缘故，启动速度也要加一个偏置，比如0.54才开始转。
@@ -102,7 +109,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
             speed.clamp(-1.0, 1.0)
         };
 
-        info!("spd:{}", spd);
+        debug!("spd:{}", spd);
         let spd_mapped = if spd > 0.0 {
             self.ensure_enable().expect("Failed to enable motor");
             spd * (s4 - s3) + s3
@@ -110,14 +117,16 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
             self.ensure_enable().expect("Failed to enable motor");
             (spd + 1.0) * (s2 - s1) + s1
         } else {
-            info!("disable pwm");
-            self.disable().expect("Failed to disable motor");
+            debug!("disable pwm");
+            if freerun {
+                self.disable().expect("Failed to disable motor");
+            }
             0.5
         };
 
         //let t = ((if self.revert_dir { -speed } else { speed }) * 33.0) as i32;
         let duty_scaled = ((self.pwm_top as f32) * spd_mapped) as u32;
-        info!(
+        debug!(
             "speed = {}, spd_mapped = {}, duty_scaled = {}, revert_dir={}",
             speed, spd_mapped, duty_scaled, self.revert_dir,
         );
