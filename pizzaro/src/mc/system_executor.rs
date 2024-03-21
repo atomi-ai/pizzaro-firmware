@@ -3,11 +3,7 @@ use defmt::{error, info, warn};
 use fugit::ExtU64;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{
-    wrap_result_into_proto, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand,
-    LinearStepperCommand, McSystemExecutorCmd, McSystemExecutorResponse, MmdCommand,
-    RotationStepperCommand,
-};
+use generic::atomi_proto::{wrap_result_into_proto, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McSystemExecutorCmd, McSystemExecutorResponse, MmdCommand, RotationStepperCommand, PeristalticPumpCommand, McCommand};
 use generic::mmd_status::MmdStatus;
 
 use crate::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
@@ -17,11 +13,20 @@ use crate::common::once::Once;
 use crate::common::uart_comm::UartComm;
 use crate::mc::{UartDirType, UartType};
 
-static mut SYSTEM_EXECUTOR_INPUT_MQ_ONCE: Once<MessageQueueWrapper<McSystemExecutorCmd>> =
+const PP_ON_SPEED: i32 = 1000;
+const PP_OFF_SPEED: i32 = 0;
+const PR_ON_SPEED: i32 = 300;
+const PR_OFF_SPEED: i32 = 0;
+const DISPENSER_ON_SPEED: i32 = -1000;
+const DISPENSER_OFF_SPEED: i32 = 0;
+const BELT_ON_SPEED: i32 = 290;
+const BELT_OFF_SPEED: i32 = 0;
+
+static mut SYSTEM_EXECUTOR_INPUT_MQ_ONCE: Once<MessageQueueWrapper<AtomiProto>> =
     Once::new();
 static mut SYSTEM_EXECUTOR_OUTPUT_MQ_ONCE: Once<MessageQueueWrapper<McSystemExecutorResponse>> =
     Once::new();
-pub fn system_executor_input_mq() -> &'static mut MessageQueueWrapper<McSystemExecutorCmd> {
+pub fn system_executor_input_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
     unsafe { SYSTEM_EXECUTOR_INPUT_MQ_ONCE.get_mut() }
 }
 pub fn system_executor_output_mq() -> &'static mut MessageQueueWrapper<McSystemExecutorResponse> {
@@ -184,20 +189,162 @@ impl McSystemExecutor {
 
         Ok(())
     }
+
+    async fn mmd_linear_stepper_home(&mut self) -> Result<(), AtomiError> {
+        let res = self.forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::Home))).await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    async fn hpd_linear_bull_home(&mut self) -> Result<(), AtomiError> {
+        let res = self.forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::Home))).await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    async fn mmd_pr(&mut self, speed: i32) -> Result<(), AtomiError> {
+        let res = self.forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
+            RotationStepperCommand::SetPresserRotation { speed }))).await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    async fn mmd_pr_off(&mut self) -> Result<(), AtomiError> {
+        self.mmd_pr(PR_OFF_SPEED).await
+    }
+
+    async fn mmd_pr_on(&mut self) -> Result<(), AtomiError> {
+        self.mmd_pr(PR_ON_SPEED).await
+    }
+
+    async fn mmd_pp(&mut self, speed: i32) -> Result<(), AtomiError> {
+        let res = self.forward(AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
+            PeristalticPumpCommand::SetRotation { speed }))).await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    async fn mmd_pp_off(&mut self) -> Result<(), AtomiError> {
+        self.mmd_pp(PP_OFF_SPEED).await
+    }
+
+    async fn mmd_pp_on(&mut self) -> Result<(), AtomiError> {
+        self.mmd_pp(PP_ON_SPEED).await
+    }
+
+    async fn mmd_dispenser(&mut self, idx: usize, speed: i32) -> Result<(), AtomiError> {
+        let res = self.forward(AtomiProto::Mmd(MmdCommand::MmdDisperser(DispenserCommand::SetRotation { idx, speed }))).await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    async fn mmd_dispenser_off(&mut self, idx: usize) -> Result<(), AtomiError> {
+        self.mmd_dispenser(idx, DISPENSER_OFF_SPEED).await
+    }
+
+    async fn mmd_dispenser_on(&mut self, idx: usize) -> Result<(), AtomiError> {
+        self.mmd_dispenser(idx, DISPENSER_ON_SPEED).await
+    }
+
+    async fn mmd_belt(&mut self, speed: i32) -> Result<(), AtomiError> {
+        let res = self.forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
+            RotationStepperCommand::SetConveyorBeltRotation { speed }))).await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    async fn mmd_belt_off(&mut self) -> Result<(), AtomiError> {
+        self.mmd_belt(BELT_OFF_SPEED).await
+    }
+
+    async fn mmd_belt_on(&mut self) -> Result<(), AtomiError> {
+        self.mmd_belt(BELT_ON_SPEED).await
+    }
+
+    pub async fn system_init(&mut self) -> Result<(), AtomiError> {
+        // Init the system
+        self.mmd_linear_stepper_home().await?;
+        self.hpd_linear_bull_home().await?;
+        self.mmd_pr_off().await?;  // self.pr_set(off)
+        self.mmd_pp_off().await?;  // self.pp_set(off)
+        self.mmd_dispenser_off(0).await?;  // self.dispenser(0, off)
+        self.mmd_belt_off().await?;  // self.belt_set(off)
+        self.wait_for_linear_stepper_available().await?;
+        self.wait_for_linear_bull_available().await?;
+        Ok(())
+    }
+
+    pub async fn make_one_pizza(&mut self) -> Result<(), AtomiError> {
+        // 压面团
+        self.hpd_move_to(53000).await?;
+        self.wait_for_linear_bull_available().await?;
+        Delay::new(3.secs()).await;
+        self.hpd_move_to(0).await?;
+        self.wait_for_linear_bull_available().await?;
+        // 挤番茄酱
+        self.mmd_pr_on().await?;
+        self.mmd_pp_on().await?;
+        self.mmd_move_to(510).await?;
+        self.wait_for_linear_stepper_available().await?;
+        self.mmd_pp_off().await?;
+        // 上cheese
+        self.mmd_dispenser_on(0).await?;
+        self.mmd_belt_on().await?;
+        self.mmd_move_to(0).await?;
+        self.wait_for_linear_stepper_available().await?;
+        self.mmd_dispenser_off(0).await?;
+        self.mmd_belt_off().await?;
+        self.mmd_pr_off().await?;
+        Ok(())
+    }
+
+    pub async fn hpd_move_to(&mut self, position: i32) -> Result<(), AtomiError> {
+        let res = self.forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {
+            position }))).await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    pub async fn mmd_move_to(&mut self, position: i32) -> Result<(), AtomiError> {
+        let res = self.forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::MoveTo {
+            position }))).await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
 }
 
-pub async fn process_mc_one_full_run(mut executor: McSystemExecutor) {
+fn expect_result(_actual: AtomiProto, _expected: AtomiProto) -> Result<(), AtomiError> {
+    // TODO(zephyr): Figure a way to expect the correct result.
+    Ok(())
+}
+
+fn error_or_done(res: Result<(), AtomiError>, mq_out: &mut MessageQueueWrapper<McSystemExecutorResponse>) {
+    info!("Got result: {}", res);
+    match res {
+        Ok(_) => {
+            mq_out.enqueue(McSystemExecutorResponse::Done)
+        }
+        Err(err) => {
+            mq_out.enqueue(McSystemExecutorResponse::Error(err))
+        }
+    }
+}
+
+pub async fn process_executor_requests(mut executor: McSystemExecutor) {
     info!("process_mc_one_full_run() 0");
     let mq_in = system_executor_input_mq();
     let mq_out = system_executor_output_mq();
     loop {
         Delay::new(1.millis()).await;
         let _ = match mq_in.dequeue() {
-            Some(McSystemExecutorCmd::ExecuteOneFullRun) => {
-                let _ = executor.execute_all_commands().await;
-                mq_out.enqueue(McSystemExecutorResponse::FinishedOneFullRun)
+            Some(AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::InitSystem))) => {
+                info!("Start to init the system");
+                error_or_done(executor.system_init().await, mq_out);
+                info!("Finish the system init");
             }
-            Some(McSystemExecutorCmd::ForwardRequest(msg)) => {
+            Some(AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::MakePizza))) => {
+                info!("Start to make a pizza");
+                error_or_done(executor.make_one_pizza().await, mq_out);
+                info!("Done on making a pizza");
+            }
+            Some(AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::ExecuteOneFullRun))) => {
+                info!("Execute one full run");
+                error_or_done(executor.make_one_pizza().await, mq_out);
+                info!("Done on executing one full run");
+            }
+            Some(msg) => {
                 let res = executor.forward(msg).await;
                 let wrapped_msg = wrap_result_into_proto(res);
                 mq_out.enqueue(McSystemExecutorResponse::ForwardResponse(wrapped_msg))

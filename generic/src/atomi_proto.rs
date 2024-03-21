@@ -30,20 +30,24 @@ pub enum McCommand {
     McPing,
     McPong,
 
+    SystemRun(McSystemExecutorCmd),
     FullRun,
     McAck,
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum McSystemExecutorCmd {
-    ForwardRequest(AtomiProto),
     ExecuteOneFullRun,
+    InitSystem,
+    MakePizza,
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum McSystemExecutorResponse {
     ForwardResponse(AtomiProto),
     FinishedOneFullRun,
+    Error(AtomiError),
+    Done,
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]

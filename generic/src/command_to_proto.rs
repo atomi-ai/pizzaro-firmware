@@ -1,8 +1,5 @@
 use crate::atomi_error::AtomiError;
-use crate::atomi_proto::{
-    AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McCommand,
-    MmdCommand, PeristalticPumpCommand, RotationStepperCommand,
-};
+use crate::atomi_proto::{AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McCommand, McSystemExecutorCmd, MmdCommand, PeristalticPumpCommand, RotationStepperCommand};
 
 pub fn parse_protocol(line: &str) -> AtomiProto {
     let mut tokens = line.split_whitespace();
@@ -29,7 +26,10 @@ where
         Some("ping") => AtomiProto::Mc(McCommand::McPing),
         Some("pong") => AtomiProto::Mc(McCommand::McPong),
 
-        Some("autorun") => AtomiProto::Mc(McCommand::FullRun),
+        // TODO(lv): Deprecate the "autorun" command below?
+        Some("autorun") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::ExecuteOneFullRun)),
+        Some("init") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::InitSystem)),
+        Some("make") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::MakePizza)),
         // Some("autostop") => AtomiProto::Autorun(AtomiAutorun::Stop),
         _ => AtomiProto::Mc(McCommand::McError),
     }

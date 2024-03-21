@@ -27,7 +27,7 @@ use usbd_serial::SerialPort;
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{
-    wrap_result_into_proto, AtomiProto, McCommand, McSystemExecutorCmd, McSystemExecutorResponse,
+    wrap_result_into_proto, AtomiProto, McCommand,
 };
 use pizzaro::bsp::mc_ui_uart_irq;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
@@ -36,7 +36,7 @@ use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper}
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::mc::system_executor::{
-    process_mc_one_full_run, system_executor_input_mq, system_executor_output_mq,
+    process_executor_requests, system_executor_input_mq, system_executor_output_mq,
     wait_for_forward_dequeue, McSystemExecutor,
 };
 use pizzaro::mc::UiUartType;
@@ -99,7 +99,7 @@ fn main() -> ! {
         let uart_dir = mc_485_dir!(pins).reconfigure();
 
         spawn_task(process_messages());
-        spawn_task(process_mc_one_full_run(McSystemExecutor::new(
+        spawn_task(process_executor_requests(McSystemExecutor::new(
             uart,
             Some(uart_dir),
         )));
@@ -185,6 +185,7 @@ fn main() -> ! {
 async fn process_messages() {
     // TODO(zephyr): Do we need to keep connection alive?
     let serial = unsafe { USB_SERIAL.as_mut().unwrap() };
+    // TODO(zephyr): Rethink: do we need to use AtomicBool for the lock?
     let mut system_locked = false;
 
     loop {
@@ -192,14 +193,7 @@ async fn process_messages() {
 
         if let Some(resp) = system_executor_output_mq().dequeue() {
             info!("[MC] get response from system executor: {}", resp);
-            match resp {
-                McSystemExecutorResponse::ForwardResponse(_) => {
-                    error!("[MC] Should not get any forward response here")
-                }
-                McSystemExecutorResponse::FinishedOneFullRun => {
-                    system_locked = false;
-                }
-            }
+            system_locked = false;
         }
 
         let t = get_mq().dequeue();
@@ -210,12 +204,12 @@ async fn process_messages() {
         let msg = match t {
             None => continue, // no data, ignore
             Some(AtomiProto::Mc(McCommand::McPing)) => Ok(AtomiProto::Mc(McCommand::McPong)),
-            Some(AtomiProto::Mc(McCommand::FullRun)) => {
+            Some(AtomiProto::Mc(McCommand::SystemRun(cmd))) => {
                 if system_locked {
                     Err(AtomiError::McLockedForSystemRun)
                 } else {
                     system_locked = true;
-                    system_executor_input_mq().enqueue(McSystemExecutorCmd::ExecuteOneFullRun);
+                    system_executor_input_mq().enqueue(AtomiProto::Mc(McCommand::SystemRun(cmd)));
                     Ok(AtomiProto::Mc(McCommand::McAck))
                 }
             }
@@ -223,7 +217,7 @@ async fn process_messages() {
                 if system_locked {
                     Err(AtomiError::McLockedForSystemRun)
                 } else {
-                    system_executor_input_mq().enqueue(McSystemExecutorCmd::ForwardRequest(msg));
+                    system_executor_input_mq().enqueue(msg);
                     wait_for_forward_dequeue()
                 }
             }
