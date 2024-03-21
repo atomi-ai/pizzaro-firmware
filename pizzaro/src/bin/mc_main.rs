@@ -6,37 +6,42 @@ extern crate alloc;
 use alloc::boxed::Box;
 
 use cortex_m::peripheral::NVIC;
-use defmt::{Debug2Format, error, info};
+use defmt::{debug, error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
-use rp2040_hal::{
-    clocks::{Clock, init_clocks_and_plls},
-    pac,
-    sio::Sio,
-    Timer,
-    uart::UartPeripheral,
-    watchdog::Watchdog,
-};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
-use rp_pico::{entry, hal, XOSC_CRYSTAL_FREQ};
+use rp2040_hal::{
+    clocks::{init_clocks_and_plls, Clock},
+    pac,
+    sio::Sio,
+    uart::UartPeripheral,
+    watchdog::Watchdog,
+    Timer,
+};
 use rp_pico::hal::pac::interrupt;
+use rp_pico::{entry, hal, XOSC_CRYSTAL_FREQ};
 use usb_device::bus::UsbBusAllocator;
 use usb_device::device::{UsbDevice, UsbDeviceBuilder, UsbVidPid};
 use usb_device::UsbError;
 use usbd_serial::SerialPort;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{AtomiProto, McCommand, McSystemExecutorCmd, McSystemExecutorResponse, wrap_result_into_proto};
-use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
-use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
+use generic::atomi_proto::{
+    wrap_result_into_proto, AtomiProto, McCommand, McSystemExecutorCmd, McSystemExecutorResponse,
+};
 use pizzaro::bsp::mc_ui_uart_irq;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{Delay, init_global_timer, now};
+use pizzaro::common::global_timer::{init_global_timer, now, Delay};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
+use pizzaro::mc::system_executor::{
+    process_mc_one_full_run, system_executor_input_mq, system_executor_output_mq,
+    wait_for_forward_dequeue, McSystemExecutor,
+};
 use pizzaro::mc::UiUartType;
-use pizzaro::mc::system_executor::{McSystemExecutor, process_mc_one_full_run, system_executor_input_mq, system_executor_output_mq, wait_for_forward_dequeue};
+use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
+use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
 
 // TODO(lv): Put all static variables into GlobalContainer.
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
@@ -94,7 +99,10 @@ fn main() -> ! {
         let uart_dir = mc_485_dir!(pins).reconfigure();
 
         spawn_task(process_messages());
-        spawn_task(process_mc_one_full_run(McSystemExecutor::new(uart, Some(uart_dir))));
+        spawn_task(process_mc_one_full_run(McSystemExecutor::new(
+            uart,
+            Some(uart_dir),
+        )));
     }
 
     {
@@ -201,9 +209,7 @@ async fn process_messages() {
         }
         let msg = match t {
             None => continue, // no data, ignore
-            Some(AtomiProto::Mc(McCommand::McPing)) => {
-                Ok(AtomiProto::Mc(McCommand::McPong))
-            }
+            Some(AtomiProto::Mc(McCommand::McPing)) => Ok(AtomiProto::Mc(McCommand::McPong)),
             Some(AtomiProto::Mc(McCommand::FullRun)) => {
                 if system_locked {
                     Err(AtomiError::McLockedForSystemRun)
@@ -220,7 +226,7 @@ async fn process_messages() {
                     system_executor_input_mq().enqueue(McSystemExecutorCmd::ForwardRequest(msg));
                     wait_for_forward_dequeue()
                 }
-            },
+            }
         };
         info!("Processed result: {}", msg);
 
@@ -228,7 +234,7 @@ async fn process_messages() {
             let wrapped_msg = wrap_result_into_proto(msg);
             let binding =
                 postcard::to_allocvec(&wrapped_msg).map_err(|_| AtomiError::DataConvertError)?;
-            info!(
+            debug!(
                 "Data to send to PC: {}, wrapped_msg: {}",
                 Debug2Format(&binding),
                 wrapped_msg
@@ -237,7 +243,7 @@ async fn process_messages() {
             while !wr_ptr.is_empty() {
                 match serial.write(wr_ptr) {
                     Ok(len) => {
-                        info!("process_mc_message() 5.4, len = {}", len);
+                        debug!("process_mc_message() 5.4, len = {}", len);
                         if len > wr_ptr.len() {
                             error!("process_messages() 5.5: overflow happens");
                             return Err(AtomiError::UsbCtrlWriteError);
@@ -250,7 +256,7 @@ async fn process_messages() {
             Ok(())
         })() {
             Ok(_) => {
-                info!("Successfully send data back through USBCTRL");
+                debug!("Successfully send data back through USBCTRL");
             }
             Err(err) => {
                 error!("Errors in sending data back through USBCTRL, {}", err)
@@ -288,11 +294,11 @@ unsafe fn USBCTRL_IRQ() {
                 info!("xfguo: ok(0)");
             }
             Ok(count) => {
-                info!("xfguo: got data: ({}) {}", count, &buf);
+                debug!("xfguo: got data: ({}) {}", count, &buf);
                 match postcard::from_bytes::<AtomiProto>(&buf[..count]) {
                     Ok(message) => {
                         get_mq().enqueue(message);
-                        info!(
+                        debug!(
                             "{} | Received message: {:?}, added to mq",
                             now().ticks(),
                             message

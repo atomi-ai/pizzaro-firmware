@@ -43,6 +43,12 @@ impl PIDController {
     pub fn reach_target(&mut self, current_position: i32, ts: AtomiInstant) -> bool {
         let error: f32 = self.setpoint - current_position as f32;
         let absolute_error = if error < 0.0 { -error } else { error };
+
+        info!(
+            "reach_target?, error:{}, abs_error:{}, cur_pos:{}, setpoint:{}",
+            error, absolute_error, current_position, self.setpoint
+        );
+
         if absolute_error > STATIONARY_POSITION_THRESHOLD {
             self.last_ts_err_in_range = UNSET_INSTANT;
             return false;

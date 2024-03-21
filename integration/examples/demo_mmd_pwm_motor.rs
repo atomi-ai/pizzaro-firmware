@@ -10,10 +10,12 @@ use alloc::boxed::Box;
 use cortex_m::asm::delay;
 use defmt::info;
 use generic::atomi_proto::{DispenserCommand, PeristalticPumpCommand};
+use pizzaro::bsp::config::{MMD_BRUSHLESS_MOTOR_PWM_TOP, MMD_PERISTALTIC_PUMP_PWM_TOP};
+use pizzaro::bsp::{MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel};
+use pizzaro::common::brush_motor::BrushMotor;
+use pizzaro::common::brushless_motor::BrushlessMotor;
 use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
-use pizzaro::mmd::brush_motor::{BrushMotor, MMD_PWM_TOP};
 use pizzaro::mmd::brush_motor_processor::BrushMotorProcessor;
-use pizzaro::mmd::brushless_motor::BrushlessMotor;
 use pizzaro::mmd::brushless_motor_processor::BrushlessMotorProcessor;
 use pizzaro::{
     mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel, mmd_bl2_ctl_pwm_slice,
@@ -86,27 +88,31 @@ fn main() -> ! {
     {
         let mut pwm0 = mmd_bl1_ctl_pwm_slice!(pwm_slices);
         pwm0.set_ph_correct();
-        pwm0.set_top(MMD_PWM_TOP);
+        pwm0.set_top(MMD_BRUSHLESS_MOTOR_PWM_TOP);
         pwm0.enable();
         mmd_bl1_ctl_channel!(pwm0).output_to(mmd_spd_ctrl_bl0!(pins));
 
         let mut pwm1 = mmd_bl2_ctl_pwm_slice!(pwm_slices);
         pwm1.set_ph_correct();
-        pwm1.set_top(MMD_PWM_TOP);
+        pwm1.set_top(MMD_BRUSHLESS_MOTOR_PWM_TOP);
         pwm1.enable();
         mmd_bl2_ctl_channel!(pwm1).output_to(mmd_spd_ctrl_bl1!(pins));
 
         let dispenser0_motor = BrushlessMotor::new(
             mmd_dir_bl0!(pins).into_push_pull_output().into_dyn_pin(),
             pwm0,
+            MmdBrushlessMotor0Channel,
             (0.03, 0.45, 0.55, 0.97),
             false,
+            MMD_BRUSHLESS_MOTOR_PWM_TOP,
         );
         let dispenser1_motor = BrushlessMotor::new(
             mmd_dir_bl1!(pins).into_push_pull_output().into_dyn_pin(),
             pwm1,
+            MmdBrushlessMotor1Channel,
             (0.03, 0.45, 0.55, 0.97),
             false,
+            MMD_BRUSHLESS_MOTOR_PWM_TOP,
         );
         let brushless_motor_processor =
             BrushlessMotorProcessor::new(dispenser0_motor, dispenser1_motor);
@@ -119,7 +125,7 @@ fn main() -> ! {
     {
         let mut pwm = mmd_br0_pwm_slice!(pwm_slices);
         pwm.set_ph_correct();
-        pwm.set_top(MMD_PWM_TOP);
+        pwm.set_top(MMD_PERISTALTIC_PUMP_PWM_TOP);
         pwm.enable();
         mmd_br_channel_a!(pwm).output_to(mmd_br_pwm_a!(pins));
         mmd_br_channel_b!(pwm).output_to(mmd_br_pwm_b!(pins));
@@ -131,6 +137,7 @@ fn main() -> ! {
             (0.03, 0.45, 0.55, 0.97),
             false,
             true,
+            MMD_PERISTALTIC_PUMP_PWM_TOP,
         );
         let brush_motor_processor = BrushMotorProcessor::new(peristaltic_pump_motor);
         unsafe {

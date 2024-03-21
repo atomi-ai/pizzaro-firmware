@@ -1,4 +1,4 @@
-use defmt::info;
+use defmt::{debug, info};
 use embedded_hal::digital::v2::StatefulOutputPin;
 use embedded_hal::PwmPin;
 use generic::atomi_error::AtomiError;
@@ -6,11 +6,11 @@ use rp2040_hal::pwm::{FreeRunning, Slice, SliceId};
 
 use super::pwm_stepper::PwmChannels;
 
-pub const MMD_PWM_TOP: u16 = 5000;
+// pub const MMD_PWM_TOP: u16 = 5000;
 
 ///基于淘宝上买的MD03驱动板
 //#[allow(non_snake_case)]
-pub struct BrushMotorPatch<S: SliceId, E: StatefulOutputPin> {
+pub struct BrushMotorPatched<S: SliceId, E: StatefulOutputPin> {
     enable_pin: E,
     dir_pin: E,
     pwm: Slice<S, FreeRunning>,
@@ -20,11 +20,11 @@ pub struct BrushMotorPatch<S: SliceId, E: StatefulOutputPin> {
     thres_speed: (f32, f32, f32, f32),
     /// 电机正负如果接反，运转方向会相反
     revert_dir: bool,
-    // /// 有些电机驱动器的en逻辑是反的
-    // is_nEN: bool,
+    /// 传入配置的PWM_TOP
+    pwm_top: u16,
 }
 
-impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatch<S, E> {
+impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatched<S, E> {
     pub fn new(
         enable_pin: E,
         dir_pin: E,
@@ -32,7 +32,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatch<S, E> {
         pwm_channel: PwmChannels,
         thres_speed: (f32, f32, f32, f32),
         revert_dir: bool,
-        // #[allow(non_snake_case)] is_nEN: bool,
+        pwm_top: u16,
     ) -> Self {
         let mut motor = Self {
             enable_pin,
@@ -41,7 +41,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatch<S, E> {
             pwm_channel,
             thres_speed,
             revert_dir,
-            // is_nEN,
+            pwm_top,
         };
         motor.disable().expect("Failed to disable motor");
         motor
@@ -59,18 +59,17 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatch<S, E> {
     }
 
     pub(crate) fn disable(&mut self) -> Result<(), AtomiError> {
-        info!("disable motor, set enable_pin => LOW");
+        debug!("disable motor, set enable_pin => LOW");
         self.enable_pin
             .set_low()
             .map_err(|_| AtomiError::GpioPinError)?;
 
-        info!("disable motor pwm");
+        debug!("disable motor pwm");
         self.pwm.disable();
         Ok(())
     }
 
     pub fn ensure_enable(&mut self) -> Result<(), AtomiError> {
-        info!("ensure enable");
         if self
             .enable_pin
             .is_set_high()
@@ -96,7 +95,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatch<S, E> {
             speed.clamp(-1.0, 1.0)
         };
 
-        info!("spd:{}", spd);
+        // info!("spd:{}", spd);
         let spd_mapped = if spd > 0.0 {
             self.ensure_enable().expect("Failed to enable motor");
             spd * (s4 - s3) * 2.0
@@ -110,7 +109,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatch<S, E> {
         };
 
         //let t = ((if self.revert_dir { -speed } else { speed }) * 33.0) as i32;
-        let duty_scaled = ((MMD_PWM_TOP as f32) * spd_mapped) as u32;
+        let duty_scaled = ((self.pwm_top as f32) * spd_mapped) as u32;
         info!(
             "speed = {}, spd_mapped = {}, duty_scaled = {}, revert_dir={}",
             speed, spd_mapped, duty_scaled, self.revert_dir,

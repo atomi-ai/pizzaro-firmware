@@ -1,5 +1,5 @@
 use crate::{bsp::MmdPresserMotorType, common::message_queue::MessageQueueInterface};
-use defmt::info;
+use defmt::{debug, info};
 use fugit::ExtU64;
 use generic::{
     atomi_error::AtomiError,
@@ -64,7 +64,7 @@ impl RotationStepperProcessor {
 }
 
 pub async fn process_mmd_rotation_stepper_message(mut processor: RotationStepperProcessor) {
-    info!("process_mmd_rotation_stepper_message() 0");
+    debug!("process_mmd_rotation_stepper_message() 0");
     let mq_in = rotation_stepper_input_mq();
     let mq_out = rotation_stepper_output_mq();
     loop {

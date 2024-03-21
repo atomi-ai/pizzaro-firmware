@@ -15,7 +15,7 @@ use rp2040_hal::{
 
 use crate::{
     common::{
-        brush_motor_patch::BrushMotorPatch,
+        brush_motor_patch::BrushMotorPatched,
         brushless_motor::BrushlessMotor,
         global_timer::DelayCreator,
         pwm_stepper::{PwmChannels, PwmStepper},
@@ -100,7 +100,7 @@ pub type MmdDisperser0MotorType = BrushlessMotor<Pwm4>;
 pub type MmdDisperser1MotorType = BrushlessMotor<Pwm5>;
 
 pub type MmdPresserMotorEnablePinType = Pin<DynPinId, FunctionSio<SioOutput>, PullDown>;
-pub type MmdPeristalicPumpMotorType = BrushMotorPatch<Pwm0, MmdPresserMotorEnablePinType>;
+pub type MmdPeristalicPumpMotorType = BrushMotorPatched<Pwm0, MmdPresserMotorEnablePinType>;
 
 define_pins! {
     mc_uart, UART0,

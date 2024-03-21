@@ -1,7 +1,7 @@
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering::Relaxed;
 
-use defmt::info;
+use defmt::{debug, info};
 use embedded_hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin};
 
 use generic::atomi_error::AtomiError;
@@ -77,9 +77,9 @@ where
         self.is_home.store(false, Relaxed);
 
         self.state.push(LinearMotionState::HOMING)?;
-        info!("homing start, state: {}", self.state);
+        debug!("homing start, state: {}", self.state);
         // 第一步：快速向前直到触发限位开关
-        info!("[MMD] Home 1: move to max with fast speed till reach the limit");
+        debug!("[MMD] Home 1: move to max with fast speed till reach the limit");
         let mut steps = self
             .move_to_relative_internal(FAST_SPEED, -i32::MAX)
             .await
@@ -89,7 +89,7 @@ where
             })?;
 
         // 第二步：快速向后退移动一小段距离
-        info!(
+        debug!(
             "[MMD] Home 2: last move {} steps, now move small distance back",
             steps
         );
@@ -101,7 +101,7 @@ where
                 e
             })?;
 
-        info!(
+        debug!(
             "[MMD] Home 3: last move {} steps, now move to the limit again with slow speed",
             steps
         );
@@ -120,7 +120,7 @@ where
         self.is_home.store(true, Relaxed);
 
         self.state.pop();
-        info!("homing done, state: {}", self.state);
+        debug!("homing done, state: {}", self.state);
         Ok(0)
     }
 
@@ -156,7 +156,7 @@ where
     }
 
     fn update_position_and_return(&mut self, delta: i32) -> Result<i32, AtomiError> {
-        info!(
+        debug!(
             "[MMD] current pos: {}, new pos: {}",
             self.current_position,
             self.current_position + delta
@@ -179,7 +179,7 @@ where
         self.stepper.ensure_enable()?;
 
         self.state.push(LinearMotionState::MOVING)?;
-        info!("moving start, state: {}", self.state);
+        debug!("moving start, state: {}", self.state);
 
         let moving_right = steps > 0;
         self.stepper.set_speed(speed);
@@ -209,7 +209,7 @@ where
         }
         let result = self.update_position_and_return(steps);
         self.state.pop();
-        info!("moving done, state: {}", self.state);
+        debug!("moving done, state: {}", self.state);
         result
     }
 }

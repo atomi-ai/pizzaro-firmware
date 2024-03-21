@@ -4,20 +4,19 @@ use crate::atomi_error::AtomiError;
 use defmt::Format;
 use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, defmt::Format)]
-pub enum AtomiAutorun {
-    Start,
-    Stop,
-    Wait { seconds: i32 },
-    Done,
-}
+// #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, defmt::Format)]
+// pub enum AtomiAutorun {
+//     Start,
+//     Stop,
+//     Wait { seconds: i32 },
+//     Done,
+// }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, defmt::Format)]
 pub enum AtomiProto {
     Unknown,
     Status,
-    Autorun(AtomiAutorun),
-
+    // Autorun(AtomiAutorun),
     Mc(McCommand),
     Mmd(MmdCommand),
     Hpd(HpdCommand),

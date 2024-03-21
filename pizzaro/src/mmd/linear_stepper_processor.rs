@@ -2,7 +2,7 @@ use crate::bsp::ConveyorBeltLinearBullType;
 use crate::common::global_timer::Delay;
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use crate::common::once::Once;
-use defmt::info;
+use defmt::{debug, info};
 use fugit::ExtU64;
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{LinearStepperCommand, LinearStepperResponse, TriggerStatusResponse};
@@ -67,12 +67,12 @@ impl LinearStepperProcessor {
 }
 
 pub async fn process_mmd_linear_stepper_message(mut processor: LinearStepperProcessor) {
-    info!("process_mmd_linear_stepper_message() 0");
+    debug!("process_mmd_linear_stepper_message() 0");
     let mq_in = linear_stepper_input_mq();
     let mq_out = linear_stepper_output_mq();
     loop {
         if let Some(msg) = mq_in.dequeue() {
-            info!(
+            debug!(
                 "process_mmd_linear_stepper_message() 3.1: process msg {}",
                 msg
             );
@@ -86,7 +86,7 @@ pub async fn process_mmd_linear_stepper_message(mut processor: LinearStepperProc
                 Ok(_) => LinearStepperResponse::Done,
                 Err(err) => LinearStepperResponse::Error(err),
             };
-            info!("process_mmd_linear_stepper_message() 3.3: done");
+            debug!("process_mmd_linear_stepper_message() 3.3: done");
             mq_out.enqueue(res);
         }
         Delay::new(1.millis()).await;

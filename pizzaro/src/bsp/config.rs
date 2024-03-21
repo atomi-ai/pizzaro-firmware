@@ -61,4 +61,10 @@ parameters! {
     WEIGHT_SENSOR1_IDX: usize = 1,
     WEIGHT_SENSOR2_IDX: usize = 2,
     WEIGHT_SENSOR3_IDX: usize = 3,
+
+    // PWM_TOP设置
+    MMD_PERISTALTIC_PUMP_PWM_TOP: u16 = 5000,
+    MMD_BRUSHLESS_MOTOR_PWM_TOP: u16 = 5000,
+    HPD_MOTOR150_PWM_TOP: u16 = 5000,
+
 }

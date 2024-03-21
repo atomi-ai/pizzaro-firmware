@@ -4,7 +4,7 @@ use core::sync::atomic::{AtomicI32, Ordering};
 use defmt::{info, Format};
 use generic::atomi_error::AtomiError;
 
-pub const MOTOR150_PWM_TOP: u16 = 5000;
+// pub const MOTOR150_PWM_TOP: u16 = 5000;
 // const LITTLE_DISTANCE: i32 = 1000;  // 10mm
 
 const MAX_POSITION: i32 = 10_000_000;

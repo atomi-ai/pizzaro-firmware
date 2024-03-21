@@ -1,6 +1,6 @@
 use alloc::vec;
 
-use defmt::{debug, error, info, Debug2Format, Format};
+use defmt::{debug, error, Debug2Format, Format};
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::serial::{Read, Write};
 use futures::future::{select, Either};
@@ -47,7 +47,7 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
     pub fn send<U: Format + Serialize>(&mut self, message: U) -> Result<(), AtomiError> {
         let out = postcard::to_allocvec::<U>(&message).map_err(|_| AtomiError::UartInvalidInput)?;
 
-        info!(
+        debug!(
             "Send data: ({}, {}), original = {}",
             out.len(),
             Debug2Format(&out),

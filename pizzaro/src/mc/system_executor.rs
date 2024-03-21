@@ -3,7 +3,12 @@ use defmt::{error, info, warn};
 use fugit::ExtU64;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McSystemExecutorCmd, McSystemExecutorResponse, MmdCommand, RotationStepperCommand, wrap_result_into_proto};
+use generic::atomi_proto::{
+    wrap_result_into_proto, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand,
+    LinearStepperCommand, McSystemExecutorCmd, McSystemExecutorResponse, MmdCommand,
+    RotationStepperCommand,
+};
+use generic::mmd_status::MmdStatus;
 
 use crate::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use crate::common::global_timer::Delay;
@@ -30,13 +35,15 @@ pub struct McSystemExecutor {
 
 impl McSystemExecutor {
     pub fn new(uart: UartType, uart_dir: Option<UartDirType>) -> Self {
-        Self {
-            uart, uart_dir,
-        }
+        Self { uart, uart_dir }
     }
 
     fn get_uart_comm(&mut self) -> UartComm<'_, UartDirType, UartType> {
-        UartComm::new(&mut self.uart, &mut self.uart_dir, UART_EXPECTED_RESPONSE_LENGTH)
+        UartComm::new(
+            &mut self.uart,
+            &mut self.uart_dir,
+            UART_EXPECTED_RESPONSE_LENGTH,
+        )
     }
 
     pub async fn forward(&mut self, msg: AtomiProto) -> Result<AtomiProto, AtomiError> {
@@ -52,54 +59,128 @@ impl McSystemExecutor {
     }
 
     async fn wait_for_linear_stepper_available(&mut self) -> Result<(), AtomiError> {
-        let t = self.forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-            LinearStepperCommand::WaitIdle))).await;
-        t.map(|_| ())
+        loop {
+            let t = self
+                .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
+                    LinearStepperCommand::WaitIdle,
+                )))
+                .await;
+            match t {
+                Ok(AtomiProto::AtomiError(AtomiError::MmdUnavailable(MmdStatus::Unavailable))) => {
+                    // info!("unavailable, retry...");
+                    Delay::new(500.millis()).await;
+                    continue;
+                }
+                Ok(_) => {
+                    // info!("ok: {}", r);
+                    return t.map(|_| ());
+                }
+                Err(_) => {
+                    // info!("errors: {}", e);
+                    return t.map(|_| ());
+                }
+            }
+        }
+    }
+
+    async fn wait_for_linear_bull_available(&mut self) -> Result<(), AtomiError> {
+        loop {
+            let t = self
+                .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(
+                    LinearBullCommand::WaitIdle,
+                )))
+                .await;
+            match t {
+                Ok(AtomiProto::AtomiError(AtomiError::HpdUnavailable)) => {
+                    // info!("unavailable, retry...");
+                    Delay::new(500.millis()).await;
+                    continue;
+                }
+                Ok(_) => {
+                    // info!("ok: {}", r);
+                    return t.map(|_| ());
+                }
+                Err(_) => {
+                    // info!("errors: {}", e);
+                    return t.map(|_| ());
+                }
+            }
+        }
     }
 
     // TODO(lv): create an executor, put uart_comm into it. Then we don't need to pass uart_comm param.
     pub async fn execute_all_commands(&mut self) -> Result<(), AtomiError> {
         // TODO(lv): expect the response?
-        let _ = self.forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::MoveTo {
-            position: 0,
-        }))).await?;
+
+        // 伸缩传送带归位
+        let _ = self
+            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
+                LinearStepperCommand::MoveTo { position: 0 },
+            )))
+            .await?;
         self.wait_for_linear_stepper_available().await?;
 
-        let _ = self.forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {
-            position: 0,
-        }))).await?;
+        //  压饼活塞归位
+        let _ = self
+            .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(
+                LinearBullCommand::MoveTo { position: 0 },
+            )))
+            .await?;
+        self.wait_for_linear_bull_available().await?;
 
-        let _ = self.forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-            RotationStepperCommand::SetPresserRotation { speed: 200 },
-        ))).await?;
+        // 压饼平台旋转
+        let _ = self
+            .forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
+                RotationStepperCommand::SetPresserRotation { speed: 200 },
+            )))
+            .await?;
 
-        let _ = self.forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::MoveTo {
-            position: 200,
-        }))).await?;
+        // 传送带伸出
+        let _ = self
+            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
+                LinearStepperCommand::MoveTo { position: 200 },
+            )))
+            .await?;
         self.wait_for_linear_stepper_available().await?;
 
-        let _ = self.forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-            RotationStepperCommand::SetConveyorBeltRotation { speed: 200 },
-        ))).await?;
+        // 传送带旋转
+        let _ = self
+            .forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
+                RotationStepperCommand::SetConveyorBeltRotation { speed: 200 },
+            )))
+            .await?;
 
-        let _ = self.forward(AtomiProto::Mmd(MmdCommand::MmdDisperser(DispenserCommand::SetRotation {
-            idx: 0,
-            speed: 1000,
-        }))).await?;
+        // 起司料斗旋转
+        let _ = self
+            .forward(AtomiProto::Mmd(MmdCommand::MmdDisperser(
+                DispenserCommand::SetRotation {
+                    idx: 0,
+                    speed: 1000,
+                },
+            )))
+            .await?;
 
-        let _ = self.forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::MoveTo {
-            position: 0,
-        }))).await?;
+        // 传送带回收
+        let _ = self
+            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
+                LinearStepperCommand::MoveTo { position: 0 },
+            )))
+            .await?;
         self.wait_for_linear_stepper_available().await?;
 
-        let _ = self.forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-            RotationStepperCommand::SetConveyorBeltRotation { speed: 0 },
-        ))).await?;
+        // 传送带停止
+        let _ = self
+            .forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
+                RotationStepperCommand::SetConveyorBeltRotation { speed: 0 },
+            )))
+            .await?;
 
-        let _ = self.forward(AtomiProto::Mmd(MmdCommand::MmdDisperser(DispenserCommand::SetRotation {
-            idx: 0,
-            speed: 0,
-        }))).await?;
+        // 平台停止旋转
+        let _ = self
+            .forward(AtomiProto::Mmd(MmdCommand::MmdDisperser(
+                DispenserCommand::SetRotation { idx: 0, speed: 0 },
+            )))
+            .await?;
 
         Ok(())
     }
@@ -131,14 +212,18 @@ pub fn wait_for_forward_dequeue() -> Result<AtomiProto, AtomiError> {
     let unit_delay = 10;
     let loop_times = 2_000 / unit_delay;
     for _ in 0..loop_times {
-        if let Some(McSystemExecutorResponse::ForwardResponse(resp))
-            = system_executor_output_mq().dequeue() {
+        if let Some(McSystemExecutorResponse::ForwardResponse(resp)) =
+            system_executor_output_mq().dequeue()
+        {
             info!("wait_for_forward_dequeue() 5: got response: {}", resp);
-            return Ok(resp)
+            return Ok(resp);
         }
         delay(100_000);
     }
-    warn!("Not getting correct forward response, loop_times = {}", loop_times);
+    warn!(
+        "Not getting correct forward response, loop_times = {}",
+        loop_times
+    );
     // timeout
     Err(AtomiError::McForwardTimeout)
 }

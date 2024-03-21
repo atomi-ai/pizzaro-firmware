@@ -1,7 +1,7 @@
 use crate::atomi_error::AtomiError;
 use crate::atomi_proto::{
-    AtomiAutorun, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand,
-    LinearStepperCommand, McCommand, MmdCommand, PeristalticPumpCommand, RotationStepperCommand,
+    AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McCommand,
+    MmdCommand, PeristalticPumpCommand, RotationStepperCommand,
 };
 
 pub fn parse_protocol(line: &str) -> AtomiProto {
@@ -29,9 +29,8 @@ where
         Some("ping") => AtomiProto::Mc(McCommand::McPing),
         Some("pong") => AtomiProto::Mc(McCommand::McPong),
 
-        Some("autorun") => AtomiProto::Autorun(AtomiAutorun::Start),
-        Some("autostop") => AtomiProto::Autorun(AtomiAutorun::Stop),
-
+        Some("autorun") => AtomiProto::Mc(McCommand::FullRun),
+        // Some("autostop") => AtomiProto::Autorun(AtomiAutorun::Stop),
         _ => AtomiProto::Mc(McCommand::McError),
     }
 }

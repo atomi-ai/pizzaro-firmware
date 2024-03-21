@@ -12,11 +12,10 @@ use defmt::{debug, error, info, Debug2Format};
 use embedded_hal::digital::v2::OutputPin;
 use fugit::{ExtU64, RateExtU32};
 use pizzaro::bsp::config::{
-    REVERT_MMD_STEPPER42_0_DIRECTION, REVERT_MMD_STEPPER42_1_DIRECTION,
-    REVERT_MMD_STEPPER57_DIRECTION,
+    MMD_BRUSHLESS_MOTOR_PWM_TOP, MMD_PERISTALTIC_PUMP_PWM_TOP, REVERT_MMD_STEPPER42_0_DIRECTION,
+    REVERT_MMD_STEPPER42_1_DIRECTION, REVERT_MMD_STEPPER57_DIRECTION,
 };
-// use pizzaro::common::brush_motor::{BrushMotor, MMD_PWM_TOP};
-use pizzaro::common::brush_motor_patch::{BrushMotorPatch, MMD_PWM_TOP};
+use pizzaro::common::brush_motor_patch::BrushMotorPatched;
 
 use pizzaro::common::brushless_motor::BrushlessMotor;
 use pizzaro::common::pwm_stepper::PwmStepper;
@@ -131,13 +130,13 @@ fn main() -> ! {
     {
         let mut pwm0 = mmd_bl1_ctl_pwm_slice!(pwm_slices);
         pwm0.set_ph_correct();
-        pwm0.set_top(MMD_PWM_TOP);
+        pwm0.set_top(MMD_BRUSHLESS_MOTOR_PWM_TOP);
         pwm0.enable();
         mmd_bl1_ctl_channel!(pwm0).output_to(mmd_spd_ctrl_bl0!(pins));
 
         let mut pwm1 = mmd_bl2_ctl_pwm_slice!(pwm_slices);
         pwm1.set_ph_correct();
-        pwm1.set_top(MMD_PWM_TOP);
+        pwm1.set_top(MMD_BRUSHLESS_MOTOR_PWM_TOP);
         pwm1.enable();
         mmd_bl2_ctl_channel!(pwm1).output_to(mmd_spd_ctrl_bl1!(pins));
 
@@ -147,6 +146,7 @@ fn main() -> ! {
             MmdBrushlessMotor0Channel,
             (0.03, 0.45, 0.55, 0.97),
             false,
+            MMD_BRUSHLESS_MOTOR_PWM_TOP,
         );
         let dispenser1_motor = BrushlessMotor::new(
             mmd_dir_bl1!(pins).into_push_pull_output().into_dyn_pin(),
@@ -154,6 +154,7 @@ fn main() -> ! {
             MmdBrushlessMotor1Channel,
             (0.03, 0.45, 0.55, 0.97),
             false,
+            MMD_BRUSHLESS_MOTOR_PWM_TOP,
         );
         let brushless_motor_processor =
             BrushlessMotorProcessor::new(dispenser0_motor, dispenser1_motor);
@@ -166,20 +167,21 @@ fn main() -> ! {
     {
         let mut pwm = mmd_br0_pwm_slice!(pwm_slices);
         pwm.set_ph_correct();
-        pwm.set_top(MMD_PWM_TOP);
+        pwm.set_top(MMD_PERISTALTIC_PUMP_PWM_TOP);
 
         pwm.enable();
         mmd_br_channel_a!(pwm).output_to(mmd_br_pwm_a!(pins));
         //mmd_br_channel_b!(pwm).output_to(mmd_br_pwm_b!(pins));
         //mmd_br_channel_b!(pwm).set_inverted();
 
-        let peristaltic_pump_motor = BrushMotorPatch::new(
+        let peristaltic_pump_motor = BrushMotorPatched::new(
             mmd_br_nEN!(pins).into_push_pull_output().into_dyn_pin(),
             mmd_br_pwm_b!(pins).into_push_pull_output().into_dyn_pin(), // pwmb as dir pin
             pwm,
             MmdBrushMotorChannel,
             (0.03, 0.45, 0.55, 0.97),
             false,
+            MMD_PERISTALTIC_PUMP_PWM_TOP,
         );
         let brush_motor_processor = BrushMotorProcessor::new(peristaltic_pump_motor);
         unsafe {
@@ -193,7 +195,7 @@ fn main() -> ! {
         .into_push_pull_output();
     tmc_uart.set_low().unwrap();
 
-    info!("hello world");
+    debug!("hello world");
     {
         spawn_task(mmd_process_messages());
     }
@@ -277,7 +279,7 @@ fn main() -> ! {
 
 // MMD main future
 async fn mmd_process_messages() {
-    info!("[MMD] mmd_process_messages 0");
+    debug!("[MMD] mmd_process_messages 0");
     let (uart, uart_dir) = unsafe { UART.as_mut().unwrap() };
     let mut uart_comm = UartComm::new(uart, uart_dir, UART_EXPECTED_RESPONSE_LENGTH);
     let mut mmd_linear_stepper_available = true;
@@ -402,7 +404,7 @@ unsafe fn UART1_IRQ() {
         }
 
         // Parse the message
-        info!(
+        debug!(
             "{} | UART1_IRQ() 5, len = {}, data: {}",
             now().ticks(),
             message_length,
@@ -410,7 +412,7 @@ unsafe fn UART1_IRQ() {
         );
         match postcard::from_bytes::<AtomiProto>(&message_buffer) {
             Ok(msg) => {
-                info!("Received message: {:?}", msg);
+                debug!("Received message: {:?}", msg);
                 process_message_in_irq(uart, uart_dir, msg);
             }
             Err(_) => info!("Failed to parse message"),

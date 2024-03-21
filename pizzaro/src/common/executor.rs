@@ -7,7 +7,7 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use critical_section::Mutex;
-use defmt::{info, Format, Formatter};
+use defmt::{debug, info, warn, Format, Formatter};
 use fugit::ExtU64;
 use futures::task::noop_waker;
 use heapless::spsc::Queue;
@@ -59,9 +59,9 @@ impl Executor {
     pub fn spawn_internal(&self, fut: impl Future<Output = ()> + Send + 'static) {
         if self.get_tasks_len() < TASK_CAPACITY {
             self.push_task(Box::pin(fut));
-            info!("Added one task, task num = {}", self.get_tasks_len());
+            debug!("Added one task, task num = {}", self.get_tasks_len());
         } else {
-            info!("Error: Too many tasks, ignoring new task");
+            warn!("Error: Too many tasks, ignoring new task");
             // Handle error as appropriate for your application
         }
     }
@@ -100,7 +100,7 @@ pub async fn dump_executor_status() {
 pub fn spawn_task(fut: impl Future<Output = ()> + Send + 'static) {
     unsafe {
         if GLOBAL_EXECUTOR.is_none() {
-            info!("spawn() new executor");
+            debug!("spawn() new executor");
             GLOBAL_EXECUTOR.replace(Executor::new(1));
         }
         GLOBAL_EXECUTOR.as_mut().unwrap().spawn_internal(fut);
@@ -110,7 +110,7 @@ pub fn spawn_task(fut: impl Future<Output = ()> + Send + 'static) {
 pub fn start_global_executor() {
     unsafe {
         if GLOBAL_EXECUTOR.is_none() {
-            info!("run() new executor");
+            debug!("run() new executor");
             GLOBAL_EXECUTOR.replace(Executor::new(2));
         }
         GLOBAL_EXECUTOR.as_mut().unwrap().run_executor_internal();

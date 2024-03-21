@@ -28,7 +28,9 @@ use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{AtomiProto, HpdCommand, LinearBullCommand};
-use pizzaro::bsp::config::{HPD_BR_DRIVER_N_EN, HPD_BR_THRESHOLD, REVERT_HPD_BR_DIRECTION};
+use pizzaro::bsp::config::{
+    HPD_BR_DRIVER_N_EN, HPD_BR_THRESHOLD, HPD_MOTOR150_PWM_TOP, REVERT_HPD_BR_DIRECTION,
+};
 use pizzaro::bsp::{hpd_uart_irq, HpdUartType};
 use pizzaro::common::async_initialization;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
@@ -38,7 +40,7 @@ use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper}
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
-use pizzaro::hpd::hpd_misc::{LinearScale, MOTOR150_PWM_TOP};
+use pizzaro::hpd::hpd_misc::LinearScale;
 use pizzaro::hpd::linear_bull_processor::{
     linear_bull_input_mq, linear_bull_output_mq, process_linear_bull_message, LinearBullProcessor,
 };
@@ -104,7 +106,7 @@ fn main() -> ! {
         let pwm_slices = rp2040_hal::pwm::Slices::new(pac.PWM, &mut pac.RESETS);
         let mut pwm = pwm_slices.pwm0;
         pwm.set_ph_correct();
-        pwm.set_top(MOTOR150_PWM_TOP);
+        pwm.set_top(HPD_MOTOR150_PWM_TOP);
         pwm.enable();
         // pwm.channel_a.output_to(pins.gpio16);
         // pwm.channel_b.output_to(pins.gpio17);
@@ -120,6 +122,7 @@ fn main() -> ! {
                 HPD_BR_THRESHOLD,
                 REVERT_HPD_BR_DIRECTION,
                 HPD_BR_DRIVER_N_EN,
+                HPD_MOTOR150_PWM_TOP,
             ),
         );
 
