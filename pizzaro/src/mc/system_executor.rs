@@ -17,7 +17,7 @@ use crate::common::once::Once;
 use crate::common::uart_comm::UartComm;
 use crate::mc::{UartDirType, UartType};
 
-const PP_ON_SPEED: i32 = 1000;
+const PP_ON_SPEED: i32 = 300;
 const PP_OFF_SPEED: i32 = 0;
 const PR_ON_SPEED: i32 = 300;
 const PR_OFF_SPEED: i32 = 0;
@@ -123,7 +123,10 @@ impl McSystemExecutor {
         // 伸缩传送带归位
         let _ = self
             .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                LinearStepperCommand::MoveTo { position: 0 },
+                LinearStepperCommand::MoveTo {
+                    position: 0,
+                    speed: 0,
+                },
             )))
             .await?;
         self.wait_for_linear_stepper_available().await?;
@@ -146,7 +149,10 @@ impl McSystemExecutor {
         // 传送带伸出
         let _ = self
             .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                LinearStepperCommand::MoveTo { position: 200 },
+                LinearStepperCommand::MoveTo {
+                    position: 510,
+                    speed: 400,
+                },
             )))
             .await?;
         self.wait_for_linear_stepper_available().await?;
@@ -171,7 +177,10 @@ impl McSystemExecutor {
         // 传送带回收
         let _ = self
             .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                LinearStepperCommand::MoveTo { position: 0 },
+                LinearStepperCommand::MoveTo {
+                    position: 0,
+                    speed: 500,
+                },
             )))
             .await?;
         self.wait_for_linear_stepper_available().await?;
@@ -294,24 +303,69 @@ impl McSystemExecutor {
 
     pub async fn make_one_pizza(&mut self) -> Result<(), AtomiError> {
         // 压面团
-        //self.hpd_move_to(52000).await?;
-        self.hpd_move_to(22000).await?;
+        self.hpd_move_to(52700).await?;
+        //self.hpd_move_to(22000).await?;
         self.wait_for_linear_bull_available().await?;
         Delay::new(3.secs()).await;
-        self.hpd_move_to(0).await?;
+        self.hpd_move_to(22000).await?;
         self.wait_for_linear_bull_available().await?;
         // 挤番茄酱
         self.mmd_pr(300).await?;
-        self.mmd_pp(300).await?;
-        self.mmd_move_to(510).await?;
+        self.mmd_pp(-300).await?;
+
+        self.mmd_move_to(210, 400).await?;
+        self.mmd_pr(100).await?;
         self.wait_for_linear_stepper_available().await?;
+        Delay::new(4.secs()).await;
+
+        self.mmd_move_to(310, 400).await?;
+        self.mmd_pr(150).await?;
+        self.wait_for_linear_stepper_available().await?;
+        Delay::new(3.secs()).await;
+
+        self.mmd_move_to(410, 400).await?;
+        self.mmd_pr(250).await?;
+        self.wait_for_linear_stepper_available().await?;
+        Delay::new(1500.millis()).await;
+
+        self.mmd_move_to(510, 400).await?;
+        self.mmd_pr(350).await?;
+        self.wait_for_linear_stepper_available().await?;
+        Delay::new(500.millis()).await;
+
         self.mmd_pp_off().await?;
         // 上cheese
         self.mmd_dispenser_on(0).await?;
         self.mmd_belt_on().await?;
-        self.mmd_move_to(0).await?;
+        Delay::new(1500.millis()).await;
+
+        self.mmd_pr(350).await?;
+        self.mmd_move_to(410, 400).await?;
         self.wait_for_linear_stepper_available().await?;
+        Delay::new(1.secs()).await;
+
+        self.mmd_pr(300).await?;
+        self.mmd_move_to(310, 400).await?;
+        self.wait_for_linear_stepper_available().await?;
+        Delay::new(1.secs()).await;
+
+        self.mmd_pr(250).await?;
+        self.mmd_move_to(210, 400).await?;
+        self.wait_for_linear_stepper_available().await?;
+        Delay::new(1.secs()).await;
+
+        self.mmd_pr(200).await?;
+        self.mmd_move_to(110, 400).await?;
+        self.wait_for_linear_stepper_available().await?;
+        Delay::new(1.secs()).await;
+
+        self.mmd_pr(150).await?;
+        self.mmd_move_to(0, 400).await?;
+        self.wait_for_linear_stepper_available().await?;
+
         self.mmd_dispenser_off(0).await?;
+        Delay::new(2.secs()).await;
+
         self.mmd_belt_off().await?;
         self.mmd_pr_off().await?;
         Ok(())
@@ -326,10 +380,10 @@ impl McSystemExecutor {
         expect_result(res, AtomiProto::Unknown)
     }
 
-    pub async fn mmd_move_to(&mut self, position: i32) -> Result<(), AtomiError> {
+    pub async fn mmd_move_to(&mut self, position: i32, speed: u32) -> Result<(), AtomiError> {
         let res = self
             .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                LinearStepperCommand::MoveTo { position },
+                LinearStepperCommand::MoveTo { position, speed },
             )))
             .await?;
         expect_result(res, AtomiProto::Unknown)

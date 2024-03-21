@@ -33,14 +33,16 @@ impl LinearStepperProcessor {
     ) -> Result<i32, AtomiError> {
         match msg {
             LinearStepperCommand::Home => self.linear_stepper.home().await,
-            LinearStepperCommand::MoveTo { position } => {
-                self.linear_stepper.move_to(position).await
+            LinearStepperCommand::MoveTo { position, speed } => {
+                self.linear_stepper.move_to(position, speed).await
             }
-            LinearStepperCommand::MoveToRelative { steps } => {
-                self.linear_stepper.move_to_relative(steps).await
+            LinearStepperCommand::MoveToRelative { steps, speed } => {
+                self.linear_stepper.move_to_relative(steps, speed).await
             }
-            LinearStepperCommand::MoveToRelativeForce { steps } => {
-                self.linear_stepper.move_to_relative_by_force(steps).await
+            LinearStepperCommand::MoveToRelativeForce { steps, speed } => {
+                self.linear_stepper
+                    .move_to_relative_by_force(steps, speed)
+                    .await
             }
             LinearStepperCommand::Off => {
                 self.linear_stepper.disable().unwrap();

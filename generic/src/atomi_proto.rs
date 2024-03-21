@@ -107,10 +107,10 @@ pub enum RotationStepperCommand {
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum LinearStepperCommand {
-    Home,                               // wait
-    MoveTo { position: i32 },           // wait
-    MoveToRelative { steps: i32 },      // wait
-    MoveToRelativeForce { steps: i32 }, // wait
+    Home,                                           // wait
+    MoveTo { position: i32, speed: u32 },           // wait
+    MoveToRelative { steps: i32, speed: u32 },      // wait
+    MoveToRelativeForce { steps: i32, speed: u32 }, // wait
     WaitIdle,
     GetTriggerStatus,
     Off,

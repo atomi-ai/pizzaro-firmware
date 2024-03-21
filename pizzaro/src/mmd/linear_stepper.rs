@@ -131,16 +131,20 @@ where
         Ok(())
     }
 
-    pub async fn move_to_relative(&mut self, steps: i32) -> Result<i32, AtomiError> {
+    pub async fn move_to_relative(&mut self, steps: i32, speed: u32) -> Result<i32, AtomiError> {
         self.check_homed()?;
-        self.move_to_relative_internal(FAST_SPEED, steps).await
+        self.move_to_relative_internal(speed, steps).await
     }
 
-    pub async fn move_to_relative_by_force(&mut self, steps: i32) -> Result<i32, AtomiError> {
-        self.move_to_relative_internal(FAST_SPEED, steps).await
+    pub async fn move_to_relative_by_force(
+        &mut self,
+        steps: i32,
+        speed: u32,
+    ) -> Result<i32, AtomiError> {
+        self.move_to_relative_internal(speed, steps).await
     }
 
-    pub async fn move_to(&mut self, position: i32) -> Result<i32, AtomiError> {
+    pub async fn move_to(&mut self, position: i32, speed: u32) -> Result<i32, AtomiError> {
         if position < 0 {
             return Err(AtomiError::MmdNotAcceptedPosition);
         }
@@ -151,7 +155,7 @@ where
             position,
             position - self.current_position
         );
-        self.move_to_relative_internal(FAST_SPEED, position - self.current_position)
+        self.move_to_relative_internal(speed, position - self.current_position)
             .await
     }
 

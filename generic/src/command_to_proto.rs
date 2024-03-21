@@ -1,5 +1,10 @@
 use crate::atomi_error::AtomiError;
-use crate::atomi_proto::{AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McCommand, McSystemExecutorCmd, MmdCommand, PeristalticPumpCommand, RotationStepperCommand};
+use crate::atomi_proto::{
+    AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McCommand,
+    McSystemExecutorCmd, MmdCommand, PeristalticPumpCommand, RotationStepperCommand,
+};
+
+const FAST_SPEED: u32 = 100; // steps / second
 
 pub fn parse_protocol(line: &str) -> AtomiProto {
     let mut tokens = line.split_whitespace();
@@ -27,7 +32,9 @@ where
         Some("pong") => AtomiProto::Mc(McCommand::McPong),
 
         // TODO(lv): Deprecate the "autorun" command below?
-        Some("autorun") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::ExecuteOneFullRun)),
+        Some("autorun") => {
+            AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::ExecuteOneFullRun))
+        }
         Some("init") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::InitSystem)),
         Some("make") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::MakePizza)),
         // Some("autostop") => AtomiProto::Autorun(AtomiAutorun::Stop),
@@ -61,7 +68,10 @@ where
         Some("force_move") => {
             if let Ok(steps) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                    LinearStepperCommand::MoveToRelativeForce { steps },
+                    LinearStepperCommand::MoveToRelativeForce {
+                        steps,
+                        speed: FAST_SPEED,
+                    },
                 ))
             } else {
                 AtomiProto::Unknown
@@ -70,7 +80,10 @@ where
         Some("move_rel") => {
             if let Ok(steps) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                    LinearStepperCommand::MoveToRelative { steps },
+                    LinearStepperCommand::MoveToRelative {
+                        steps,
+                        speed: FAST_SPEED,
+                    },
                 ))
             } else {
                 AtomiProto::Unknown
@@ -80,6 +93,7 @@ where
             if let Ok(position) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::MoveTo {
                     position,
+                    speed: FAST_SPEED,
                 }))
             } else {
                 AtomiProto::Unknown
