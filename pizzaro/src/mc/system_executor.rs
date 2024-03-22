@@ -244,38 +244,28 @@ impl McSystemExecutor {
     pub async fn squeeze_ketchup(&mut self) -> Result<(), AtomiError> {
         // 挤番茄酱
         // init
-        // self.mmd_pr(300).await?;
-        //self.mmd_pp(-300).await?;
+        self.mmd_pr(300).await?;
+        self.mmd_pp(-300).await?;
 
-        self.mmd_move_to(200, 400).await?;
-        self.mmd_pr(400).await?;
+        self.mmd_move_to(200, 500).await?;
+        self.mmd_pr(218).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(3488.millis()).await;
+        Delay::new(6329.millis()).await;
 
-        self.mmd_move_to(260, 400).await?;
-        self.mmd_pr(333).await?;
+        self.mmd_move_to(303, 500).await?;
+        self.mmd_pr(277).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(3070.millis()).await;
+        Delay::new(4973.millis()).await;
 
-        self.mmd_move_to(320, 400).await?;
-        self.mmd_pr(266).await?;
+        self.mmd_move_to(406, 500).await?;
+        self.mmd_pr(381).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(2651.millis()).await;
+        Delay::new(3617.millis()).await;
 
-        self.mmd_move_to(380, 400).await?;
-        self.mmd_pr(200).await?;
+        self.mmd_move_to(510, 500).await?;
+        self.mmd_pr(611).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(2232.millis()).await;
-
-        self.mmd_move_to(440, 400).await?;
-        self.mmd_pr(133).await?;
-        self.wait_for_linear_stepper_available().await?;
-        Delay::new(1814.millis()).await;
-
-        self.mmd_move_to(500, 400).await?;
-        self.mmd_pr(66).await?;
-        self.wait_for_linear_stepper_available().await?;
-        Delay::new(1395.millis()).await;
+        Delay::new(2260.millis()).await;
 
         // finish
         self.mmd_pp_off().await?;
@@ -284,24 +274,30 @@ impl McSystemExecutor {
 
     pub async fn sprinkle_cheese(&mut self) -> Result<(), AtomiError> {
         // 启动传送带和起司，等待1.5秒让起司掉落到传送带上
+        // init-temp
+        // self.mmd_move_to(510, 500).await?;
+        // self.mmd_pr(759).await?;
+        // self.wait_for_linear_stepper_available().await?;
+
+        // init
         self.mmd_dispenser_on(0).await?;
         self.mmd_belt_on().await?;
         Delay::new(1500.millis()).await;
 
-        self.mmd_move_to(0, 400).await?;
-        self.mmd_pr(100).await?;
+        self.mmd_move_to(510, 500).await?;
+        self.mmd_pr(759).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(3140.millis()).await;
+        Delay::new(1819.millis()).await;
 
-        self.mmd_move_to(163, 400).await?;
-        self.mmd_pr(200).await?;
+        self.mmd_move_to(355, 500).await?;
+        self.mmd_pr(421).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(2114.millis()).await;
+        Delay::new(3275.millis()).await;
 
-        self.mmd_move_to(326, 400).await?;
-        self.mmd_pr(300).await?;
+        self.mmd_move_to(200, 500).await?;
+        self.mmd_pr(292).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(1088.millis()).await;
+        Delay::new(4730.millis()).await;
 
         // 等待传送带上剩余起司全部送出
         self.mmd_dispenser_off(0).await?;
@@ -311,19 +307,22 @@ impl McSystemExecutor {
 
     pub async fn make_one_pizza(&mut self) -> Result<(), AtomiError> {
         // 压面团
-        // self.hpd_move_to(52700).await?;
-        // //self.hpd_move_to(22000).await?;
-        // self.wait_for_linear_bull_available().await?;
-        // Delay::new(3.secs()).await;
-        // self.hpd_move_to(22000).await?;
-        // self.wait_for_linear_bull_available().await?;
+        self.hpd_move_to(52700).await?;
+        //self.hpd_move_to(22000).await?;
+        self.wait_for_linear_bull_available().await?;
+        Delay::new(3.secs()).await;
+        self.hpd_move_to(22000).await?;
+        self.wait_for_linear_bull_available().await?;
 
         // 涂番茄酱
         self.squeeze_ketchup().await?;
         // 撒起司
-        //self.sprinkle_cheese().await?;
+        self.sprinkle_cheese().await?;
 
         // 结束
+        self.mmd_move_to(0, 500).await?;
+        self.hpd_move_to(0).await?;
+        self.wait_for_linear_stepper_available().await?;
         self.mmd_belt_off().await?;
         self.mmd_pr_off().await?;
         Ok(())
