@@ -44,7 +44,7 @@ impl<S: SliceId> BrushMotor<S> {
             } else {
                 en.set_high()
             })
-            .or(Err(AtomiError::MmdCannotStart));
+            .or(Err(AtomiError::MmdCannotStart))?;
         }
         self.pwm.enable();
 

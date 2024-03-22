@@ -113,7 +113,7 @@ fn main() -> ! {
         let processor = LinearBullProcessor::new(
             linear_scale_rc1,
             PwmMotor::new(
-                pins.gpio18.into_push_pull_output().into_dyn_pin(),
+                Some(pins.gpio18.into_push_pull_output().into_dyn_pin()),
                 pwm,
                 HPD_BR_THRESHOLD,
                 REVERT_HPD_BR_DIRECTION,
