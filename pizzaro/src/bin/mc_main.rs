@@ -5,47 +5,40 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 
-use cortex_m::peripheral::NVIC;
-use defmt::{error, info, Debug2Format};
+use defmt::{Debug2Format, error, info};
 use fugit::{ExtU64, RateExtU32};
-use pizzaro::bsp::{mc_ui_uart_irq, McUartDirPinType, McUartType, McUiUartType};
-use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
-use rp2040_hal::gpio::FunctionUart;
-use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
-use rp2040_hal::{
-    clocks::{init_clocks_and_plls, Clock},
-    pac,
-    sio::Sio,
-    uart::UartPeripheral,
-    watchdog::Watchdog,
-    Timer,
-};
-use rp_pico::hal::pac::interrupt;
+use rp2040_hal::{clocks::{Clock, init_clocks_and_plls}, pac, sio::Sio, Timer, uart::UartPeripheral, watchdog::Watchdog};
+use rp2040_hal::gpio::{FunctionUart, Pin, PullDown};
+use rp2040_hal::gpio::bank0::{Gpio12, Gpio13};
+use rp2040_hal::uart::{DataBits, Enabled, StopBits, UartConfig};
 use rp_pico::{entry, hal, XOSC_CRYSTAL_FREQ};
+use rp_pico::hal::pac::interrupt;
+use rp_pico::pac::UART0;
 use usb_device::bus::UsbBusAllocator;
 use usb_device::device::{UsbDevice, UsbDeviceBuilder, UsbVidPid};
 use usb_device::UsbError;
 use usbd_serial::SerialPort;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{wrap_result_into_proto, AtomiProto, McCommand};
+use generic::atomi_proto::{AtomiProto, McCommand};
+use pizzaro::common::async_initialization;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{init_global_timer, now, Delay};
-use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
+use pizzaro::common::global_timer::{Delay, init_global_timer, now};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
-use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
+use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
 static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
 static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
-static mut UIUART: Option<UiUartType> = None;
+
 static mut FROM_PC_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
     unsafe { FROM_PC_MESSAGE_QUEUE.get_mut() }
 }
+
 
 #[entry]
 fn main() -> ! {
@@ -62,8 +55,8 @@ fn main() -> ! {
         &mut pac.RESETS,
         &mut watchdog,
     )
-    .ok()
-    .unwrap();
+        .ok()
+        .unwrap();
 
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
@@ -79,43 +72,17 @@ fn main() -> ! {
         // Initialize UART
         let uart_pins = (
             // UART TX (characters sent from RP2040) on pin 1 (GPIO0)
-            mc_sys_tx!(pins).into_function::<FunctionUart>(),
+            pins.gpio12.into_function::<FunctionUart>(),
             // UART RX (characters received by RP2040) on pin 2 (GPIO1)
-            mc_sys_rx!(pins).into_function::<FunctionUart>(),
+            pins.gpio13.into_function::<FunctionUart>(),
         );
-        let uart = UartPeripheral::new(mc_uart!(pac), uart_pins, &mut pac.RESETS)
+        let uart = UartPeripheral::new(pac.UART0, uart_pins, &mut pac.RESETS)
             .enable(
                 UartConfig::new(115200.Hz(), DataBits::Eight, None, StopBits::One),
                 clocks.peripheral_clock.freq(),
             )
             .unwrap();
-        let uart_dir = mc_485_dir!(pins).reconfigure();
-
-        spawn_task(process_messages(uart, Some(uart_dir)));
-    }
-
-    {
-        // initialize UI screen
-        let ui_uart_pins = (
-            // UART TX (characters sent from RP2040) on pin 1 (GPIO0)
-            mc_ui_uart_tx!(pins).into_function::<FunctionUart>(),
-            // UART RX (characters received by RP2040) on pin 2 (GPIO1)
-            mc_ui_uart_rx!(pins).into_function::<FunctionUart>(),
-        );
-
-        let ui_uart = UartPeripheral::new(mc_ui_uart!(pac), ui_uart_pins, &mut pac.RESETS)
-            .enable(
-                UartConfig::new(9600.Hz(), DataBits::Eight, None, StopBits::One),
-                clocks.peripheral_clock.freq(),
-            )
-            .unwrap();
-
-        unsafe {
-            UIUART = Some(ui_uart);
-            NVIC::unmask(mc_ui_uart_irq());
-        }
-
-        //spawn_task(process_ui_screen(ui_uart));
+        spawn_task(process_messages(uart));
     }
 
     {
@@ -171,13 +138,13 @@ fn main() -> ! {
     }
 }
 
-type UartType = McUartType;
-type UartDirType = McUartDirPinType;
-type UiUartType = McUiUartType;
+type UartType = UartPeripheral<Enabled, UART0, (
+    Pin<Gpio12, FunctionUart, PullDown>,
+    Pin<Gpio13, FunctionUart, PullDown>)>;
 
-async fn process_messages(mut uart: UartType, mut uart_dir: Option<UartDirType>) {
+async fn process_messages(mut uart: UartType) {
     // TODO(zephyr): Do we need to keep connection alive?
-    let mut uart_comm = UartComm::new(&mut uart, &mut uart_dir, UART_EXPECTED_RESPONSE_LENGTH);
+    let mut uart_comm = UartComm::new(&mut uart, UART_EXPECTED_RESPONSE_LENGTH);
     let serial = unsafe { USB_SERIAL.as_mut().unwrap() };
 
     loop {
@@ -185,63 +152,43 @@ async fn process_messages(mut uart: UartType, mut uart_dir: Option<UartDirType>)
 
         let t = get_mq().dequeue();
         // TODO(zephyr): simplify the code below.
-        if t.is_some() {
+        if !t.is_none() {
             info!("[MC] get msg from queue: {}", t);
         }
         let msg = match t {
-            None => continue, // no data, ignore
+            None => continue,  // no data, ignore
             Some(AtomiProto::Mc(mc_cmd)) => process_mc_message(mc_cmd),
-            Some(msg) => forward(&mut uart_comm, msg).await,
+            Some(msg) => {
+                forward(&mut uart_comm, msg).await
+            }
         };
         info!("Processed result: {}", msg);
 
-        match (|| -> Result<(), AtomiError> {
-            let wrapped_msg = wrap_result_into_proto(msg);
-            let binding =
-                postcard::to_allocvec(&wrapped_msg).map_err(|_| AtomiError::DataConvertError)?;
-            info!(
-                "Data to send to PC: {}, wrapped_msg: {}",
-                Debug2Format(&binding),
-                wrapped_msg
-            );
+        let res = (|| -> Result<(), AtomiError> {
+            let binding = postcard::to_allocvec(&msg?).map_err(|_| AtomiError::DataConvertError)?;
+            info!("Data to send to PC: {}", Debug2Format(&binding));
             let mut wr_ptr = binding.as_slice();
             while !wr_ptr.is_empty() {
                 match serial.write(wr_ptr) {
-                    Ok(len) => {
-                        info!("process_mc_message() 5.4, len = {}", len);
-                        if len > wr_ptr.len() {
-                            error!("process_messages() 5.5: overflow happens");
-                            return Err(AtomiError::UsbCtrlWriteError);
-                        }
-                        wr_ptr = &wr_ptr[len..]
-                    }
+                    Ok(len) => wr_ptr = &wr_ptr[len..],
                     Err(_) => Err(AtomiError::UsbCtrlWriteError)?,
                 };
             }
             Ok(())
-        })() {
-            Ok(_) => {
-                info!("Successfully send data back through USBCTRL");
-            }
-            Err(err) => {
-                error!("Errors in sending data back through USBCTRL, {}", err)
-            }
-        }
+        })();
+        info!("Send data back through USBCTRL result: {}", res);
     }
 }
 
-async fn forward(
-    uart_comm: &mut UartComm<'_, UartDirType, UartType>,
-    msg: AtomiProto,
-) -> Result<AtomiProto, AtomiError> {
+async fn forward(uart_comm: &mut UartComm<'_, UartType>, msg: AtomiProto) -> Result<AtomiProto, AtomiError> {
     info!("Forward msg: {}", msg);
     if let Err(e) = uart_comm.send(msg) {
         error!("Error in sending command, err: {:?}", e);
         return Err(AtomiError::UartWriteError);
     }
 
-    // 异步读取响应长度 or timeout
-    uart_comm.recv_timeout::<AtomiProto>(500.millis()).await
+    // 异步读取响应长度
+    uart_comm.recv::<AtomiProto>().await
 }
 
 fn process_mc_message(msg: McCommand) -> Result<AtomiProto, AtomiError> {
@@ -273,7 +220,7 @@ unsafe fn USBCTRL_IRQ() {
     if usb_dev.poll(&mut [serial]) {
         let mut buf = [0u8; 64];
         match serial.read(&mut buf) {
-            Err(UsbError::WouldBlock) => {} // ignore
+            Err(UsbError::WouldBlock) => {},  // ignore
             Err(err) => {
                 info!("xfguo: got error: {:?}", Debug2Format(&err));
             }
@@ -285,17 +232,9 @@ unsafe fn USBCTRL_IRQ() {
                 match postcard::from_bytes::<AtomiProto>(&buf[..count]) {
                     Ok(message) => {
                         get_mq().enqueue(message);
-                        info!(
-                            "{} | Received message: {:?}, added to mq",
-                            now().ticks(),
-                            message
-                        );
-                    }
-                    Err(err) => info!(
-                        "Failed to parse message: {}, err: {}",
-                        Debug2Format(&buf[..count]),
-                        Debug2Format(&err)
-                    ),
+                        info!("{} | Received message: {:?}, added to mq", now().ticks(), message);
+                    },
+                    Err(err) => info!("Failed to parse message: {}, err: {}", Debug2Format(&buf[..count]), Debug2Format(&err)),
                 }
             }
         }

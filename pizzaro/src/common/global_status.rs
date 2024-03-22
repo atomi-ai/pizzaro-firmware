@@ -26,6 +26,7 @@ pub enum FutureStatus {
     // HPD status
     HpdAvailable,
     HpdBusy,
+
     // More future specific status
 }
 
@@ -81,9 +82,7 @@ pub fn set_status(ft: FutureType, new_status: FutureStatus) -> Option<FutureStat
             let old_status = *status;
             *status = new_status;
             Some(old_status)
-        } else {
-            None
-        }
+        } else { None }
     })
     // info!("global_status::set_status({}, {})", index, new_status);
     // log_global_status();

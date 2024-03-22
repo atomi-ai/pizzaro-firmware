@@ -20,12 +20,6 @@ impl<T> MessageQueue<T> {
     }
 }
 
-impl<T> Default for MessageQueue<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<T> MessageQueueInterface<T> for MessageQueue<T> {
     fn enqueue(&mut self, message: T) {
         self.queue.push_back(message);
@@ -46,10 +40,15 @@ impl<T> Default for MessageQueueWrapper<T> {
 
 impl<T> MessageQueueInterface<T> for MessageQueueWrapper<T> {
     fn enqueue(&mut self, message: T) {
-        critical_section::with(|cs| self.0.borrow(cs).borrow_mut().enqueue(message))
+        critical_section::with(|cs| {
+            self.0.borrow(cs).borrow_mut().enqueue(message)
+        })
     }
 
     fn dequeue(&mut self) -> Option<T> {
-        critical_section::with(|cs| self.0.borrow(cs).borrow_mut().dequeue())
+        critical_section::with(|cs| {
+            self.0.borrow(cs).borrow_mut().dequeue()
+        })
     }
 }
+
