@@ -1,10 +1,10 @@
-use embedded_hal::digital::v2::InputPin;
-use fugit::ExtU64;
-use rp2040_hal::{pac, Sio};
-use rp2040_hal::sio::SioFifo;
-use rp_pico::hal;
 use crate::common::global_timer::Delay;
 use crate::hpd::hpd_misc::LinearScale;
+use embedded_hal::digital::v2::InputPin;
+use fugit::ExtU64;
+use rp2040_hal::sio::SioFifo;
+use rp2040_hal::{pac, Sio};
+use rp_pico::hal;
 
 pub fn core1_task() -> ! {
     let mut pac = unsafe { pac::Peripherals::steal() };

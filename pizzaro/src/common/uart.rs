@@ -22,11 +22,11 @@ impl<'a, T: Read<u8>> Future for UartRead<'a, T> {
                     // info!("UartRead::poll() got byte: {}, pos = {}, len = {}", byte, this.pos, this.buffer.len());
                     this.buffer[this.pos] = byte;
                     this.pos += 1; // 更新读取位置
-                },
+                }
                 Err(nb::Error::WouldBlock) => {
                     cx.waker().wake_by_ref();
                     return Poll::Pending;
-                },
+                }
                 Err(nb::Error::Other(e)) => return Poll::Ready(Err(e)),
             }
         }
@@ -35,6 +35,14 @@ impl<'a, T: Read<u8>> Future for UartRead<'a, T> {
     }
 }
 
-pub async fn uart_read<'a, T: Read<u8>>(uart: &'a mut T, buffer: &'a mut [u8]) -> Result<(), T::Error> {
-    UartRead { uart, buffer, pos: 0 }.await
+pub async fn uart_read<'a, T: Read<u8>>(
+    uart: &'a mut T,
+    buffer: &'a mut [u8],
+) -> Result<(), T::Error> {
+    UartRead {
+        uart,
+        buffer,
+        pos: 0,
+    }
+    .await
 }

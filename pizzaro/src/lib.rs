@@ -2,9 +2,11 @@
 
 extern crate alloc;
 
-use panic_probe as _;
 use defmt_rtt as _;
+use panic_probe as _;
 
-pub mod mmd;
+pub mod bsp;
 pub mod common;
 pub mod hpd;
+pub mod mc;
+pub mod mmd;

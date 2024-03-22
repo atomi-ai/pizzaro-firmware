@@ -1,1 +1,2 @@
 pub const UART_EXPECTED_RESPONSE_LENGTH: usize = 255;
+pub const UI_UART_MAX_RESPONSE_LENGTH: usize = 32;

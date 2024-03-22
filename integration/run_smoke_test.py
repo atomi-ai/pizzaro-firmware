@@ -21,9 +21,9 @@ def run_tests(tests, probe="16c0:27dd"):
         # 切换到x86_app目录
         os.chdir("x86_app")
         for test in tests:
-            print(f"Running test: {test}")
             # 构建并运行测试命令
             cmd = f"cargo run --example {test} -- --probe {probe}"
+            print(f"Running test: {test}, cmd: '{cmd}'")
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
             if result.returncode == 0:
                 print(f"Test {test} passed")
@@ -36,9 +36,9 @@ def run_tests(tests, probe="16c0:27dd"):
 
 def main():
     binaries = {
-        "mc_main": "2e8a:000c:4150335631373503",
-        "mmd_main": "2e8a:000c:65D77F96043E4858",
-        "hpd_main": "2e8a:000c:65CD5C1714224E53",
+        "mc_main": "2e8a:000c:65CD5C1714224E53",
+        "mmd_main": "2e8a:000c:4150335631373503",
+        "hpd_main": "2e8a:000c:E4632448A72B5931",
     }
 
     for binary, probe in binaries.items():

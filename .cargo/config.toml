@@ -4,6 +4,9 @@
 # - elf2uf2-rs loads firmware over USB when the pizzaro is in boot mode
 runner = "probe-rs run --chip RP2040 --protocol swd"
 # runner = "elf2uf2-rs -d"
+#runner = "probe-rs run --chip RP2040 --probe 2e8a:000c:65CD5C1714224E53 --protocol swd"  # MC
+#runner = "probe-rs run --chip RP2040 --probe 2e8a:000c:4150335631373503 --protocol swd"  # MMD
+#runner = "probe-rs run --chip RP2040 --probe 2e8a:000c:E4632448A72B5931 --protocol swd"  # HPD
 
 rustflags = [
   "-C", "linker=flip-link",
