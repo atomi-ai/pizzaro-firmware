@@ -1,4 +1,4 @@
-use defmt::{info, warn};
+use defmt::{debug, info, warn};
 use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
 use embedded_hal::PwmPin;
 use fugit::HertzU32;
@@ -63,37 +63,89 @@ impl<S: SliceId, E: StatefulOutputPin> PwmStepper<S, E> {
         Ok(())
     }
 
-    fn set_pwm_freq(&mut self, freq: u32) -> u16 {
+    // fn set_pwm_freq(&mut self, freq: u32) -> u16 {
+    //     const TOP_MAX: u32 = 65534;
+    //     let source_hz = self.sys_clock.to_Hz();
+    //     let mut div16: u32;
+    //     let mut top: u32;
+
+    //     if (source_hz + freq / 2) / freq < TOP_MAX {
+    //         div16 = 16;
+    //         top = (source_hz + freq / 2) / freq - 1;
+    //     } else {
+    //         div16 = get_slice_hz_ceil(self.sys_clock, TOP_MAX * freq);
+    //         top = get_slice_hz_round(self.sys_clock, div16 * freq) - 1;
+    //     }
+
+    //     if div16 < 16 {
+    //         warn!("Requested frequency too large, clamping to maximum");
+    //         div16 = 16;
+    //         top = TOP_MAX;
+    //     } else if div16 >= 256 * 16 {
+    //         warn!("Requested frequency too small, clamping to minimum");
+    //         div16 = 256 * 16 - 1;
+    //         top = get_slice_hz_round(self.sys_clock, div16 * freq) - 1;
+    //     }
+
+    //     let div_int = (div16 / 16) as u8;
+    //     let div_frac = ((div16 % 16) * 16) as u8;
+    //     info!("div_int:{}, div_frac:{},  top:{}", div_int, div_frac, top);
+    //     self.pwm.set_div_int(div_int);
+    //     self.pwm.set_div_frac(div_frac);
+    //     self.pwm.set_top(top as u16);
+    //     self.pwm.set_counter(0);
+    //     self.pwm.enable();
+    //     top as u16
+    // }
+
+    fn set_pwm_freq(&mut self, freq_u32: u32) -> u16 {
         const TOP_MAX: u32 = 65534;
-        let source_hz = self.sys_clock.to_Hz();
-        let mut div16: u32;
-        let mut top: u32;
+        const DIV_MIN: u32 = 0x01 << 4; // 0x10
+        const DIV_MAX: u32 = (0xFF << 4) + 0xF; // 0xFFF
+        let clock: u32 = 125_000_000; // 假设系统时钟为 125 MHz
+        let freq: f32 = freq_u32 as f32;
 
-        if (source_hz + freq / 2) / freq < TOP_MAX {
-            div16 = 16;
-            top = (source_hz + freq / 2) / freq - 1;
+        // 计算初步的 div 值
+        let mut div = (clock << 4) as f32 / freq / (TOP_MAX + 1) as f32;
+
+        // 确保 div 不小于最小值
+        if div < DIV_MIN as f32 {
+            div = DIV_MIN as f32;
+        }
+
+        // 计算 period 和 top
+        let mut period = (clock << 4) as f32 / div / freq;
+        while period > (TOP_MAX + 1) as f32 && div <= DIV_MAX as f32 {
+            div += 1.0;
+            period = (clock << 4) as f32 / div / freq;
+        }
+
+        let top;
+        if period <= 1.0 {
+            // 频率太高，无法达到所需的精度，选择最接近的可实现值
+            warn!("Requested frequency is too high, adjusting to a feasible value.");
+            top = 0; // 最小可能的周期顶部值
+        } else if div > DIV_MAX as f32 {
+            // 频率太低，无法达到所需的精度，选择最接近的可实现值
+            warn!("Requested frequency is too low, adjusting to a feasible value.");
+            div = DIV_MAX as f32; // 使用最大可能的除数值
+            top = TOP_MAX; // 使用最大可能的周期顶部值
         } else {
-            div16 = get_slice_hz_ceil(self.sys_clock, TOP_MAX * freq);
-            top = get_slice_hz_round(self.sys_clock, div16 * freq) - 1;
+            top = (period as u32).saturating_sub(1);
         }
 
-        if div16 < 16 {
-            warn!("Requested frequency too large, clamping to maximum");
-            div16 = 16;
-            top = TOP_MAX;
-        } else if div16 >= 256 * 16 {
-            warn!("Requested frequency too small, clamping to minimum");
-            div16 = 256 * 16 - 1;
-            top = get_slice_hz_round(self.sys_clock, div16 * freq) - 1;
-        }
+        // 计算实际的输出频率，用于验证和报告
+        let _out_freq = (clock as f32 * 16.0) / div / (top as f32 + 1.0);
+        let div_int = (div as u32) >> 4;
+        let div_frac = (div as u32) & 0xF;
+        debug!("div_int: {}, div_frac: {}, top: {}", div_int, div_frac, top);
 
-        let div_int = (div16 / 16) as u8;
-        let div_frac = ((div16 % 16) * 16) as u8;
-        self.pwm.set_div_int(div_int);
-        self.pwm.set_div_frac(div_frac);
+        self.pwm.set_div_int(div_int as u8);
+        self.pwm.set_div_frac(div_frac as u8);
         self.pwm.set_top(top as u16);
         self.pwm.set_counter(0);
         self.pwm.enable();
+
         top as u16
     }
 
@@ -120,6 +172,7 @@ impl<S: SliceId, E: StatefulOutputPin> PwmStepper<S, E> {
         // freq -> 1/ pulse width -> (spd / 60 * pulse_per_round)/1
 
         let freq = speed_rpm.unsigned_abs() * self.pulse_per_round / 60;
+        info!("set freq:{}", freq);
         let freq_top = self.set_pwm_freq(freq);
         match self.step_channel {
             PwmChannels::channel_a => {

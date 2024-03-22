@@ -11,7 +11,7 @@ use crate::common::state::{LinearMotionState, MotionState};
 use crate::mmd::stepper::Stepper;
 
 //const FAST_SPEED: u32 = 400; // steps / second
-const FAST_SPEED: u32 = 100; // steps / second
+const FAST_SPEED: u32 = 400; // steps / second
 const SLOW_SPEED: u32 = 50; // steps / second
 const SMALL_DISTANCE: i32 = 50; // steps
 

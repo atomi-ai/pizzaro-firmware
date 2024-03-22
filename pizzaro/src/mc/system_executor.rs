@@ -301,71 +301,89 @@ impl McSystemExecutor {
         Ok(())
     }
 
-    pub async fn make_one_pizza(&mut self) -> Result<(), AtomiError> {
-        // 压面团
-        self.hpd_move_to(52700).await?;
-        //self.hpd_move_to(22000).await?;
-        self.wait_for_linear_bull_available().await?;
-        Delay::new(3.secs()).await;
-        self.hpd_move_to(22000).await?;
-        self.wait_for_linear_bull_available().await?;
+    pub async fn squeeze_ketchup(&mut self) -> Result<(), AtomiError> {
         // 挤番茄酱
-        self.mmd_pr(300).await?;
-        self.mmd_pp(-300).await?;
+        // init
+        // self.mmd_pr(300).await?;
+        //self.mmd_pp(-300).await?;
 
-        self.mmd_move_to(210, 400).await?;
-        self.mmd_pr(100).await?;
+        self.mmd_move_to(200, 400).await?;
+        self.mmd_pr(400).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(4.secs()).await;
+        Delay::new(3488.millis()).await;
 
-        self.mmd_move_to(310, 400).await?;
-        self.mmd_pr(150).await?;
+        self.mmd_move_to(260, 400).await?;
+        self.mmd_pr(333).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(3.secs()).await;
+        Delay::new(3070.millis()).await;
 
-        self.mmd_move_to(410, 400).await?;
-        self.mmd_pr(250).await?;
+        self.mmd_move_to(320, 400).await?;
+        self.mmd_pr(266).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(1500.millis()).await;
+        Delay::new(2651.millis()).await;
 
-        self.mmd_move_to(510, 400).await?;
-        self.mmd_pr(350).await?;
+        self.mmd_move_to(380, 400).await?;
+        self.mmd_pr(200).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(500.millis()).await;
+        Delay::new(2232.millis()).await;
 
+        self.mmd_move_to(440, 400).await?;
+        self.mmd_pr(133).await?;
+        self.wait_for_linear_stepper_available().await?;
+        Delay::new(1814.millis()).await;
+
+        self.mmd_move_to(500, 400).await?;
+        self.mmd_pr(66).await?;
+        self.wait_for_linear_stepper_available().await?;
+        Delay::new(1395.millis()).await;
+
+        // finish
         self.mmd_pp_off().await?;
-        // 上cheese
+        Ok(())
+    }
+
+    pub async fn sprinkle_cheese(&mut self) -> Result<(), AtomiError> {
+        // 启动传送带和起司，等待1.5秒让起司掉落到传送带上
         self.mmd_dispenser_on(0).await?;
         self.mmd_belt_on().await?;
         Delay::new(1500.millis()).await;
 
-        self.mmd_pr(350).await?;
-        self.mmd_move_to(410, 400).await?;
-        self.wait_for_linear_stepper_available().await?;
-        Delay::new(1.secs()).await;
-
-        self.mmd_pr(300).await?;
-        self.mmd_move_to(310, 400).await?;
-        self.wait_for_linear_stepper_available().await?;
-        Delay::new(1.secs()).await;
-
-        self.mmd_pr(250).await?;
-        self.mmd_move_to(210, 400).await?;
-        self.wait_for_linear_stepper_available().await?;
-        Delay::new(1.secs()).await;
-
-        self.mmd_pr(200).await?;
-        self.mmd_move_to(110, 400).await?;
-        self.wait_for_linear_stepper_available().await?;
-        Delay::new(1.secs()).await;
-
-        self.mmd_pr(150).await?;
         self.mmd_move_to(0, 400).await?;
+        self.mmd_pr(100).await?;
         self.wait_for_linear_stepper_available().await?;
+        Delay::new(3140.millis()).await;
 
+        self.mmd_move_to(163, 400).await?;
+        self.mmd_pr(200).await?;
+        self.wait_for_linear_stepper_available().await?;
+        Delay::new(2114.millis()).await;
+
+        self.mmd_move_to(326, 400).await?;
+        self.mmd_pr(300).await?;
+        self.wait_for_linear_stepper_available().await?;
+        Delay::new(1088.millis()).await;
+
+        // 等待传送带上剩余起司全部送出
         self.mmd_dispenser_off(0).await?;
         Delay::new(2.secs()).await;
+        Ok(())
+    }
 
+    pub async fn make_one_pizza(&mut self) -> Result<(), AtomiError> {
+        // 压面团
+        // self.hpd_move_to(52700).await?;
+        // //self.hpd_move_to(22000).await?;
+        // self.wait_for_linear_bull_available().await?;
+        // Delay::new(3.secs()).await;
+        // self.hpd_move_to(22000).await?;
+        // self.wait_for_linear_bull_available().await?;
+
+        // 涂番茄酱
+        self.squeeze_ketchup().await?;
+        // 撒起司
+        //self.sprinkle_cheese().await?;
+
+        // 结束
         self.mmd_belt_off().await?;
         self.mmd_pr_off().await?;
         Ok(())
