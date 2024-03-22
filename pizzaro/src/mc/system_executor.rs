@@ -131,7 +131,7 @@ impl McSystemExecutor {
         self.mmd_pr(PR_OFF_SPEED).await
     }
 
-    async fn mmd_pr_on(&mut self) -> Result<(), AtomiError> {
+    async fn _mmd_pr_on(&mut self) -> Result<(), AtomiError> {
         self.mmd_pr(PR_ON_SPEED).await
     }
 
@@ -148,7 +148,7 @@ impl McSystemExecutor {
         self.mmd_pp(PP_OFF_SPEED).await
     }
 
-    async fn mmd_pp_on(&mut self) -> Result<(), AtomiError> {
+    async fn _mmd_pp_on(&mut self) -> Result<(), AtomiError> {
         self.mmd_pp(PP_ON_SPEED).await
     }
 
@@ -186,7 +186,7 @@ impl McSystemExecutor {
         self.mmd_belt(BELT_ON_SPEED).await
     }
 
-    async fn hpd_move_to(&mut self, position: i32) -> Result<(), AtomiError> {
+    async fn _hpd_move_to(&mut self, position: i32) -> Result<(), AtomiError> {
         let res = self
             .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {
                 position,
@@ -352,7 +352,7 @@ pub async fn process_executor_requests(mut executor: McSystemExecutor) {
     let mq_out = system_executor_output_mq();
     loop {
         Delay::new(1.millis()).await;
-        let _ = match mq_in.dequeue() {
+        match mq_in.dequeue() {
             Some(AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::StopSystem))) => {
                 info!("To stop the system");
                 error_or_done(executor.system_stop().await, mq_out);

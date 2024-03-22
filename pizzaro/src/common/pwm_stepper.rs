@@ -18,7 +18,6 @@ pub struct PwmStepper<S: SliceId, E: StatefulOutputPin> {
     enable_pin: Option<E>, //Option<Pin<DynPinId, FunctionSio<SioOutput>, PullDown>>,
     dir_pin: Pin<DynPinId, FunctionSio<SioOutput>, PullDown>,
     step_channel: PwmChannels,
-    sys_clock: HertzU32,
     pwm: Slice<S, FreeRunning>,
     /// 电机正负如果接反，运转方向会相反
     pulse_per_round: u32,
@@ -30,12 +29,11 @@ impl<S: SliceId, E: StatefulOutputPin> PwmStepper<S, E> {
         enable_pin: Option<E>,
         dir_pin: Pin<DynPinId, FunctionSio<SioOutput>, PullDown>,
         step_channel: PwmChannels,
-        sys_clock: HertzU32,
         pwm: Slice<S, FreeRunning>,
         pulse_per_round: u32,
         revert_dir: bool,
     ) -> Self {
-        Self { enable_pin, dir_pin, step_channel, sys_clock, pwm, pulse_per_round, revert_dir }
+        Self { enable_pin, dir_pin, step_channel, pwm, pulse_per_round, revert_dir }
     }
 
     pub(crate) fn enable(&mut self) -> Result<(), AtomiError> {
@@ -180,7 +178,7 @@ impl<S: SliceId, E: StatefulOutputPin> PwmStepper<S, E> {
     }
 }
 
-fn get_slice_hz(sys_clk: HertzU32, offset: u32, div16: u32) -> u32 {
+fn _get_slice_hz(sys_clk: HertzU32, offset: u32, div16: u32) -> u32 {
     let source_hz = sys_clk.to_Hz();
     if source_hz + offset / 16 > 268000000 {
         ((16 * source_hz as u64 + offset as u64) / div16 as u64) as u32
@@ -189,10 +187,10 @@ fn get_slice_hz(sys_clk: HertzU32, offset: u32, div16: u32) -> u32 {
     }
 }
 
-fn get_slice_hz_round(sys_clk: HertzU32, div16: u32) -> u32 {
-    get_slice_hz(sys_clk, div16 / 2, div16)
+fn _get_slice_hz_round(sys_clk: HertzU32, div16: u32) -> u32 {
+    _get_slice_hz(sys_clk, div16 / 2, div16)
 }
 
-fn get_slice_hz_ceil(sys_clk: HertzU32, div16: u32) -> u32 {
-    get_slice_hz(sys_clk, div16 - 1, div16)
+fn _get_slice_hz_ceil(sys_clk: HertzU32, div16: u32) -> u32 {
+    _get_slice_hz(sys_clk, div16 - 1, div16)
 }

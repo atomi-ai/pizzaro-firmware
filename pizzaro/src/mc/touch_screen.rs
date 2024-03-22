@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 use defmt::Format;
 
 pub const MAX_TEXT_LENGTH: usize = 1024;
@@ -11,12 +12,12 @@ pub enum TouchScreenError {
     FromUtf8Error,
 }
 
-#[derive(Copy, Clone, Debug, Format)]
+#[derive(Clone, Debug)]
 pub enum TouchScreenEnum {
     // button
     Button { screen_id: u16, object_id: u16, clicked: bool },
     Slider { screen_id: u16, object_id: u16, value: u32 },
-    Text { screen_id: u16, object_id: u16, content: [u8; MAX_TEXT_LENGTH] },
+    Text { screen_id: u16, object_id: u16, content: Box<[u8; MAX_TEXT_LENGTH]> },
 }
 
 pub const DEFAULT_SCREEN_ID: u16 = 0;
@@ -52,7 +53,7 @@ impl TouchScreenEnum {
     pub fn new_text(screen_id: u16, object_id: u16, content: &str) -> Self {
         let mut content_bytes = [0u8; MAX_TEXT_LENGTH];
         content_bytes.copy_from_slice(content.as_bytes());
-        Self::Text { screen_id, object_id, content: content_bytes }
+        Self::Text { screen_id, object_id, content: Box::new(content_bytes) }
     }
     pub fn new_slider(screen_id: u16, object_id: u16, value: u32) -> Self {
         Self::Slider { screen_id, object_id, value }
@@ -165,7 +166,7 @@ impl TouchScreenEnum {
                 let value = &frame[8..frame.len() - 4];
                 let mut content_buf = [0u8; MAX_TEXT_LENGTH];
                 content_buf.copy_from_slice(value);
-                Ok(Self::Text { screen_id, object_id, content: content_buf })
+                Ok(Self::Text { screen_id, object_id, content: Box::new(content_buf) })
             }
             _ => Err(TouchScreenError::UnknownObject),
         }

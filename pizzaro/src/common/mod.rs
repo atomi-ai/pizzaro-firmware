@@ -17,8 +17,6 @@ pub mod once;
 pub mod pwm_stepper;
 pub mod rp2040_timer;
 pub mod state;
-pub mod tmc2209;
-pub mod tmc5160;
 pub mod uart;
 pub mod uart_comm;
 

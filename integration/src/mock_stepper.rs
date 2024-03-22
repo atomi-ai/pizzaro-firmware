@@ -45,11 +45,7 @@ impl LimitSwitch {
     }
 
     fn position_update(&mut self, pos: i64) {
-        if pos != self.position {
-            self.triggered = false;
-        } else {
-            self.triggered = true;
-        }
+        self.triggered = pos == self.position;
     }
 }
 

@@ -241,7 +241,6 @@ fn main() -> ! {
                 enable_pin_42,
                 dir_pin_42,
                 MmdMotor42Step1Channel,
-                clocks.peripheral_clock.freq(),
                 pwm_42,
                 200, // 无细分，一圈200脉冲
                 REVERT_MMD_STEPPER42_1_DIRECTION,
@@ -250,7 +249,6 @@ fn main() -> ! {
                 enable_pin_57,
                 dir_pin_57,
                 MmdMotor57StepChannel,
-                clocks.peripheral_clock.freq(),
                 pwm_57,
                 200, // 无细分，一圈200脉冲
                 REVERT_MMD_STEPPER57_DIRECTION,

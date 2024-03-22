@@ -32,7 +32,7 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
 
     fn bwrite_all(&mut self, buffer: &[u8]) -> Result<(), AtomiError> {
         for word in buffer {
-            nb::block!(self.uart.write(word.clone())).map_err(|_| AtomiError::UartWriteError)?;
+            nb::block!(self.uart.write(*word)).map_err(|_| AtomiError::UartWriteError)?;
         }
 
         Ok(())

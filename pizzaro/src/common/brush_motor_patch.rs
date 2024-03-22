@@ -59,7 +59,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatched<S, E> {
     }
 
     pub fn ensure_enable(&mut self) -> Result<(), AtomiError> {
-        if self.enable_pin.is_set_high().map_err(|_| AtomiError::GpioPinError)? != true {
+        if self.enable_pin.is_set_high().map_err(|_| AtomiError::GpioPinError)? {
             self.enable()
         } else {
             Ok(())

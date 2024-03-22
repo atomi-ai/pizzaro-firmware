@@ -15,10 +15,12 @@ use heapless::spsc::Queue;
 use crate::common::global_timer::Delay;
 
 const TASK_CAPACITY: usize = 32;
+type TaskFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
+type TaskQueue = Queue<TaskFuture, TASK_CAPACITY>;
 
 pub struct Executor {
     id: u8,
-    tasks: Mutex<RefCell<Queue<Pin<Box<dyn Future<Output = ()> + Send>>, TASK_CAPACITY>>>,
+    tasks: Mutex<RefCell<TaskQueue>>,
 }
 
 impl Format for Executor {

@@ -30,6 +30,12 @@ impl Format for MotionState {
     }
 }
 
+impl Default for MotionState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MotionState {
     pub fn new() -> Self {
         let state_array = [LinearMotionState::IDLE];

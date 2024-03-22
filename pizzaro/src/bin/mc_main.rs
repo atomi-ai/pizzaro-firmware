@@ -168,7 +168,7 @@ fn main() -> ! {
     start_global_executor();
 
     loop {
-        // info!("rs485_send: in loop (should not be here)");
+        info!("In loop");
     }
 }
 
@@ -214,7 +214,7 @@ async fn process_messages() {
         };
         info!("Processed result: {}", msg);
 
-        match (|| -> Result<(), AtomiError> {
+        let result = (|| -> Result<(), AtomiError> {
             let wrapped_msg = wrap_result_into_proto(msg);
             let binding =
                 postcard::to_allocvec(&wrapped_msg).map_err(|_| AtomiError::DataConvertError)?;
@@ -234,7 +234,9 @@ async fn process_messages() {
                 };
             }
             Ok(())
-        })() {
+        })();
+
+        match result {
             Ok(_) => {
                 debug!("Successfully send data back through USBCTRL");
             }
