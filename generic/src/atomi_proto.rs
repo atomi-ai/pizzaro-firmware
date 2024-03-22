@@ -40,6 +40,8 @@ pub enum McSystemExecutorCmd {
     ExecuteOneFullRun,
     InitSystem,
     MakePizza,
+
+    StopSystem,
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
@@ -57,6 +59,7 @@ pub enum MmdCommand {
     MmdPong,
     MmdAck,
 
+    MmdStop,
     MmdLinearStepper(LinearStepperCommand),
     MmdRotationStepper(RotationStepperCommand),
     MmdDisperser(DispenserCommand),
@@ -137,6 +140,7 @@ pub enum HpdCommand {
     HpdPong,
     HpdAck,
 
+    HpdStop,
     HpdLinearBull(LinearBullCommand),
 
     // Return status

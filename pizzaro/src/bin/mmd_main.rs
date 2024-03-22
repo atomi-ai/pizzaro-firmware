@@ -5,61 +5,30 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::vec;
+use core::sync::atomic::Ordering;
 
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
-use defmt::{debug, error, info, Debug2Format};
+use defmt::{debug, Debug2Format, error, info};
 use embedded_hal::digital::v2::OutputPin;
 use fugit::{ExtU64, RateExtU32};
-use pizzaro::bsp::config::{
-    MMD_BRUSHLESS_MOTOR_PWM_TOP, MMD_PERISTALTIC_PUMP_PWM_TOP, REVERT_MMD_STEPPER42_0_DIRECTION,
-    REVERT_MMD_STEPPER42_1_DIRECTION, REVERT_MMD_STEPPER57_DIRECTION,
-};
-use pizzaro::common::brush_motor_patch::BrushMotorPatched;
-
-use pizzaro::common::brushless_motor::BrushlessMotor;
-use pizzaro::common::pwm_stepper::PwmStepper;
-use pizzaro::mmd::brush_motor_processor::BrushMotorProcessor;
-use pizzaro::mmd::brushless_motor_processor::BrushlessMotorProcessor;
-use pizzaro::mmd::rotation_stepper_processor::{
-    process_mmd_rotation_stepper_message, rotation_stepper_input_mq, rotation_stepper_output_mq,
-    RotationStepperProcessor,
-};
-
-use rp2040_hal::gpio::FunctionUart;
-use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
-    clocks::{init_clocks_and_plls, Clock},
+    clocks::{Clock, init_clocks_and_plls},
     entry, pac,
     pac::interrupt,
     sio::Sio,
+    Timer,
     uart::UartPeripheral,
     watchdog::Watchdog,
-    Timer,
 };
+use rp2040_hal::gpio::FunctionUart;
+use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
+use rp_pico::XOSC_CRYSTAL_FREQ;
 
 use generic::atomi_error::AtomiError;
+use generic::atomi_proto::{AtomiProto, LinearStepperCommand, LinearStepperResponse, MmdCommand, PeristalticPumpCommand, wrap_result_into_proto};
 use generic::atomi_proto::MmdCommand::MmdBusy;
-use generic::atomi_proto::{AtomiProto, LinearStepperCommand, MmdCommand};
 use generic::mmd_status::MmdStatus;
-use pizzaro::bsp::{
-    mmd_uart_irq, MmdBrushMotorChannel, MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel,
-    MmdMotor42Step1Channel, MmdMotor57StepChannel, MmdUartDirPinType, MmdUartType,
-};
-use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
-use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_status::{get_status, FutureStatus, FutureType};
-use pizzaro::common::global_timer::{init_global_timer, now, Delay, DelayCreator};
-use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
-use pizzaro::common::once::Once;
-use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::common::uart_comm::UartComm;
-use pizzaro::mmd::linear_stepper::LinearStepper;
-use pizzaro::mmd::linear_stepper_processor::{
-    linear_stepper_input_mq, linear_stepper_output_mq, process_mmd_linear_stepper_message,
-    LinearStepperProcessor,
-};
-use pizzaro::mmd::stepper::Stepper;
 use pizzaro::{common::async_initialization, mmd_sys_rx, mmd_sys_tx};
 use pizzaro::{
     mmd_485_dir, mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel,
@@ -70,11 +39,41 @@ use pizzaro::{
     mmd_stepper42_step1, mmd_stepper57_dir, mmd_stepper57_nEN, mmd_stepper57_pwm_slice,
     mmd_stepper57_step, mmd_stepper57_step_channel, mmd_tmc_uart_tx, mmd_uart,
 };
-use rp_pico::XOSC_CRYSTAL_FREQ;
+use pizzaro::bsp::{
+    mmd_uart_irq, MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel, MmdBrushMotorChannel,
+    MmdMotor42Step1Channel, MmdMotor57StepChannel, MmdUartDirPinType, MmdUartType,
+};
+use pizzaro::bsp::config::{
+    MMD_BRUSHLESS_MOTOR_PWM_TOP, MMD_PERISTALTIC_PUMP_PWM_TOP, REVERT_MMD_STEPPER42_0_DIRECTION,
+    REVERT_MMD_STEPPER42_1_DIRECTION, REVERT_MMD_STEPPER57_DIRECTION,
+};
+use pizzaro::common::brush_motor_patch::BrushMotorPatched;
+use pizzaro::common::brushless_motor::BrushlessMotor;
+use pizzaro::common::consts::{BELT_OFF_SPEED, DISPENSER_OFF_SPEED, PP_OFF_SPEED, PR_OFF_SPEED, UART_EXPECTED_RESPONSE_LENGTH};
+use pizzaro::common::executor::{spawn_task, start_global_executor};
+use pizzaro::common::global_status::{FutureStatus, FutureType, get_status};
+use pizzaro::common::global_timer::{Delay, DelayCreator, init_global_timer, now};
+use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
+use pizzaro::common::once::Once;
+use pizzaro::common::pwm_stepper::PwmStepper;
+use pizzaro::common::rp2040_timer::Rp2040Timer;
+use pizzaro::common::uart_comm::UartComm;
+use pizzaro::mmd::brush_motor_processor::MmdPeristalicPumpProcessor;
+use pizzaro::mmd::brushless_motor_processor::DispenserMotorProcessor;
+use pizzaro::mmd::GLOBAL_LINEAR_STEPPER_STOP;
+use pizzaro::mmd::linear_stepper::LinearStepper;
+use pizzaro::mmd::linear_stepper_processor::{
+    linear_stepper_input_mq, linear_stepper_output_mq, LinearStepperProcessor,
+    process_mmd_linear_stepper_message,
+};
+use pizzaro::mmd::rotation_stepper_processor::RotationStepperProcessor;
+use pizzaro::mmd::stepper::Stepper;
 
+// TODO(zephyr): Move these global static into a GlobalStatic struct.
 static mut UART: Option<(MmdUartType, Option<MmdUartDirPinType>)> = None;
-static mut BRUSHLESS_MOTOR_PROCESSOR: Option<BrushlessMotorProcessor> = None;
-static mut BRUSH_MOTOR_PROCESSOR: Option<BrushMotorProcessor> = None;
+static mut DISPENSER_MOTOR_PROCESSOR: Option<DispenserMotorProcessor> = None;
+static mut PERISTALIC_PUMP_PROCESSOR: Option<MmdPeristalicPumpProcessor> = None;
+static mut ROTATION_STEPPER_PROCESSOR: Option<RotationStepperProcessor> = None;
 
 static mut MESSAGE_QUEUE_ONCE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
@@ -156,11 +155,11 @@ fn main() -> ! {
             false,
             MMD_BRUSHLESS_MOTOR_PWM_TOP,
         );
-        let brushless_motor_processor =
-            BrushlessMotorProcessor::new(dispenser0_motor, dispenser1_motor);
+        let dispenser_motor_processor =
+            DispenserMotorProcessor::new(dispenser0_motor, dispenser1_motor);
 
         unsafe {
-            BRUSHLESS_MOTOR_PROCESSOR = Some(brushless_motor_processor);
+            DISPENSER_MOTOR_PROCESSOR = Some(dispenser_motor_processor);
         }
     }
 
@@ -183,9 +182,9 @@ fn main() -> ! {
             false,
             MMD_PERISTALTIC_PUMP_PWM_TOP,
         );
-        let brush_motor_processor = BrushMotorProcessor::new(peristaltic_pump_motor);
+        let peristalic_pump_processor = MmdPeristalicPumpProcessor::new(peristaltic_pump_motor);
         unsafe {
-            BRUSH_MOTOR_PROCESSOR = Some(brush_motor_processor);
+            PERISTALIC_PUMP_PROCESSOR = Some(peristalic_pump_processor);
         }
     }
 
@@ -266,10 +265,13 @@ fn main() -> ! {
                 REVERT_MMD_STEPPER57_DIRECTION,
             ),
         );
-        spawn_task(process_mmd_rotation_stepper_message(processor));
+        unsafe {
+            ROTATION_STEPPER_PROCESSOR = Some(processor);
+        }
     }
 
     start_global_executor();
+    GLOBAL_LINEAR_STEPPER_STOP.store(false, Ordering::Relaxed);
 
     loop {
         info!("in loop");
@@ -283,8 +285,9 @@ async fn mmd_process_messages() {
     let (uart, uart_dir) = unsafe { UART.as_mut().unwrap() };
     let mut uart_comm = UartComm::new(uart, uart_dir, UART_EXPECTED_RESPONSE_LENGTH);
     let mut mmd_linear_stepper_available = true;
-    let brushless_motor_processor = unsafe { BRUSHLESS_MOTOR_PROCESSOR.as_mut().unwrap() };
-    let brush_motor_processor = unsafe { BRUSH_MOTOR_PROCESSOR.as_mut().unwrap() };
+    let dispenser_motor_processor = unsafe { DISPENSER_MOTOR_PROCESSOR.as_mut().unwrap() };
+    let peristalic_pump_processor = unsafe { PERISTALIC_PUMP_PROCESSOR.as_mut().unwrap() };
+    let rotation_stepper_processor = unsafe { ROTATION_STEPPER_PROCESSOR.as_mut().unwrap() };
     loop {
         if let Some(message) = get_mq().dequeue() {
             info!(
@@ -296,6 +299,35 @@ async fn mmd_process_messages() {
             let res = match message {
                 AtomiProto::Mmd(MmdCommand::MmdPing) => {
                     uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdPong))
+                }
+
+                AtomiProto::Mmd(MmdCommand::MmdStop) => {
+                    if !mmd_linear_stepper_available {
+                        // If linear_stepper is running, stop it directly.
+                        GLOBAL_LINEAR_STEPPER_STOP.store(true, Ordering::Relaxed);
+                    }
+
+                    // Stop other components.
+                    peristalic_pump_processor.set_peristaltic_pump_speed(PP_OFF_SPEED);
+                    dispenser_motor_processor.set_dispenser0_speed(DISPENSER_OFF_SPEED);
+                    dispenser_motor_processor.set_dispenser1_speed(DISPENSER_OFF_SPEED);
+                    rotation_stepper_processor.set_conveyor_speed(BELT_OFF_SPEED);
+                    rotation_stepper_processor.set_presser_speed(PR_OFF_SPEED);
+
+                    if !mmd_linear_stepper_available {
+                        // wait till the linear_stepper is stopped.
+                        loop {
+                            if let Some(linear_stepper_resp) = linear_stepper_output_mq().dequeue() {
+                                info!("linear_stepper_resp: {}", linear_stepper_resp);
+                                assert_eq!(linear_stepper_resp,
+                                           LinearStepperResponse::Error(AtomiError::MmdStopped));
+                                break;
+                            }
+                        }
+                        GLOBAL_LINEAR_STEPPER_STOP.store(false, Ordering::Relaxed);
+                        mmd_linear_stepper_available = true;
+                    }
+                    uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
                 }
 
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle)) => {
@@ -330,20 +362,21 @@ async fn mmd_process_messages() {
 
                 AtomiProto::Mmd(MmdCommand::MmdRotationStepper(cmd)) => {
                     // info!("pre rotation");
-                    rotation_stepper_input_mq().enqueue(cmd);
+                    let resp_msg = wrap_result_into_proto(
+                        rotation_stepper_processor.process_rotation_stepper_request(cmd));
                     // info!("send ack 0");
-                    uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
+                    uart_comm.send(resp_msg)
                 }
 
                 AtomiProto::Mmd(MmdCommand::MmdDisperser(cmd)) => {
-                    brushless_motor_processor.process(cmd).unwrap();
+                    dispenser_motor_processor.process(cmd).unwrap();
                     // info!("send ack 1");
                     uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
                 }
 
                 AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(cmd)) => {
-                    brush_motor_processor.process(cmd).unwrap();
-                    // info!("send ack 2");
+                    let PeristalticPumpCommand::SetRotation { speed } = cmd;
+                    peristalic_pump_processor.set_peristaltic_pump_speed(speed);
                     uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
                 }
 
@@ -362,12 +395,6 @@ async fn mmd_process_messages() {
                 linear_stepper_resp
             );
             mmd_linear_stepper_available = true;
-        }
-        if let Some(rotation_stepper_resp) = rotation_stepper_output_mq().dequeue() {
-            info!(
-                "[MMD] get response from rotation stepper: {}",
-                rotation_stepper_resp
-            );
         }
 
         // 延迟一段时间

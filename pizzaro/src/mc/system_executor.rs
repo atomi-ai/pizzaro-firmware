@@ -10,21 +10,12 @@ use generic::atomi_proto::{
 };
 use generic::mmd_status::MmdStatus;
 
-use crate::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
+use crate::common::consts::{BELT_OFF_SPEED, BELT_ON_SPEED, DISPENSER_OFF_SPEED, DISPENSER_ON_SPEED, PP_OFF_SPEED, PP_ON_SPEED, PR_OFF_SPEED, PR_ON_SPEED, UART_EXPECTED_RESPONSE_LENGTH};
 use crate::common::global_timer::Delay;
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use crate::common::once::Once;
 use crate::common::uart_comm::UartComm;
 use crate::mc::{UartDirType, UartType};
-
-const PP_ON_SPEED: i32 = 300;
-const PP_OFF_SPEED: i32 = 0;
-const PR_ON_SPEED: i32 = 300;
-const PR_OFF_SPEED: i32 = 0;
-const DISPENSER_ON_SPEED: i32 = -1000;
-const DISPENSER_OFF_SPEED: i32 = 0;
-const BELT_ON_SPEED: i32 = 290;
-const BELT_OFF_SPEED: i32 = 0;
 
 static mut SYSTEM_EXECUTOR_INPUT_MQ_ONCE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 static mut SYSTEM_EXECUTOR_OUTPUT_MQ_ONCE: Once<MessageQueueWrapper<McSystemExecutorResponse>> =
@@ -116,92 +107,6 @@ impl McSystemExecutor {
         }
     }
 
-    // TODO(lv): create an executor, put uart_comm into it. Then we don't need to pass uart_comm param.
-    pub async fn execute_all_commands(&mut self) -> Result<(), AtomiError> {
-        // TODO(lv): expect the response?
-
-        // 伸缩传送带归位
-        let _ = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                LinearStepperCommand::MoveTo {
-                    position: 0,
-                    speed: 0,
-                },
-            )))
-            .await?;
-        self.wait_for_linear_stepper_available().await?;
-
-        //  压饼活塞归位
-        let _ = self
-            .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(
-                LinearBullCommand::MoveTo { position: 0 },
-            )))
-            .await?;
-        self.wait_for_linear_bull_available().await?;
-
-        // 压饼平台旋转
-        let _ = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-                RotationStepperCommand::SetPresserRotation { speed: 200 },
-            )))
-            .await?;
-
-        // 传送带伸出
-        let _ = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                LinearStepperCommand::MoveTo {
-                    position: 510,
-                    speed: 400,
-                },
-            )))
-            .await?;
-        self.wait_for_linear_stepper_available().await?;
-
-        // 传送带旋转
-        let _ = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-                RotationStepperCommand::SetConveyorBeltRotation { speed: 200 },
-            )))
-            .await?;
-
-        // 起司料斗旋转
-        let _ = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdDisperser(
-                DispenserCommand::SetRotation {
-                    idx: 0,
-                    speed: 1000,
-                },
-            )))
-            .await?;
-
-        // 传送带回收
-        let _ = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                LinearStepperCommand::MoveTo {
-                    position: 0,
-                    speed: 500,
-                },
-            )))
-            .await?;
-        self.wait_for_linear_stepper_available().await?;
-
-        // 传送带停止
-        let _ = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-                RotationStepperCommand::SetConveyorBeltRotation { speed: 0 },
-            )))
-            .await?;
-
-        // 平台停止旋转
-        let _ = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdDisperser(
-                DispenserCommand::SetRotation { idx: 0, speed: 0 },
-            )))
-            .await?;
-
-        Ok(())
-    }
-
     async fn mmd_linear_stepper_home(&mut self) -> Result<(), AtomiError> {
         let res = self
             .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
@@ -286,6 +191,48 @@ impl McSystemExecutor {
 
     async fn mmd_belt_on(&mut self) -> Result<(), AtomiError> {
         self.mmd_belt(BELT_ON_SPEED).await
+    }
+
+    async fn hpd_move_to(&mut self, position: i32) -> Result<(), AtomiError> {
+        let res = self
+            .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(
+                LinearBullCommand::MoveTo { position },
+            )))
+            .await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    async fn mmd_move_to(&mut self, position: i32, speed: u32) -> Result<(), AtomiError> {
+        let res = self
+            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
+                LinearStepperCommand::MoveTo { position, speed },
+            )))
+            .await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    async fn hpd_stop(&mut self) -> Result<(), AtomiError> {
+        let res = self.forward(AtomiProto::Hpd(HpdCommand::HpdStop)).await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    async fn mmd_stop(&mut self) -> Result<(), AtomiError> {
+        let res = self.forward(AtomiProto::Mmd(MmdCommand::MmdStop)).await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    pub async fn system_stop(&mut self) -> Result<(), AtomiError> {
+        self.hpd_stop().await?;
+        self.mmd_stop().await
+        // TODO(zephyr): Let's try the join version below in the future.
+        // let f1 = self.hpd_stop();
+        // let f2 = self.mmd_stop();
+        // let (res1, res2) = join(f1, f2).await;
+        // match (res1, res2) {
+        //     (Ok(_), Ok(_)) => Ok(()),
+        //     (Err(err), _) => Err(err),
+        //     (_, Err(err)) => Err(err),
+        // }
     }
 
     pub async fn system_init(&mut self) -> Result<(), AtomiError> {
@@ -388,24 +335,6 @@ impl McSystemExecutor {
         self.mmd_pr_off().await?;
         Ok(())
     }
-
-    pub async fn hpd_move_to(&mut self, position: i32) -> Result<(), AtomiError> {
-        let res = self
-            .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(
-                LinearBullCommand::MoveTo { position },
-            )))
-            .await?;
-        expect_result(res, AtomiProto::Unknown)
-    }
-
-    pub async fn mmd_move_to(&mut self, position: i32, speed: u32) -> Result<(), AtomiError> {
-        let res = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                LinearStepperCommand::MoveTo { position, speed },
-            )))
-            .await?;
-        expect_result(res, AtomiProto::Unknown)
-    }
 }
 
 fn expect_result(_actual: AtomiProto, _expected: AtomiProto) -> Result<(), AtomiError> {
@@ -431,6 +360,11 @@ pub async fn process_executor_requests(mut executor: McSystemExecutor) {
     loop {
         Delay::new(1.millis()).await;
         let _ = match mq_in.dequeue() {
+            Some(AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::StopSystem))) => {
+                info!("To stop the system");
+                error_or_done(executor.system_stop().await, mq_out);
+                info!("The system is stopped");
+            }
             Some(AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::InitSystem))) => {
                 info!("Start to init the system");
                 error_or_done(executor.system_init().await, mq_out);

@@ -35,11 +35,14 @@ pub enum AtomiError {
     MmdUnknownDispenserIdx,
     MmdCannotStart,
     MmdLinearStepperWaitIdleError,
+    MmdStopped,  // 这个是异常退出的路径
+    MmdStopError,  // 这个是用于MC强制MMD stop时候产生的错误
 
     HpdUnavailable,
     HpdNotHomed,
     HpdNeedToHome,
     HpdCannotStart,
+    HpdStopped,
 
     // Used by AtomiProto parsing
     NotIntStr,

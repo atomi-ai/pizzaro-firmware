@@ -5,12 +5,12 @@ use generic::{
 
 use crate::bsp::{MmdDisperser0MotorType, MmdDisperser1MotorType};
 
-pub struct BrushlessMotorProcessor {
+pub struct DispenserMotorProcessor {
     dispenser0_motor: MmdDisperser0MotorType,
     dispenser1_motor: MmdDisperser1MotorType,
 }
 
-impl BrushlessMotorProcessor {
+impl DispenserMotorProcessor {
     pub fn new(
         dispenser0_motor: MmdDisperser0MotorType,
         dispenser1_motor: MmdDisperser1MotorType,

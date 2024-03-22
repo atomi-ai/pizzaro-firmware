@@ -15,8 +15,8 @@ use pizzaro::bsp::{MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel};
 use pizzaro::common::brush_motor::BrushMotor;
 use pizzaro::common::brushless_motor::BrushlessMotor;
 use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
-use pizzaro::mmd::brush_motor_processor::BrushMotorProcessor;
-use pizzaro::mmd::brushless_motor_processor::BrushlessMotorProcessor;
+use pizzaro::mmd::brush_motor_processor::MmdPeristalicPumpProcessor;
+use pizzaro::mmd::brushless_motor_processor::DispenserMotorProcessor;
 use pizzaro::{
     mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel, mmd_bl2_ctl_pwm_slice,
     mmd_br0_pwm_slice, mmd_br_channel_a, mmd_br_channel_b, mmd_br_nEN, mmd_br_pwm_a, mmd_br_pwm_b,
@@ -34,8 +34,8 @@ use pizzaro::common::rp2040_timer::Rp2040Timer;
 use rp2040_hal::pio::PIOExt;
 use ws2812_pio::Ws2812Direct;
 
-static mut BRUSHLESS_MOTOR_PROCESSOR: Option<BrushlessMotorProcessor> = None;
-static mut BRUSH_MOTOR_PROCESSOR: Option<BrushMotorProcessor> = None;
+static mut BRUSHLESS_MOTOR_PROCESSOR: Option<DispenserMotorProcessor> = None;
+static mut BRUSH_MOTOR_PROCESSOR: Option<MmdPeristalicPumpProcessor> = None;
 
 #[entry]
 fn main() -> ! {
@@ -115,7 +115,7 @@ fn main() -> ! {
             MMD_BRUSHLESS_MOTOR_PWM_TOP,
         );
         let brushless_motor_processor =
-            BrushlessMotorProcessor::new(dispenser0_motor, dispenser1_motor);
+            DispenserMotorProcessor::new(dispenser0_motor, dispenser1_motor);
 
         unsafe {
             BRUSHLESS_MOTOR_PROCESSOR = Some(brushless_motor_processor);
@@ -139,7 +139,7 @@ fn main() -> ! {
             true,
             MMD_PERISTALTIC_PUMP_PWM_TOP,
         );
-        let brush_motor_processor = BrushMotorProcessor::new(peristaltic_pump_motor);
+        let brush_motor_processor = MmdPeristalicPumpProcessor::new(peristaltic_pump_motor);
         unsafe {
             BRUSH_MOTOR_PROCESSOR = Some(brush_motor_processor);
         }

@@ -37,6 +37,7 @@ where
         }
         Some("init") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::InitSystem)),
         Some("make") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::MakePizza)),
+        Some("stop") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::StopSystem)),
         // Some("autostop") => AtomiProto::Autorun(AtomiAutorun::Stop),
         _ => AtomiProto::Mc(McCommand::McError),
     }
@@ -58,6 +59,7 @@ where
     match tokens.next() {
         Some("ping") => AtomiProto::Mmd(MmdCommand::MmdPing),
         Some("pong") => AtomiProto::Mmd(MmdCommand::MmdPong),
+        Some("stop") => AtomiProto::Mmd(MmdCommand::MmdStop),
         Some("trigger") => AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
             LinearStepperCommand::GetTriggerStatus,
         )),
@@ -222,6 +224,7 @@ where
         Some("ping") => AtomiProto::Hpd(HpdCommand::HpdPing),
         Some("pong") => AtomiProto::Hpd(HpdCommand::HpdPong),
         Some("home") => AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::Home)),
+        Some("stop") => AtomiProto::Hpd(HpdCommand::HpdStop),
 
         Some("move_rel") => {
             if let Ok(distance) = parse_int(tokens.next()) {

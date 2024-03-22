@@ -1,5 +1,4 @@
-use core::sync::atomic::AtomicBool;
-use core::sync::atomic::Ordering::Relaxed;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use defmt::{debug, info};
 use embedded_hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin};
@@ -8,6 +7,7 @@ use generic::atomi_error::AtomiError;
 
 use crate::common::global_timer::AsyncDelay;
 use crate::common::state::{LinearMotionState, MotionState};
+use crate::mmd::GLOBAL_LINEAR_STEPPER_STOP;
 use crate::mmd::stepper::Stepper;
 
 //const FAST_SPEED: u32 = 400; // steps / second
@@ -68,13 +68,13 @@ where
     }
 
     pub fn disable(&mut self) -> Result<(), AtomiError> {
-        self.is_home.store(false, Relaxed);
+        self.is_home.store(false, Ordering::Relaxed);
         self.stepper.disable()
     }
 
     pub async fn home(&mut self) -> Result<i32, AtomiError> {
         // Start to re-home
-        self.is_home.store(false, Relaxed);
+        self.is_home.store(false, Ordering::Relaxed);
 
         self.state.push(LinearMotionState::HOMING)?;
         debug!("homing start, state: {}", self.state);
@@ -117,7 +117,7 @@ where
         info!("[MMD] Done for home, last move {} steps", steps);
         // 将当前位置设置为 0
         self.current_position = 0;
-        self.is_home.store(true, Relaxed);
+        self.is_home.store(true, Ordering::Relaxed);
 
         self.state.pop();
         debug!("homing done, state: {}", self.state);
@@ -125,7 +125,7 @@ where
     }
 
     fn check_homed(&self) -> Result<(), AtomiError> {
-        if !self.is_home.load(Relaxed) {
+        if !self.is_home.load(Ordering::Relaxed) {
             return Err(AtomiError::MmdStepperNeedToHome);
         }
         Ok(())
@@ -192,6 +192,9 @@ where
             e
         })?;
         for i in 0..steps.abs() {
+            if GLOBAL_LINEAR_STEPPER_STOP.load(Ordering::Relaxed) {
+                return Err(AtomiError::MmdStopped);
+            }
             let l = self.limit_left.is_high().unwrap_or(false);
             let r = self.limit_right.is_high().unwrap_or(false);
             // info!(

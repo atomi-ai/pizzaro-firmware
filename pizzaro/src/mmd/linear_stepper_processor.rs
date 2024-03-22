@@ -1,19 +1,23 @@
+use defmt::{debug, info};
+use fugit::ExtU64;
+
+use generic::atomi_error::AtomiError;
+use generic::atomi_proto::{LinearStepperCommand, LinearStepperResponse, TriggerStatusResponse};
+
 use crate::bsp::ConveyorBeltLinearBullType;
 use crate::common::global_timer::Delay;
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use crate::common::once::Once;
-use defmt::{debug, info};
-use fugit::ExtU64;
-use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{LinearStepperCommand, LinearStepperResponse, TriggerStatusResponse};
 
 static mut LINEAR_STEPPER_INPUT_MQ_ONCE: Once<MessageQueueWrapper<LinearStepperCommand>> =
     Once::new();
 static mut LINEAR_STEPPER_OUTPUT_MQ_ONCE: Once<MessageQueueWrapper<LinearStepperResponse>> =
     Once::new();
+
 pub fn linear_stepper_input_mq() -> &'static mut MessageQueueWrapper<LinearStepperCommand> {
     unsafe { LINEAR_STEPPER_INPUT_MQ_ONCE.get_mut() }
 }
+
 pub fn linear_stepper_output_mq() -> &'static mut MessageQueueWrapper<LinearStepperResponse> {
     unsafe { LINEAR_STEPPER_OUTPUT_MQ_ONCE.get_mut() }
 }
@@ -24,7 +28,9 @@ pub struct LinearStepperProcessor {
 
 impl LinearStepperProcessor {
     pub fn new(linear_stepper: ConveyorBeltLinearBullType) -> Self {
-        Self { linear_stepper }
+        Self {
+            linear_stepper,
+        }
     }
 
     pub async fn process_linear_stepper_request<'a>(
@@ -59,7 +65,9 @@ impl LinearStepperProcessor {
                 }
                 Ok(0)
             }
-            LinearStepperCommand::DummyWait { seconds } => {
+            LinearStepperCommand::DummyWait {
+                seconds,
+            } => {
                 // Testing only.
                 let _ = Delay::new((seconds as u64).secs()).await;
                 Ok(0)
@@ -74,15 +82,13 @@ pub async fn process_mmd_linear_stepper_message(mut processor: LinearStepperProc
     let mq_out = linear_stepper_output_mq();
     loop {
         if let Some(msg) = mq_in.dequeue() {
-            debug!(
-                "process_mmd_linear_stepper_message() 3.1: process msg {}",
-                msg
-            );
+            debug!("process_mmd_linear_stepper_message() 3.1: process msg {}", msg);
             if msg == LinearStepperCommand::GetTriggerStatus {
                 let (l, r) = processor.linear_stepper.get_limit_status();
-                mq_out.enqueue(LinearStepperResponse::TriggerStatus(
-                    TriggerStatusResponse { left: l, right: r },
-                ));
+                mq_out.enqueue(LinearStepperResponse::TriggerStatus(TriggerStatusResponse {
+                    left: l,
+                    right: r,
+                }));
             }
             let res = match processor.process_linear_stepper_request(msg).await {
                 Ok(_) => LinearStepperResponse::Done,

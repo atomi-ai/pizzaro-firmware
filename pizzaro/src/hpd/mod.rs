@@ -1,8 +1,10 @@
+use core::sync::atomic::AtomicBool;
 use rp2040_hal::gpio::bank0::{Gpio8, Gpio9};
 use rp2040_hal::gpio::{FunctionUart, Pin, PullDown};
 use rp2040_hal::pac::UART1;
 use rp2040_hal::uart::{Enabled, UartPeripheral};
 
+pub static GLOBAL_LINEAR_BULL_STOP: AtomicBool = AtomicBool::new(false);
 pub type HpdUartType = UartPeripheral<
     Enabled,
     UART1,

@@ -1,15 +1,10 @@
-use generic::{
-    atomi_error::AtomiError,
-    atomi_proto::{PeristalticPumpCommand, PeristalticPumpResponse},
-};
-
 use crate::bsp::MmdPeristalicPumpMotorType;
 
-pub struct BrushMotorProcessor {
+pub struct MmdPeristalicPumpProcessor {
     peristaltic_pump_motor: MmdPeristalicPumpMotorType,
 }
 
-impl BrushMotorProcessor {
+impl MmdPeristalicPumpProcessor {
     pub fn new(peristaltic_pump_motor: MmdPeristalicPumpMotorType) -> Self {
         Self {
             peristaltic_pump_motor,
@@ -19,17 +14,5 @@ impl BrushMotorProcessor {
     pub fn set_peristaltic_pump_speed(&mut self, speed: i32) {
         self.peristaltic_pump_motor
             .apply_speed(speed as f32 / 1000.0);
-    }
-
-    pub fn process(
-        &mut self,
-        cmd: PeristalticPumpCommand,
-    ) -> Result<PeristalticPumpResponse, AtomiError> {
-        match cmd {
-            PeristalticPumpCommand::SetRotation { speed } => {
-                self.set_peristaltic_pump_speed(speed);
-                Ok(PeristalticPumpResponse::Done)
-            }
-        }
     }
 }

@@ -1,3 +1,4 @@
+use core::sync::atomic::Ordering;
 use defmt::{debug, info, Debug2Format};
 use embedded_hal::digital::v2::StatefulOutputPin;
 use fugit::ExtU64;
@@ -12,6 +13,7 @@ use crate::common::global_timer::{now, Delay};
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use crate::common::once::Once;
 use crate::common::state::{LinearMotionState, MotionState};
+use crate::hpd::GLOBAL_LINEAR_BULL_STOP;
 use crate::hpd::hpd_misc::{LinearBullDirection, LinearScale};
 use crate::hpd::pid::PIDController;
 
@@ -142,6 +144,9 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
         self.linear_scale.reset_stationary();
         for _ in 0..repeat_times {
             Delay::new(1.millis()).await;
+            if GLOBAL_LINEAR_BULL_STOP.load(Ordering::Relaxed) {
+                return Err(AtomiError::HpdStopped);
+            }
             if self.linear_scale.is_stationary() {
                 break;
             }
@@ -163,6 +168,9 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
         self.state.push(LinearMotionState::MOVING)?;
         loop {
             Delay::new(1.millis()).await;
+            if GLOBAL_LINEAR_BULL_STOP.load(Ordering::Relaxed) {
+                return Err(AtomiError::HpdStopped);
+            }
             let pos = self.linear_scale.get_rel_position().map_err(|e| {
                 self.state.pop();
                 e

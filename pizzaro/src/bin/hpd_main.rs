@@ -5,47 +5,49 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::vec;
+use core::sync::atomic::Ordering;
 
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
-use defmt::{debug, error, info, Debug2Format};
+use defmt::{debug, Debug2Format, error, info};
 use fugit::{ExtU64, RateExtU32};
-use pizzaro::common::brush_motor::BrushMotor;
-use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b};
+use rp2040_hal::{
+    clocks::{Clock, init_clocks_and_plls},
+    pac,
+    sio::Sio,
+    Timer,
+    uart::UartPeripheral,
+    watchdog::Watchdog,
+};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::multicore::{Multicore, Stack};
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
-use rp2040_hal::{
-    clocks::{init_clocks_and_plls, Clock},
-    pac,
-    sio::Sio,
-    uart::UartPeripheral,
-    watchdog::Watchdog,
-    Timer,
-};
-use rp_pico::pac::interrupt;
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
+use rp_pico::pac::interrupt;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{AtomiProto, HpdCommand, LinearBullCommand};
+use generic::atomi_proto::{AtomiProto, HpdCommand, LinearBullCommand, LinearBullResponse};
+use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b};
+use pizzaro::{bsp::HpdUartDirPinType, hpd_485_dir, hpd_sys_rx, hpd_sys_tx, hpd_uart};
+use pizzaro::bsp::{hpd_uart_irq, HpdUartType};
 use pizzaro::bsp::config::{
     HPD_BR_DRIVER_N_EN, HPD_BR_THRESHOLD, HPD_MOTOR150_PWM_TOP, REVERT_HPD_BR_DIRECTION,
 };
-use pizzaro::bsp::{hpd_uart_irq, HpdUartType};
 use pizzaro::common::async_initialization;
+use pizzaro::common::brush_motor::BrushMotor;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{init_global_timer, Delay};
+use pizzaro::common::global_timer::{Delay, init_global_timer};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
+use pizzaro::hpd::GLOBAL_LINEAR_BULL_STOP;
 use pizzaro::hpd::hpd_misc::LinearScale;
 use pizzaro::hpd::linear_bull_processor::{
-    linear_bull_input_mq, linear_bull_output_mq, process_linear_bull_message, LinearBullProcessor,
+    linear_bull_input_mq, linear_bull_output_mq, LinearBullProcessor, process_linear_bull_message,
 };
 use pizzaro::hpd::linear_scale::{core1_task, read_and_update_linear_scale};
-use pizzaro::{bsp::HpdUartDirPinType, hpd_485_dir, hpd_sys_rx, hpd_sys_tx, hpd_uart};
 
 struct GlobalContainer {
     linear_scale: Option<LinearScale>,
@@ -151,7 +153,7 @@ fn main() -> ! {
     }
 
     start_global_executor();
-
+    GLOBAL_LINEAR_BULL_STOP.store(false, Ordering::Relaxed);
     loop {
         info!("in loop");
         delay(120_000_000);
@@ -174,6 +176,22 @@ async fn hpd_process_messages() {
             let res = match message {
                 AtomiProto::Hpd(HpdCommand::HpdPing) => {
                     uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdPong))
+                }
+
+                AtomiProto::Hpd(HpdCommand::HpdStop) => {
+                    if !linear_bull_available {
+                        GLOBAL_LINEAR_BULL_STOP.store(true, Ordering::Relaxed);
+                        loop {
+                            if let Some(resp) = linear_bull_output_mq().dequeue() {
+                                info!("linear bull resp: {}", resp);
+                                assert_eq!(resp, LinearBullResponse::Error(AtomiError::HpdStopped));
+                                break;
+                            }
+                        }
+                        linear_bull_available = true;
+                        GLOBAL_LINEAR_BULL_STOP.store(false, Ordering::Relaxed);
+                    }
+                    uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdAck))
                 }
 
                 AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)) => {
