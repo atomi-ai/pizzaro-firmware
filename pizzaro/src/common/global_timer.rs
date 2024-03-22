@@ -51,10 +51,7 @@ pub struct Delay {
 
 impl Delay {
     pub fn new(duration: AtomiDuration) -> Self {
-        Self {
-            start: now(),
-            duration,
-        }
+        Self { start: now(), duration }
     }
 
     pub fn wait(&self) {

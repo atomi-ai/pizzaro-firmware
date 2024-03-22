@@ -42,12 +42,8 @@ fn main() -> ! {
     let mut _timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
 
-    let pins = rp2040_hal::gpio::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+    let pins =
+        rp2040_hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
     let mut test_gpio_pin = pins.gpio13.into_push_pull_output();
 

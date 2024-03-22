@@ -31,14 +31,7 @@ impl<S: SliceId> BrushlessMotor<S> {
         revert_dir: bool,
         pwm_top: u16,
     ) -> Self {
-        let mut motor = Self {
-            dir_pin,
-            pwm,
-            pwm_channel,
-            thres_speed,
-            revert_dir,
-            pwm_top,
-        };
+        let mut motor = Self { dir_pin, pwm, pwm_channel, thres_speed, revert_dir, pwm_top };
         motor.stop().expect("Failed to stop motor");
         motor
     }
@@ -62,11 +55,7 @@ impl<S: SliceId> BrushlessMotor<S> {
         self.enable().expect("Failed to enable motor");
 
         let (s1, s2, s3, s4) = self.thres_speed;
-        let spd = if self.revert_dir {
-            -speed.clamp(-1.0, 1.0)
-        } else {
-            speed.clamp(-1.0, 1.0)
-        };
+        let spd = if self.revert_dir { -speed.clamp(-1.0, 1.0) } else { speed.clamp(-1.0, 1.0) };
 
         let spd_mapped = if spd > 0.0 {
             spd * (s4 - s3) * 2.0 // 参考s3 ~ s4，但放大到0~1区间

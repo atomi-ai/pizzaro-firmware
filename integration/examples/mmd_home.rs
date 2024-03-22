@@ -20,10 +20,10 @@ use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, DelayCreator};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::mmd::linear_stepper::LinearStepper;
+use pizzaro::mmd::mmd_dispatcher::LinearStepperType;
 use pizzaro::mmd::stepper::Stepper;
 use rp2040_hal::pio::PIOExt;
 use ws2812_pio::Ws2812Direct;
-use pizzaro::mmd::mmd_dispatcher::LinearStepperType;
 
 #[entry]
 fn main() -> ! {
@@ -46,12 +46,7 @@ fn main() -> ! {
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
 
-    let pins = rp_pico::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+    let pins = rp_pico::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
     {
         let enable_pin = mmd_stepper42_nEN0!(pins).into_push_pull_output();

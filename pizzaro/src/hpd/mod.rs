@@ -8,10 +8,7 @@ pub static GLOBAL_LINEAR_BULL_STOP: AtomicBool = AtomicBool::new(false);
 pub type HpdUartType = UartPeripheral<
     Enabled,
     UART1,
-    (
-        Pin<Gpio8, FunctionUart, PullDown>,
-        Pin<Gpio9, FunctionUart, PullDown>,
-    ),
+    (Pin<Gpio8, FunctionUart, PullDown>, Pin<Gpio9, FunctionUart, PullDown>),
 >;
 
 pub mod hpd_misc;

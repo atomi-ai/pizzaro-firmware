@@ -82,11 +82,7 @@ impl LinearScale {
             self.last_ts = now();
         }
         self.position.store(
-            if self.revert_linearscale_dir {
-                -new_position
-            } else {
-                new_position
-            },
+            if self.revert_linearscale_dir { -new_position } else { new_position },
             Ordering::Relaxed,
         );
     }

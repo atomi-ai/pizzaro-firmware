@@ -58,12 +58,8 @@ fn main() -> ! {
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
 
-    let pins = rp2040_hal::gpio::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+    let pins =
+        rp2040_hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
     {
         // let mut led = pins.gpio2.into_push_pull_output().into_dyn_pin();
@@ -161,14 +157,8 @@ pub async fn process_pwm_motor() {
 
     loop {
         brush_motor_processor.process(PeristalticPumpCommand::SetRotation { speed: 1000 });
-        brushless_motor_processor.process(DispenserCommand::SetRotation {
-            idx: 0,
-            speed: 1000,
-        });
-        brushless_motor_processor.process(DispenserCommand::SetRotation {
-            idx: 1,
-            speed: 1000,
-        });
+        brushless_motor_processor.process(DispenserCommand::SetRotation { idx: 0, speed: 1000 });
+        brushless_motor_processor.process(DispenserCommand::SetRotation { idx: 1, speed: 1000 });
 
         Delay::new(1.secs()).await;
 
@@ -180,16 +170,10 @@ pub async fn process_pwm_motor() {
 
         brush_motor_processor.process(PeristalticPumpCommand::SetRotation { speed: -500 });
         brushless_motor_processor
-            .process(DispenserCommand::SetRotation {
-                idx: 0,
-                speed: -1000,
-            })
+            .process(DispenserCommand::SetRotation { idx: 0, speed: -1000 })
             .unwrap();
         brushless_motor_processor
-            .process(DispenserCommand::SetRotation {
-                idx: 1,
-                speed: -1000,
-            })
+            .process(DispenserCommand::SetRotation { idx: 1, speed: -1000 })
             .unwrap();
 
         Delay::new(1.secs()).await;

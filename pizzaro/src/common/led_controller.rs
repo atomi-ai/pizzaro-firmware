@@ -38,12 +38,7 @@ pub struct MyLED<T: LedController> {
 
 impl<T: LedController> MyLED<T> {
     pub fn new(ledon: RGB8, ledoff: RGB8, led_controller: T) -> Self {
-        Self {
-            ledoff,
-            ledon,
-            led_controller,
-            state: LedState::Off,
-        }
+        Self { ledoff, ledon, led_controller, state: LedState::Off }
     }
 
     pub fn ledon(&mut self) {

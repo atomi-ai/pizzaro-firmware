@@ -34,15 +34,11 @@ impl MotionState {
     pub fn new() -> Self {
         let state_array = [LinearMotionState::IDLE];
 
-        Self {
-            state: Vec::from_slice(&state_array).unwrap(),
-        }
+        Self { state: Vec::from_slice(&state_array).unwrap() }
     }
 
     pub fn push(&mut self, new_state: LinearMotionState) -> Result<(), AtomiError> {
-        self.state
-            .push(new_state)
-            .map_err(|_| AtomiError::StateOverflow)
+        self.state.push(new_state).map_err(|_| AtomiError::StateOverflow)
     }
 
     pub fn pop(&mut self) -> Option<LinearMotionState> {

@@ -58,11 +58,7 @@ impl PIDController {
         }
         if let Some(elapsed_time) = ts.checked_duration_since(self.last_ts_err_in_range) {
             if elapsed_time > STATIONARY_TIME_THRESHOLD {
-                info!(
-                    "REACHED TARGET: pos: {}, ts: {}",
-                    current_position,
-                    ts.ticks()
-                );
+                info!("REACHED TARGET: pos: {}, ts: {}", current_position, ts.ticks());
                 return true;
             }
         }

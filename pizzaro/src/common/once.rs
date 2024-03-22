@@ -7,10 +7,7 @@ pub struct Once<T> {
 
 impl<T> Once<T> {
     pub const fn new() -> Once<T> {
-        Once {
-            initialized: false,
-            value: UnsafeCell::new(None),
-        }
+        Once { initialized: false, value: UnsafeCell::new(None) }
     }
 
     // 新增一个方法来初始化值

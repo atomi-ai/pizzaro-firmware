@@ -65,10 +65,7 @@ pub fn initialize_status() {
 fn log_global_status() {
     critical_section::with(|cs| {
         if let Ok(statuses) = GLOBAL_STATUS.borrow(cs).try_borrow() {
-            info!(
-                "global_status::log_global_status(): {:?}",
-                statuses.as_slice()
-            );
+            info!("global_status::log_global_status(): {:?}", statuses.as_slice());
         } else {
             info!("global_status::Failed to borrow GLOBAL_STATUS");
         }

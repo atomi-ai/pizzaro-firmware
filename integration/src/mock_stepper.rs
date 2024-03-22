@@ -37,10 +37,7 @@ pub struct LimitSwitch {
 
 impl LimitSwitch {
     fn new(position: i64) -> Self {
-        LimitSwitch {
-            triggered: false,
-            position,
-        }
+        LimitSwitch { triggered: false, position }
     }
 
     pub fn is_triggered(&self) -> bool {
@@ -129,10 +126,8 @@ impl Stepper for MockStepper {
     }
 
     fn reset_position(&mut self) {
-        let (l, r) = (
-            self.left_limit.position - self.position,
-            self.right_limit.position - self.position,
-        );
+        let (l, r) =
+            (self.left_limit.position - self.position, self.right_limit.position - self.position);
         self.right_limit = LimitSwitch::new(r);
         self.left_limit = LimitSwitch::new(l);
         self.position = 0;
@@ -153,11 +148,7 @@ impl Stepper for MockStepper {
 pub async fn stepper_tick(mut stepper: StepperAdapter<MockStepper>) {
     loop {
         stepper.tick();
-        info!(
-            "stepper_tick() 1.5 After one tick: {:?} | ts: {:?}",
-            stepper,
-            now().ticks()
-        );
+        info!("stepper_tick() 1.5 After one tick: {:?} | ts: {:?}", stepper, now().ticks());
         Delay::new(100.millis()).await;
         // info!("stepper_tick() 1.9 after wait: | ts: {:?}", now().ticks());
     }

@@ -35,15 +35,7 @@ impl<S: SliceId, E: StatefulOutputPin> PwmStepper<S, E> {
         pulse_per_round: u32,
         revert_dir: bool,
     ) -> Self {
-        Self {
-            enable_pin,
-            dir_pin,
-            step_channel,
-            sys_clock,
-            pwm,
-            pulse_per_round,
-            revert_dir,
-        }
+        Self { enable_pin, dir_pin, step_channel, sys_clock, pwm, pulse_per_round, revert_dir }
     }
 
     pub(crate) fn enable(&mut self) -> Result<(), AtomiError> {
@@ -159,11 +151,7 @@ impl<S: SliceId, E: StatefulOutputPin> PwmStepper<S, E> {
             self.stop();
             return;
         }
-        let spd = if self.revert_dir {
-            -speed_rpm
-        } else {
-            speed_rpm
-        };
+        let spd = if self.revert_dir { -speed_rpm } else { speed_rpm };
 
         // spd: rpm
         // spd / 60 -> round per second

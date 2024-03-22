@@ -13,9 +13,9 @@ use crate::common::global_timer::{now, Delay};
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use crate::common::once::Once;
 use crate::common::state::{LinearMotionState, MotionState};
-use crate::hpd::GLOBAL_LINEAR_BULL_STOP;
 use crate::hpd::hpd_misc::{LinearBullDirection, LinearScale};
 use crate::hpd::pid::PIDController;
+use crate::hpd::GLOBAL_LINEAR_BULL_STOP;
 
 static mut LINEAR_BULL_INPUT_MQ_ONCE: Once<MessageQueueWrapper<LinearBullCommand>> = Once::new();
 static mut LINEAR_BULL_OUTPUT_MQ_ONCE: Once<MessageQueueWrapper<LinearBullResponse>> = Once::new();
@@ -54,11 +54,7 @@ pub struct LinearBullProcessor<S: SliceId, E: StatefulOutputPin> {
 
 impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
     pub fn new(linear_scale: &'static mut LinearScale, pwm_motor: BrushMotor<S, E>) -> Self {
-        Self {
-            linear_scale,
-            pwm_motor,
-            state: MotionState::new(),
-        }
+        Self { linear_scale, pwm_motor, state: MotionState::new() }
     }
 
     pub fn is_idle(&mut self) -> bool {
@@ -101,15 +97,9 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
             dir.get_most_position()
         );
         self.home_on_direction(dir).await?;
-        debug!(
-            "xfguo: After homed, linear_scale = {}",
-            Debug2Format(self.linear_scale)
-        );
+        debug!("xfguo: After homed, linear_scale = {}", Debug2Format(self.linear_scale));
         self.linear_scale.set_home();
-        info!(
-            "xfguo: After homed 2, linear_scale = {}",
-            Debug2Format(self.linear_scale)
-        );
+        info!("xfguo: After homed 2, linear_scale = {}", Debug2Format(self.linear_scale));
 
         self.linear_scale.get_abs_position()
     }
@@ -117,23 +107,17 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
     async fn home_on_direction(&mut self, dir: LinearBullDirection) -> Result<i32, AtomiError> {
         self.state.push(LinearMotionState::HOMING)?;
         info!("home_on_direction 0, now = {}", now().ticks());
-        self.move_with_speed(dir.get_dir_seg() * 1.0, 10_000_000)
-            .await
-            .map_err(|e| {
-                self.state.pop();
-                e
-            })?;
+        self.move_with_speed(dir.get_dir_seg() * 1.0, 10_000_000).await.map_err(|e| {
+            self.state.pop();
+            e
+        })?;
         info!("home_on_direction 2, now = {}", now().ticks());
-        self.move_with_speed(dir.get_dir_seg() * -1.0, 1000)
-            .await
-            .map_err(|e| {
-                self.state.pop();
-                e
-            })?;
+        self.move_with_speed(dir.get_dir_seg() * -1.0, 1000).await.map_err(|e| {
+            self.state.pop();
+            e
+        })?;
         info!("home_on_direction 4, now = {}", now().ticks());
-        let t = self
-            .move_with_speed(dir.get_dir_seg() * 1.0, 10_000_000)
-            .await;
+        let t = self.move_with_speed(dir.get_dir_seg() * 1.0, 10_000_000).await;
         self.state.pop();
         info!("home_on_direction 9, now = {}", now().ticks());
         t
@@ -183,10 +167,7 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
             // }
             // Only trigger PID when the position is changed.
             let speed = pid.calculate(pos, dt);
-            debug!(
-                "Current pos: {}, speed = {}, target = {}",
-                pos, speed, target
-            );
+            debug!("Current pos: {}, speed = {}, target = {}", pos, speed, target);
             self.pwm_motor.apply_speed_freerun(speed, false);
         }
         self.pwm_motor.apply_speed(0.0);
@@ -196,7 +177,6 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
 
     pub async fn move_to(&mut self, target_position: i32) -> Result<i32, AtomiError> {
         self.check_homed()?;
-        self.move_to_relative(self.linear_scale.get_distance(target_position)?)
-            .await
+        self.move_to_relative(self.linear_scale.get_distance(target_position)?).await
     }
 }

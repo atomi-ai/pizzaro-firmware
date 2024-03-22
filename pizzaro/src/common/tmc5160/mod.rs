@@ -132,10 +132,7 @@ impl Reader {
             // Copy the remaining data.
             let remaining_data = &mut self.response_data[self.index..];
             let to_copy = core::cmp::min(remaining_data.len(), bytes.len());
-            remaining_data
-                .iter_mut()
-                .zip(bytes)
-                .for_each(|(d, b)| *d = *b);
+            remaining_data.iter_mut().zip(bytes).for_each(|(d, b)| *d = *b);
             self.index += to_copy;
             bytes = &bytes[to_copy..];
 
@@ -228,8 +225,7 @@ impl ReadResponse {
     ///
     /// The specific state is determined by first checking the register address.
     pub fn reg_state(&self) -> Result<reg::State, reg::UnknownAddress> {
-        self.reg_addr()
-            .map(|addr| reg::State::from_addr_and_data(addr, self.data_u32()))
+        self.reg_addr().map(|addr| reg::State::from_addr_and_data(addr, self.data_u32()))
     }
 
     /// The data slice.
@@ -291,16 +287,7 @@ impl WriteRequest {
         const WRITE: u8 = 0b10000000;
         let reg_addr_rw = state.addr() as u8 | WRITE;
         let [b0, b1, b2, b3] = u32_to_bytes(state.into());
-        let mut bytes = [
-            SYNC_AND_RESERVED,
-            slave_addr,
-            reg_addr_rw,
-            b0,
-            b1,
-            b2,
-            b3,
-            0u8,
-        ];
+        let mut bytes = [SYNC_AND_RESERVED, slave_addr, reg_addr_rw, b0, b1, b2, b3, 0u8];
         let crc_ix = bytes.len() - 1;
         bytes[crc_ix] = crc(&bytes[..crc_ix]);
         Self(bytes)

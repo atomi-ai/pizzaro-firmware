@@ -1,14 +1,9 @@
 use crate::bsp::MmdPresserMotorType;
 use defmt::info;
-use generic::{
-    atomi_error::AtomiError,
-    atomi_proto::{RotationStepperCommand},
-};
 use generic::atomi_proto::{AtomiProto, MmdCommand};
+use generic::{atomi_error::AtomiError, atomi_proto::RotationStepperCommand};
 
-use crate::{
-    bsp::ConveyorBeltRotationMotorType,
-};
+use crate::bsp::ConveyorBeltRotationMotorType;
 
 pub struct RotationStepperProcessor {
     conveyor_rotation_stepper: ConveyorBeltRotationMotorType,
@@ -20,10 +15,7 @@ impl RotationStepperProcessor {
         conveyor_rotation_stepper: ConveyorBeltRotationMotorType,
         presser_rotation_stepper: MmdPresserMotorType,
     ) -> Self {
-        Self {
-            conveyor_rotation_stepper,
-            presser_rotation_stepper,
-        }
+        Self { conveyor_rotation_stepper, presser_rotation_stepper }
     }
 
     pub fn set_conveyor_speed(&mut self, speed: i32) {
@@ -33,7 +25,6 @@ impl RotationStepperProcessor {
     pub fn set_presser_speed(&mut self, speed: i32) {
         self.presser_rotation_stepper.set_speed(speed)
     }
-
 
     pub fn process_rotation_stepper_request(
         &mut self,

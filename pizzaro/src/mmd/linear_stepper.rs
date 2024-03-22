@@ -7,8 +7,8 @@ use generic::atomi_error::AtomiError;
 
 use crate::common::global_timer::AsyncDelay;
 use crate::common::state::{LinearMotionState, MotionState};
-use crate::mmd::GLOBAL_LINEAR_STEPPER_STOP;
 use crate::mmd::stepper::Stepper;
+use crate::mmd::GLOBAL_LINEAR_STEPPER_STOP;
 
 //const FAST_SPEED: u32 = 400; // steps / second
 const FAST_SPEED: u32 = 400; // steps / second
@@ -48,9 +48,7 @@ where
         // stepper
         //     .enable()
         //     .expect("[MMD] Errors in enable the stepper on linear actuator");
-        stepper
-            .disable()
-            .expect("[MMD] Errors in disable the stepper on linear actuator");
+        stepper.disable().expect("[MMD] Errors in disable the stepper on linear actuator");
 
         LinearStepper {
             stepper,
@@ -80,39 +78,28 @@ where
         debug!("homing start, state: {}", self.state);
         // 第一步：快速向前直到触发限位开关
         debug!("[MMD] Home 1: move to max with fast speed till reach the limit");
-        let mut steps = self
-            .move_to_relative_internal(FAST_SPEED, -i32::MAX)
-            .await
-            .map_err(|e| {
+        let mut steps =
+            self.move_to_relative_internal(FAST_SPEED, -i32::MAX).await.map_err(|e| {
                 self.state.pop();
                 e
             })?;
 
         // 第二步：快速向后退移动一小段距离
-        debug!(
-            "[MMD] Home 2: last move {} steps, now move small distance back",
-            steps
-        );
-        steps = self
-            .move_to_relative_internal(FAST_SPEED, SMALL_DISTANCE)
-            .await
-            .map_err(|e| {
-                self.state.pop();
-                e
-            })?;
+        debug!("[MMD] Home 2: last move {} steps, now move small distance back", steps);
+        steps = self.move_to_relative_internal(FAST_SPEED, SMALL_DISTANCE).await.map_err(|e| {
+            self.state.pop();
+            e
+        })?;
 
         debug!(
             "[MMD] Home 3: last move {} steps, now move to the limit again with slow speed",
             steps
         );
         // 第三步：慢速向前进直到再次触发限位开关
-        steps = self
-            .move_to_relative_internal(SLOW_SPEED, -i32::MAX)
-            .await
-            .map_err(|e| {
-                self.state.pop();
-                e
-            })?;
+        steps = self.move_to_relative_internal(SLOW_SPEED, -i32::MAX).await.map_err(|e| {
+            self.state.pop();
+            e
+        })?;
 
         info!("[MMD] Done for home, last move {} steps", steps);
         // 将当前位置设置为 0
@@ -155,8 +142,7 @@ where
             position,
             position - self.current_position
         );
-        self.move_to_relative_internal(speed, position - self.current_position)
-            .await
+        self.move_to_relative_internal(speed, position - self.current_position).await
     }
 
     fn update_position_and_return(&mut self, delta: i32) -> Result<i32, AtomiError> {

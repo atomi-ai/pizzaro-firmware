@@ -10,7 +10,10 @@ use generic::atomi_proto::{
 };
 use generic::mmd_status::MmdStatus;
 
-use crate::common::consts::{BELT_OFF_SPEED, BELT_ON_SPEED, DISPENSER_OFF_SPEED, DISPENSER_ON_SPEED, PP_OFF_SPEED, PP_ON_SPEED, PR_OFF_SPEED, PR_ON_SPEED, UART_EXPECTED_RESPONSE_LENGTH};
+use crate::common::consts::{
+    BELT_OFF_SPEED, BELT_ON_SPEED, DISPENSER_OFF_SPEED, DISPENSER_ON_SPEED, PP_OFF_SPEED,
+    PP_ON_SPEED, PR_OFF_SPEED, PR_ON_SPEED, UART_EXPECTED_RESPONSE_LENGTH,
+};
 use crate::common::global_timer::Delay;
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use crate::common::once::Once;
@@ -38,11 +41,7 @@ impl McSystemExecutor {
     }
 
     fn get_uart_comm(&mut self) -> UartComm<'_, UartDirType, UartType> {
-        UartComm::new(
-            &mut self.uart,
-            &mut self.uart_dir,
-            UART_EXPECTED_RESPONSE_LENGTH,
-        )
+        UartComm::new(&mut self.uart, &mut self.uart_dir, UART_EXPECTED_RESPONSE_LENGTH)
     }
 
     pub async fn forward(&mut self, msg: AtomiProto) -> Result<AtomiProto, AtomiError> {
@@ -85,9 +84,7 @@ impl McSystemExecutor {
     async fn wait_for_linear_bull_available(&mut self) -> Result<(), AtomiError> {
         loop {
             let t = self
-                .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(
-                    LinearBullCommand::WaitIdle,
-                )))
+                .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)))
                 .await;
             match t {
                 Ok(AtomiProto::AtomiError(AtomiError::HpdUnavailable)) => {
@@ -109,18 +106,14 @@ impl McSystemExecutor {
 
     async fn mmd_linear_stepper_home(&mut self) -> Result<(), AtomiError> {
         let res = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                LinearStepperCommand::Home,
-            )))
+            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::Home)))
             .await?;
         expect_result(res, AtomiProto::Unknown)
     }
 
     async fn hpd_linear_bull_home(&mut self) -> Result<(), AtomiError> {
         let res = self
-            .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(
-                LinearBullCommand::Home,
-            )))
+            .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::Home)))
             .await?;
         expect_result(res, AtomiProto::Unknown)
     }
@@ -160,8 +153,8 @@ impl McSystemExecutor {
     }
 
     async fn mmd_dispenser(&mut self, idx: usize, speed: i32) -> Result<(), AtomiError> {
-        let res = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdDisperser(
+        let res =
+            self.forward(AtomiProto::Mmd(MmdCommand::MmdDisperser(
                 DispenserCommand::SetRotation { idx, speed },
             )))
             .await?;
@@ -195,16 +188,16 @@ impl McSystemExecutor {
 
     async fn hpd_move_to(&mut self, position: i32) -> Result<(), AtomiError> {
         let res = self
-            .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(
-                LinearBullCommand::MoveTo { position },
-            )))
+            .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {
+                position,
+            })))
             .await?;
         expect_result(res, AtomiProto::Unknown)
     }
 
     async fn mmd_move_to(&mut self, position: i32, speed: u32) -> Result<(), AtomiError> {
-        let res = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
+        let res =
+            self.forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
                 LinearStepperCommand::MoveTo { position, speed },
             )))
             .await?;
@@ -403,10 +396,7 @@ pub fn wait_for_forward_dequeue() -> Result<AtomiProto, AtomiError> {
         }
         delay(100_000);
     }
-    warn!(
-        "Not getting correct forward response, loop_times = {}",
-        loop_times
-    );
+    warn!("Not getting correct forward response, loop_times = {}", loop_times);
     // timeout
     Err(AtomiError::McForwardTimeout)
 }

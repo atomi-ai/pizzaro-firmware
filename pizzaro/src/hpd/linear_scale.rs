@@ -10,12 +10,7 @@ pub fn core1_task() -> ! {
     let mut pac = unsafe { pac::Peripherals::steal() };
 
     let mut sio = Sio::new(pac.SIO);
-    let pins = hal::gpio::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+    let pins = hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
     let gpio10 = pins.gpio10.into_floating_input();
     let gpio11 = pins.gpio11.into_floating_input();

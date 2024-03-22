@@ -30,27 +30,16 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
         #[allow(non_snake_case)] is_nEN: bool,
         pwm_top: u16,
     ) -> Self {
-        let mut motor = Self {
-            enable_pin,
-            pwm,
-            thres_speed,
-            revert_dir,
-            is_nEN,
-            pwm_top,
-        };
+        let mut motor = Self { enable_pin, pwm, thres_speed, revert_dir, is_nEN, pwm_top };
         motor.disable().expect("Failed to disable motor");
         motor
     }
 
     pub(crate) fn enable(&mut self) -> Result<(), AtomiError> {
         if self.is_nEN {
-            self.enable_pin
-                .set_low()
-                .map_err(|_| AtomiError::GpioPinError)?
+            self.enable_pin.set_low().map_err(|_| AtomiError::GpioPinError)?
         } else {
-            self.enable_pin
-                .set_high()
-                .map_err(|_| AtomiError::GpioPinError)?
+            self.enable_pin.set_high().map_err(|_| AtomiError::GpioPinError)?
         }
         info!("enable motor pwm");
         self.pwm.enable();
@@ -61,14 +50,10 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
     pub(crate) fn disable(&mut self) -> Result<(), AtomiError> {
         if self.is_nEN {
             info!("disable motor, set enable_pin => HIGH");
-            self.enable_pin
-                .set_high()
-                .map_err(|_| AtomiError::GpioPinError)?
+            self.enable_pin.set_high().map_err(|_| AtomiError::GpioPinError)?
         } else {
             info!("disable motor, set enable_pin => LOW");
-            self.enable_pin
-                .set_low()
-                .map_err(|_| AtomiError::GpioPinError)?
+            self.enable_pin.set_low().map_err(|_| AtomiError::GpioPinError)?
         }
 
         debug!("disable motor pwm");
@@ -77,12 +62,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
     }
 
     pub fn ensure_enable(&mut self) -> Result<(), AtomiError> {
-        if self
-            .enable_pin
-            .is_set_low()
-            .map_err(|_| AtomiError::GpioPinError)?
-            != self.is_nEN
-        {
+        if self.enable_pin.is_set_low().map_err(|_| AtomiError::GpioPinError)? != self.is_nEN {
             self.enable()
         } else {
             Ok(())
@@ -103,11 +83,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
         // 此外还需要注意，正向偏置和负向偏置还未必一致，所以最终实际的速度按照占空比来算大致是（0.03~0.45, 0.55~0.97这样的
 
         let (s1, s2, s3, s4) = self.thres_speed;
-        let spd = if self.revert_dir {
-            -speed.clamp(-1.0, 1.0)
-        } else {
-            speed.clamp(-1.0, 1.0)
-        };
+        let spd = if self.revert_dir { -speed.clamp(-1.0, 1.0) } else { speed.clamp(-1.0, 1.0) };
 
         debug!("spd:{}", spd);
         let spd_mapped = if spd > 0.0 {

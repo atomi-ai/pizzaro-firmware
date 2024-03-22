@@ -26,35 +26,19 @@ impl<OP1: StatefulOutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay>
         async_delay: D,
         revert_dir: bool,
     ) -> Self {
-        Stepper {
-            enable_pin,
-            dir_pin,
-            step_pin,
-            revert_dir,
-            async_delay,
-            speed: 0,
-            wait_period: 0,
-        }
+        Stepper { enable_pin, dir_pin, step_pin, revert_dir, async_delay, speed: 0, wait_period: 0 }
     }
 
     pub fn enable(&mut self) -> Result<(), AtomiError> {
-        self.enable_pin
-            .set_low()
-            .map_err(|_| AtomiError::GpioPinError)
+        self.enable_pin.set_low().map_err(|_| AtomiError::GpioPinError)
     }
 
     pub fn disable(&mut self) -> Result<(), AtomiError> {
-        self.enable_pin
-            .set_high()
-            .map_err(|_| AtomiError::GpioPinError)
+        self.enable_pin.set_high().map_err(|_| AtomiError::GpioPinError)
     }
 
     pub fn ensure_enable(&mut self) -> Result<(), AtomiError> {
-        if self
-            .enable_pin
-            .is_set_high()
-            .map_err(|_| AtomiError::GpioPinError)?
-        {
+        if self.enable_pin.is_set_high().map_err(|_| AtomiError::GpioPinError)? {
             self.enable()
         } else {
             Ok(())
@@ -63,13 +47,9 @@ impl<OP1: StatefulOutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay>
 
     pub fn set_direction(&mut self, forward: bool) -> Result<(), AtomiError> {
         if forward ^ self.revert_dir {
-            self.dir_pin
-                .set_high()
-                .map_err(|_| AtomiError::GpioPinError)?;
+            self.dir_pin.set_high().map_err(|_| AtomiError::GpioPinError)?;
         } else {
-            self.dir_pin
-                .set_low()
-                .map_err(|_| AtomiError::GpioPinError)?;
+            self.dir_pin.set_low().map_err(|_| AtomiError::GpioPinError)?;
         }
         Ok(())
     }
@@ -85,13 +65,9 @@ impl<OP1: StatefulOutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay>
         if self.speed == 0 {
             return Err(AtomiError::MmdMoveWithZeroSpeed);
         }
-        self.step_pin
-            .set_high()
-            .map_err(|_| AtomiError::GpioPinError)?;
+        self.step_pin.set_high().map_err(|_| AtomiError::GpioPinError)?;
         self.async_delay.delay(self.wait_period.micros()).await;
-        self.step_pin
-            .set_low()
-            .map_err(|_| AtomiError::GpioPinError)?;
+        self.step_pin.set_low().map_err(|_| AtomiError::GpioPinError)?;
         self.async_delay.delay(self.wait_period.micros()).await;
         Ok(())
     }

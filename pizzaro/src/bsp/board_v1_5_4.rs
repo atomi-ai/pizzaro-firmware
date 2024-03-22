@@ -35,31 +35,19 @@ use crate::{
 //     },
 // };
 
-pub type HpdUartPins = (
-    Pin<Gpio8, FunctionUart, PullDown>,
-    Pin<Gpio9, FunctionUart, PullDown>,
-);
+pub type HpdUartPins = (Pin<Gpio8, FunctionUart, PullDown>, Pin<Gpio9, FunctionUart, PullDown>);
 pub type HpdUartType = UartPeripheral<Enabled, UART1, HpdUartPins>;
 pub type HpdUartDirPinType = Pin<Gpio12, FunctionSioOutput, PullUp>;
 
-pub type MmdUartPins = (
-    Pin<Gpio4, FunctionUart, PullDown>,
-    Pin<Gpio5, FunctionUart, PullDown>,
-);
+pub type MmdUartPins = (Pin<Gpio4, FunctionUart, PullDown>, Pin<Gpio5, FunctionUart, PullDown>);
 pub type MmdUartType = UartPeripheral<Enabled, UART1, MmdUartPins>;
 pub type MmdUartDirPinType = Pin<Gpio8, FunctionSioOutput, PullUp>;
 
-pub type McUartPins = (
-    Pin<Gpio12, FunctionUart, PullDown>,
-    Pin<Gpio13, FunctionUart, PullDown>,
-);
+pub type McUartPins = (Pin<Gpio12, FunctionUart, PullDown>, Pin<Gpio13, FunctionUart, PullDown>);
 pub type McUartType = UartPeripheral<Enabled, UART0, McUartPins>;
 pub type McUartDirPinType = Pin<Gpio11, FunctionSioOutput, PullUp>;
 
-pub type McUiScreenPins = (
-    Pin<Gpio8, FunctionUart, PullDown>,
-    Pin<Gpio9, FunctionUart, PullDown>,
-);
+pub type McUiScreenPins = (Pin<Gpio8, FunctionUart, PullDown>, Pin<Gpio9, FunctionUart, PullDown>);
 pub type McUiUartType = UartPeripheral<Enabled, UART1, McUiScreenPins>;
 
 /// 使用第二个通道连接驱动传送带旋转的电机

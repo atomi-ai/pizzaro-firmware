@@ -7,25 +7,23 @@ use alloc::boxed::Box;
 
 use defmt::{error, info};
 use fugit::ExtU64;
-use rp2040_hal::{entry, pac, Timer, Watchdog};
 use rp2040_hal::clocks::init_clocks_and_plls;
+use rp2040_hal::{entry, pac, Timer, Watchdog};
 use rp_pico::XOSC_CRYSTAL_FREQ;
 
-use integration::mock_stepper::{homing, MockStepper, stepper_tick};
 use integration::mock_stepper::x::StepperAdapter;
+use integration::mock_stepper::{homing, stepper_tick, MockStepper};
 use pizzaro::common::async_initialization;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_status::{FutureType, get_status};
 use pizzaro::common::global_status::FutureStatus::Completed;
-use pizzaro::common::global_timer::{Delay, init_global_timer};
+use pizzaro::common::global_status::{get_status, FutureType};
+use pizzaro::common::global_timer::{init_global_timer, Delay};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 
 struct GlobalContainer {
     stepper: Option<MockStepper>,
 }
-static mut GLOBAL_CONTAINER: GlobalContainer = GlobalContainer {
-    stepper: None,
-};
+static mut GLOBAL_CONTAINER: GlobalContainer = GlobalContainer { stepper: None };
 
 #[entry]
 fn main() -> ! {
@@ -44,13 +42,15 @@ fn main() -> ! {
         &mut pac.RESETS,
         &mut watchdog,
     )
-        .ok()
-        .unwrap();
+    .ok()
+    .unwrap();
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
 
     {
-        unsafe { GLOBAL_CONTAINER.stepper.replace(MockStepper::new(-100, 200)); }
+        unsafe {
+            GLOBAL_CONTAINER.stepper.replace(MockStepper::new(-100, 200));
+        }
         let stepper_rc0 = unsafe { StepperAdapter(GLOBAL_CONTAINER.stepper.as_mut().unwrap()) };
         let stepper_rc1 = unsafe { StepperAdapter(GLOBAL_CONTAINER.stepper.as_mut().unwrap()) };
         spawn_task(stepper_tick(stepper_rc0));

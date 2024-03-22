@@ -39,10 +39,5 @@ pub async fn uart_read<'a, T: Read<u8>>(
     uart: &'a mut T,
     buffer: &'a mut [u8],
 ) -> Result<(), T::Error> {
-    UartRead {
-        uart,
-        buffer,
-        pos: 0,
-    }
-    .await
+    UartRead { uart, buffer, pos: 0 }.await
 }

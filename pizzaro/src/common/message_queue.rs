@@ -15,9 +15,7 @@ pub struct MessageQueue<T> {
 
 impl<T> MessageQueue<T> {
     pub fn new() -> Self {
-        MessageQueue {
-            queue: VecDeque::new(),
-        }
+        MessageQueue { queue: VecDeque::new() }
     }
 }
 

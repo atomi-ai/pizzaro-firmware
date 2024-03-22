@@ -63,12 +63,8 @@ fn main() -> ! {
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
 
-    let pins = rp2040_hal::gpio::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+    let pins =
+        rp2040_hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
     let mut mc = Multicore::new(&mut pac.PSM, &mut pac.PPB, &mut sio.fifo);
     let cores = mc.cores();
     let core1 = &mut cores[1];
@@ -134,10 +130,7 @@ fn main() -> ! {
 
 async fn hpd_home<S: SliceId, E: StatefulOutputPin>(mut processor: LinearBullProcessor<S, E>) {
     let mut t = processor.home().await.unwrap();
-    info!(
-        "xfguo: position after homing: {}, start move to relative 10000",
-        t
-    );
+    info!("xfguo: position after homing: {}, start move to relative 10000", t);
     t = processor.move_to_relative(10000).await.unwrap();
     info!("xfguo: position 2: {}", t);
     t = processor.move_to_relative(10000).await.unwrap();

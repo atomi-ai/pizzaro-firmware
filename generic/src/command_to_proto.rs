@@ -60,9 +60,9 @@ where
         Some("ping") => AtomiProto::Mmd(MmdCommand::MmdPing),
         Some("pong") => AtomiProto::Mmd(MmdCommand::MmdPong),
         Some("stop") => AtomiProto::Mmd(MmdCommand::MmdStop),
-        Some("trigger") => AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-            LinearStepperCommand::GetTriggerStatus,
-        )),
+        Some("trigger") => {
+            AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::GetTriggerStatus))
+        }
         Some("home") => AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::Home)),
         Some("stepper_off") => {
             AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::Off))
@@ -70,10 +70,7 @@ where
         Some("force_move") => {
             if let Ok(steps) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                    LinearStepperCommand::MoveToRelativeForce {
-                        steps,
-                        speed: FAST_SPEED,
-                    },
+                    LinearStepperCommand::MoveToRelativeForce { steps, speed: FAST_SPEED },
                 ))
             } else {
                 AtomiProto::Unknown
@@ -82,10 +79,7 @@ where
         Some("move_rel") => {
             if let Ok(steps) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                    LinearStepperCommand::MoveToRelative {
-                        steps,
-                        speed: FAST_SPEED,
-                    },
+                    LinearStepperCommand::MoveToRelative { steps, speed: FAST_SPEED },
                 ))
             } else {
                 AtomiProto::Unknown
@@ -183,12 +177,16 @@ where
         }
 
         // peristaltic pump command: on, off, set speed
-        Some("pp_on") => AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
-            PeristalticPumpCommand::SetRotation { speed: 1000 },
-        )),
-        Some("pp_off") => AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
-            PeristalticPumpCommand::SetRotation { speed: 0 },
-        )),
+        Some("pp_on") => {
+            AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(PeristalticPumpCommand::SetRotation {
+                speed: 1000,
+            }))
+        }
+        Some("pp_off") => {
+            AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(PeristalticPumpCommand::SetRotation {
+                speed: 0,
+            }))
+        }
         Some("pp_spd") => {
             if let Ok(speed) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(
@@ -205,9 +203,9 @@ where
 
         Some("dummy") => {
             if let Ok(seconds) = parse_int(tokens.next()) {
-                AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                    LinearStepperCommand::DummyWait { seconds },
-                ))
+                AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::DummyWait {
+                    seconds,
+                }))
             } else {
                 AtomiProto::Unknown
             }
@@ -228,18 +226,16 @@ where
 
         Some("move_rel") => {
             if let Ok(distance) = parse_int(tokens.next()) {
-                AtomiProto::Hpd(HpdCommand::HpdLinearBull(
-                    LinearBullCommand::MoveToRelative { distance },
-                ))
+                AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveToRelative {
+                    distance,
+                }))
             } else {
                 AtomiProto::Unknown
             }
         }
         Some("move_to") => {
             if let Ok(position) = parse_int(tokens.next()) {
-                AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {
-                    position,
-                }))
+                AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo { position }))
             } else {
                 AtomiProto::Unknown
             }
@@ -251,9 +247,7 @@ where
 
         Some("dummy") => {
             if let Ok(seconds) = parse_int(tokens.next()) {
-                AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::DummyWait {
-                    seconds,
-                }))
+                AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::DummyWait { seconds }))
             } else {
                 AtomiProto::Unknown
             }

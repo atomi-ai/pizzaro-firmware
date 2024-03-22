@@ -9,26 +9,60 @@ use core::sync::atomic::Ordering;
 
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
-use defmt::{debug, Debug2Format, error, info};
+use defmt::{debug, error, info, Debug2Format};
 use embedded_hal::digital::v2::OutputPin;
 use fugit::{ExtU64, RateExtU32};
+use rp2040_hal::gpio::FunctionUart;
+use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
-    clocks::{Clock, init_clocks_and_plls},
+    clocks::{init_clocks_and_plls, Clock},
     entry, pac,
     pac::interrupt,
     sio::Sio,
-    Timer,
     uart::UartPeripheral,
     watchdog::Watchdog,
+    Timer,
 };
-use rp2040_hal::gpio::FunctionUart;
-use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp_pico::XOSC_CRYSTAL_FREQ;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{AtomiProto, LinearStepperCommand, LinearStepperResponse, MmdCommand, PeristalticPumpCommand, wrap_result_into_proto};
 use generic::atomi_proto::MmdCommand::MmdBusy;
+use generic::atomi_proto::{
+    wrap_result_into_proto, AtomiProto, LinearStepperCommand, LinearStepperResponse, MmdCommand,
+    PeristalticPumpCommand,
+};
 use generic::mmd_status::MmdStatus;
+use pizzaro::bsp::config::{
+    MMD_BRUSHLESS_MOTOR_PWM_TOP, MMD_PERISTALTIC_PUMP_PWM_TOP, REVERT_MMD_STEPPER42_0_DIRECTION,
+    REVERT_MMD_STEPPER42_1_DIRECTION, REVERT_MMD_STEPPER57_DIRECTION,
+};
+use pizzaro::bsp::{
+    mmd_uart_irq, MmdBrushMotorChannel, MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel,
+    MmdMotor42Step1Channel, MmdMotor57StepChannel, MmdUartDirPinType, MmdUartType,
+};
+use pizzaro::common::brush_motor_patch::BrushMotorPatched;
+use pizzaro::common::brushless_motor::BrushlessMotor;
+use pizzaro::common::consts::{
+    BELT_OFF_SPEED, DISPENSER_OFF_SPEED, PP_OFF_SPEED, PR_OFF_SPEED, UART_EXPECTED_RESPONSE_LENGTH,
+};
+use pizzaro::common::executor::{spawn_task, start_global_executor};
+use pizzaro::common::global_status::{get_status, FutureStatus, FutureType};
+use pizzaro::common::global_timer::{init_global_timer, now, Delay, DelayCreator};
+use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
+use pizzaro::common::once::Once;
+use pizzaro::common::pwm_stepper::PwmStepper;
+use pizzaro::common::rp2040_timer::Rp2040Timer;
+use pizzaro::common::uart_comm::UartComm;
+use pizzaro::mmd::brush_motor_processor::MmdPeristalicPumpProcessor;
+use pizzaro::mmd::brushless_motor_processor::DispenserMotorProcessor;
+use pizzaro::mmd::linear_stepper::LinearStepper;
+use pizzaro::mmd::linear_stepper_processor::{
+    linear_stepper_input_mq, linear_stepper_output_mq, process_mmd_linear_stepper_message,
+    LinearStepperProcessor,
+};
+use pizzaro::mmd::rotation_stepper_processor::RotationStepperProcessor;
+use pizzaro::mmd::stepper::Stepper;
+use pizzaro::mmd::GLOBAL_LINEAR_STEPPER_STOP;
 use pizzaro::{common::async_initialization, mmd_sys_rx, mmd_sys_tx};
 use pizzaro::{
     mmd_485_dir, mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel,
@@ -39,35 +73,6 @@ use pizzaro::{
     mmd_stepper42_step1, mmd_stepper57_dir, mmd_stepper57_nEN, mmd_stepper57_pwm_slice,
     mmd_stepper57_step, mmd_stepper57_step_channel, mmd_tmc_uart_tx, mmd_uart,
 };
-use pizzaro::bsp::{
-    mmd_uart_irq, MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel, MmdBrushMotorChannel,
-    MmdMotor42Step1Channel, MmdMotor57StepChannel, MmdUartDirPinType, MmdUartType,
-};
-use pizzaro::bsp::config::{
-    MMD_BRUSHLESS_MOTOR_PWM_TOP, MMD_PERISTALTIC_PUMP_PWM_TOP, REVERT_MMD_STEPPER42_0_DIRECTION,
-    REVERT_MMD_STEPPER42_1_DIRECTION, REVERT_MMD_STEPPER57_DIRECTION,
-};
-use pizzaro::common::brush_motor_patch::BrushMotorPatched;
-use pizzaro::common::brushless_motor::BrushlessMotor;
-use pizzaro::common::consts::{BELT_OFF_SPEED, DISPENSER_OFF_SPEED, PP_OFF_SPEED, PR_OFF_SPEED, UART_EXPECTED_RESPONSE_LENGTH};
-use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_status::{FutureStatus, FutureType, get_status};
-use pizzaro::common::global_timer::{Delay, DelayCreator, init_global_timer, now};
-use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
-use pizzaro::common::once::Once;
-use pizzaro::common::pwm_stepper::PwmStepper;
-use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::common::uart_comm::UartComm;
-use pizzaro::mmd::brush_motor_processor::MmdPeristalicPumpProcessor;
-use pizzaro::mmd::brushless_motor_processor::DispenserMotorProcessor;
-use pizzaro::mmd::GLOBAL_LINEAR_STEPPER_STOP;
-use pizzaro::mmd::linear_stepper::LinearStepper;
-use pizzaro::mmd::linear_stepper_processor::{
-    linear_stepper_input_mq, linear_stepper_output_mq, LinearStepperProcessor,
-    process_mmd_linear_stepper_message,
-};
-use pizzaro::mmd::rotation_stepper_processor::RotationStepperProcessor;
-use pizzaro::mmd::stepper::Stepper;
 
 // TODO(zephyr): Move these global static into a GlobalStatic struct.
 static mut UART: Option<(MmdUartType, Option<MmdUartDirPinType>)> = None;
@@ -100,12 +105,8 @@ fn main() -> ! {
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
 
-    let pins = rp2040_hal::gpio::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+    let pins =
+        rp2040_hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
     let uart_pins = (
         mmd_sys_tx!(pins).into_function::<FunctionUart>(), // TX, not used in this program
         mmd_sys_rx!(pins).into_function::<FunctionUart>(), // RX
@@ -189,9 +190,7 @@ fn main() -> ! {
     }
 
     // init tmc pin
-    let mut tmc_uart = mmd_tmc_uart_tx!(pins)
-        .into_pull_down_disabled()
-        .into_push_pull_output();
+    let mut tmc_uart = mmd_tmc_uart_tx!(pins).into_pull_down_disabled().into_push_pull_output();
     tmc_uart.set_low().unwrap();
 
     debug!("hello world");
@@ -223,23 +222,15 @@ fn main() -> ! {
     {
         // 使用第二个通道连接驱动传送带旋转的电机
         let enable_pin_42 = mmd_stepper42_nEN1!(pins);
-        let dir_pin_42 = mmd_stepper42_dir1!(pins)
-            .into_push_pull_output()
-            .into_dyn_pin();
+        let dir_pin_42 = mmd_stepper42_dir1!(pins).into_push_pull_output().into_dyn_pin();
         //let step_pin_42 = mmd_stepper42_step1!(pins).into_push_pull_output();
 
         let mut pwm_42 = mmd_motor42_pwm_slice1!(pwm_slices);
         mmd_motor42_step1_channel!(pwm_42).output_to(mmd_stepper42_step1!(pins));
 
         // init 57
-        let enable_pin_57 = Some(
-            mmd_stepper57_nEN!(pins)
-                .into_push_pull_output()
-                .into_dyn_pin(),
-        );
-        let dir_pin_57 = mmd_stepper57_dir!(pins)
-            .into_push_pull_output()
-            .into_dyn_pin();
+        let enable_pin_57 = Some(mmd_stepper57_nEN!(pins).into_push_pull_output().into_dyn_pin());
+        let dir_pin_57 = mmd_stepper57_dir!(pins).into_push_pull_output().into_dyn_pin();
         //let step_pin_57 = mmd_stepper57_step!(pins).into_push_pull_output();
 
         let mut pwm_57 = mmd_stepper57_pwm_slice!(pwm_slices);
@@ -290,10 +281,7 @@ async fn mmd_process_messages() {
     let rotation_stepper_processor = unsafe { ROTATION_STEPPER_PROCESSOR.as_mut().unwrap() };
     loop {
         if let Some(message) = get_mq().dequeue() {
-            info!(
-                "[MMD] process_messages() 1.1 | dequeued message: {}",
-                message
-            );
+            info!("[MMD] process_messages() 1.1 | dequeued message: {}", message);
 
             // 处理消息
             let res = match message {
@@ -317,10 +305,13 @@ async fn mmd_process_messages() {
                     if !mmd_linear_stepper_available {
                         // wait till the linear_stepper is stopped.
                         loop {
-                            if let Some(linear_stepper_resp) = linear_stepper_output_mq().dequeue() {
+                            if let Some(linear_stepper_resp) = linear_stepper_output_mq().dequeue()
+                            {
                                 info!("linear_stepper_resp: {}", linear_stepper_resp);
-                                assert_eq!(linear_stepper_resp,
-                                           LinearStepperResponse::Error(AtomiError::MmdStopped));
+                                assert_eq!(
+                                    linear_stepper_resp,
+                                    LinearStepperResponse::Error(AtomiError::MmdStopped)
+                                );
                                 break;
                             }
                         }
@@ -363,7 +354,8 @@ async fn mmd_process_messages() {
                 AtomiProto::Mmd(MmdCommand::MmdRotationStepper(cmd)) => {
                     // info!("pre rotation");
                     let resp_msg = wrap_result_into_proto(
-                        rotation_stepper_processor.process_rotation_stepper_request(cmd));
+                        rotation_stepper_processor.process_rotation_stepper_request(cmd),
+                    );
                     // info!("send ack 0");
                     uart_comm.send(resp_msg)
                 }
@@ -390,10 +382,7 @@ async fn mmd_process_messages() {
         }
 
         if let Some(linear_stepper_resp) = linear_stepper_output_mq().dequeue() {
-            info!(
-                "[MMD] get response from linear stepper: {}",
-                linear_stepper_resp
-            );
+            info!("[MMD] get response from linear stepper: {}", linear_stepper_resp);
             mmd_linear_stepper_available = true;
         }
 
@@ -423,10 +412,7 @@ unsafe fn UART1_IRQ() {
         let message_length = length_buffer[0] as usize;
         let mut message_buffer = vec![0; message_length];
         if uart.read_full_blocking(&mut message_buffer).is_err() {
-            error!(
-                "Errors in reading the whole message with size ({})",
-                message_length
-            );
+            error!("Errors in reading the whole message with size ({})", message_length);
             return;
         }
 
@@ -459,10 +445,7 @@ fn process_message_in_irq(
             // MMD必须要处理的消息，直接返回busy
             let mut uart_comm = UartComm::new(uart, uart_dir, UART_EXPECTED_RESPONSE_LENGTH);
             if let Err(err) = uart_comm.send(AtomiProto::Mmd(MmdBusy)) {
-                error!(
-                    "[MMD] Errors in sending MMD BUSY response back to MC, err: {}",
-                    err
-                );
+                error!("[MMD] Errors in sending MMD BUSY response back to MC, err: {}", err);
             }
         }
         return;

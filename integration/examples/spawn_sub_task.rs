@@ -7,8 +7,8 @@ use alloc::boxed::Box;
 
 use defmt;
 use defmt::info;
-use rp2040_hal::{entry, pac, Sio, Timer, Watchdog};
 use rp2040_hal::clocks::init_clocks_and_plls;
+use rp2040_hal::{entry, pac, Sio, Timer, Watchdog};
 use rp_pico::XOSC_CRYSTAL_FREQ;
 
 use pizzaro::common::async_initialization;

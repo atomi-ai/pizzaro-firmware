@@ -25,15 +25,9 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
         expected_response_length: usize,
     ) -> Self {
         if let Some(n_re) = dir_pin {
-            n_re.set_low()
-                .map_err(|_| AtomiError::UartSetDirError)
-                .unwrap();
+            n_re.set_low().map_err(|_| AtomiError::UartSetDirError).unwrap();
         }
-        UartComm {
-            uart,
-            dir_pin,
-            expected_response_length,
-        }
+        UartComm { uart, dir_pin, expected_response_length }
     }
 
     fn bwrite_all(&mut self, buffer: &[u8]) -> Result<(), AtomiError> {
@@ -47,19 +41,12 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
     pub fn send<U: Format + Serialize>(&mut self, message: U) -> Result<(), AtomiError> {
         let out = postcard::to_allocvec::<U>(&message).map_err(|_| AtomiError::UartInvalidInput)?;
 
-        debug!(
-            "Send data: ({}, {}), original = {}",
-            out.len(),
-            Debug2Format(&out),
-            message
-        );
+        debug!("Send data: ({}, {}), original = {}", out.len(), Debug2Format(&out), message);
         // 发送长度和数据
         // TODO(zephyr): 看看怎么wrap T::Error到PizzaroError里面去.
 
         if let Some(n_re) = self.dir_pin {
-            n_re.set_high()
-                .map_err(|_| AtomiError::UartSetDirError)
-                .unwrap();
+            n_re.set_high().map_err(|_| AtomiError::UartSetDirError).unwrap();
         }
 
         // let bw_res0 = self
@@ -73,17 +60,13 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
         // };
 
         let res = (|| {
-            self.bwrite_all(&[out.len() as u8])
-                .map_err(|_| AtomiError::UartWriteError)?;
-            self.bwrite_all(&out)
-                .map_err(|_| AtomiError::UartWriteError)?;
+            self.bwrite_all(&[out.len() as u8]).map_err(|_| AtomiError::UartWriteError)?;
+            self.bwrite_all(&out).map_err(|_| AtomiError::UartWriteError)?;
             nb::block!(self.uart.flush()).map_err(|_| AtomiError::UartFlushError)
         })();
 
         if let Some(n_re) = self.dir_pin {
-            n_re.set_low()
-                .map_err(|_| AtomiError::UartSetDirError)
-                .unwrap();
+            n_re.set_low().map_err(|_| AtomiError::UartSetDirError).unwrap();
         }
         res
     }
@@ -131,14 +114,9 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
 
         // 读取响应数据
         let mut response_buffer = vec![0; response_length];
-        uart_read(self.uart, &mut response_buffer)
-            .await
-            .map_err(|_| AtomiError::UartReadError)?;
+        uart_read(self.uart, &mut response_buffer).await.map_err(|_| AtomiError::UartReadError)?;
 
-        debug!(
-            "UartComm::recv() 6: got data = {}",
-            Debug2Format(&response_buffer)
-        );
+        debug!("UartComm::recv() 6: got data = {}", Debug2Format(&response_buffer));
         postcard::from_bytes::<U>(&response_buffer).map_err(|_| AtomiError::UartInvalidData)
     }
 }

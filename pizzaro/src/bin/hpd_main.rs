@@ -9,45 +9,45 @@ use core::sync::atomic::Ordering;
 
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
-use defmt::{debug, Debug2Format, error, info};
+use defmt::{debug, error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
-use rp2040_hal::{
-    clocks::{Clock, init_clocks_and_plls},
-    pac,
-    sio::Sio,
-    Timer,
-    uart::UartPeripheral,
-    watchdog::Watchdog,
-};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::multicore::{Multicore, Stack};
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
-use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
+use rp2040_hal::{
+    clocks::{init_clocks_and_plls, Clock},
+    pac,
+    sio::Sio,
+    uart::UartPeripheral,
+    watchdog::Watchdog,
+    Timer,
+};
 use rp_pico::pac::interrupt;
+use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{AtomiProto, HpdCommand, LinearBullCommand, LinearBullResponse};
-use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b};
-use pizzaro::{bsp::HpdUartDirPinType, hpd_485_dir, hpd_sys_rx, hpd_sys_tx, hpd_uart};
-use pizzaro::bsp::{hpd_uart_irq, HpdUartType};
 use pizzaro::bsp::config::{
     HPD_BR_DRIVER_N_EN, HPD_BR_THRESHOLD, HPD_MOTOR150_PWM_TOP, REVERT_HPD_BR_DIRECTION,
 };
+use pizzaro::bsp::{hpd_uart_irq, HpdUartType};
 use pizzaro::common::async_initialization;
 use pizzaro::common::brush_motor::BrushMotor;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{Delay, init_global_timer};
+use pizzaro::common::global_timer::{init_global_timer, Delay};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
-use pizzaro::hpd::GLOBAL_LINEAR_BULL_STOP;
 use pizzaro::hpd::hpd_misc::LinearScale;
 use pizzaro::hpd::linear_bull_processor::{
-    linear_bull_input_mq, linear_bull_output_mq, LinearBullProcessor, process_linear_bull_message,
+    linear_bull_input_mq, linear_bull_output_mq, process_linear_bull_message, LinearBullProcessor,
 };
 use pizzaro::hpd::linear_scale::{core1_task, read_and_update_linear_scale};
+use pizzaro::hpd::GLOBAL_LINEAR_BULL_STOP;
+use pizzaro::{bsp::HpdUartDirPinType, hpd_485_dir, hpd_sys_rx, hpd_sys_tx, hpd_uart};
+use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b};
 
 struct GlobalContainer {
     linear_scale: Option<LinearScale>,
@@ -82,12 +82,7 @@ fn main() -> ! {
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
 
-    let pins = rp_pico::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+    let pins = rp_pico::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
     {
         let mut mc = Multicore::new(&mut pac.PSM, &mut pac.PPB, &mut sio.fifo);
@@ -168,10 +163,7 @@ async fn hpd_process_messages() {
         Delay::new(1.millis()).await;
 
         if let Some(message) = get_mq().dequeue() {
-            info!(
-                "[HPD] process_messages() 1.1 | dequeued message: {}",
-                message
-            );
+            info!("[HPD] process_messages() 1.1 | dequeued message: {}", message);
             // 处理消息
             let res = match message {
                 AtomiProto::Hpd(HpdCommand::HpdPing) => {
@@ -246,19 +238,12 @@ unsafe fn UART1_IRQ() {
         let message_length = length_buffer[0] as usize;
         let mut message_buffer = vec![0; message_length];
         if uart.read_full_blocking(&mut message_buffer).is_err() {
-            error!(
-                "Errors in reading the whole message with size ({})",
-                message_length
-            );
+            error!("Errors in reading the whole message with size ({})", message_length);
             return;
         }
 
         // Parse the message
-        debug!(
-            "UART1_IRQ() 5, len = {}, data: {}",
-            message_length,
-            Debug2Format(&message_buffer)
-        );
+        debug!("UART1_IRQ() 5, len = {}, data: {}", message_length, Debug2Format(&message_buffer));
         match postcard::from_bytes::<AtomiProto>(&message_buffer) {
             Ok(message) => {
                 info!("Received message: {:?}", message);

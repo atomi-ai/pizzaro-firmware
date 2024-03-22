@@ -17,10 +17,7 @@ impl DispenserMotorProcessor {
     ) -> Self {
         // dispenser0_motor.enable().unwrap();
         // dispenser1_motor.enable().unwrap();
-        Self {
-            dispenser0_motor,
-            dispenser1_motor,
-        }
+        Self { dispenser0_motor, dispenser1_motor }
     }
 
     pub fn set_dispenser0_speed(&mut self, speed: i32) {

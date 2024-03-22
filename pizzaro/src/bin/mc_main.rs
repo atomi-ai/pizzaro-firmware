@@ -26,9 +26,7 @@ use usb_device::UsbError;
 use usbd_serial::SerialPort;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{
-    wrap_result_into_proto, AtomiProto, McCommand,
-};
+use generic::atomi_proto::{wrap_result_into_proto, AtomiProto, McCommand};
 use pizzaro::bsp::mc_ui_uart_irq;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, now, Delay};
@@ -75,12 +73,7 @@ fn main() -> ! {
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
 
-    let pins = rp_pico::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+    let pins = rp_pico::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
     {
         // Initialize UART
@@ -99,10 +92,7 @@ fn main() -> ! {
         let uart_dir = mc_485_dir!(pins).reconfigure();
 
         spawn_task(process_messages());
-        spawn_task(process_executor_requests(McSystemExecutor::new(
-            uart,
-            Some(uart_dir),
-        )));
+        spawn_task(process_executor_requests(McSystemExecutor::new(uart, Some(uart_dir))));
     }
 
     {
@@ -228,11 +218,7 @@ async fn process_messages() {
             let wrapped_msg = wrap_result_into_proto(msg);
             let binding =
                 postcard::to_allocvec(&wrapped_msg).map_err(|_| AtomiError::DataConvertError)?;
-            debug!(
-                "Data to send to PC: {}, wrapped_msg: {}",
-                Debug2Format(&binding),
-                wrapped_msg
-            );
+            debug!("Data to send to PC: {}, wrapped_msg: {}", Debug2Format(&binding), wrapped_msg);
             let mut wr_ptr = binding.as_slice();
             while !wr_ptr.is_empty() {
                 match serial.write(wr_ptr) {
@@ -292,11 +278,7 @@ unsafe fn USBCTRL_IRQ() {
                 match postcard::from_bytes::<AtomiProto>(&buf[..count]) {
                     Ok(message) => {
                         get_mq().enqueue(message);
-                        debug!(
-                            "{} | Received message: {:?}, added to mq",
-                            now().ticks(),
-                            message
-                        );
+                        debug!("{} | Received message: {:?}, added to mq", now().ticks(), message);
                     }
                     Err(err) => info!(
                         "Failed to parse message: {}, err: {}",

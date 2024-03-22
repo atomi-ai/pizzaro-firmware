@@ -53,12 +53,8 @@ fn main() -> ! {
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
 
-    let pins = rp2040_hal::gpio::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
+    let pins =
+        rp2040_hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
     {
         // let mut led = pins.gpio2.into_push_pull_output().into_dyn_pin();
@@ -83,22 +79,14 @@ fn main() -> ! {
     {
         // 使用第二个通道连接驱动传送带旋转的电机
         let enable_pin_42 = mmd_stepper42_nEN1!(pins);
-        let dir_pin_42 = mmd_stepper42_dir1!(pins)
-            .into_push_pull_output()
-            .into_dyn_pin();
+        let dir_pin_42 = mmd_stepper42_dir1!(pins).into_push_pull_output().into_dyn_pin();
 
         let mut pwm_42 = mmd_motor42_pwm_slice1!(pwm_slices);
         mmd_motor42_step1_channel!(pwm_42).output_to(mmd_stepper42_step1!(pins));
 
         // init 57
-        let enable_pin_57 = Some(
-            mmd_stepper57_nEN!(pins)
-                .into_push_pull_output()
-                .into_dyn_pin(),
-        );
-        let dir_pin_57 = mmd_stepper57_dir!(pins)
-            .into_push_pull_output()
-            .into_dyn_pin();
+        let enable_pin_57 = Some(mmd_stepper57_nEN!(pins).into_push_pull_output().into_dyn_pin());
+        let dir_pin_57 = mmd_stepper57_dir!(pins).into_push_pull_output().into_dyn_pin();
         //let step_pin_57 = mmd_stepper57_step!(pins).into_push_pull_output();
 
         let mut pwm_57 = mmd_stepper57_pwm_slice!(pwm_slices);

@@ -23,21 +23,13 @@ pub struct Executor {
 
 impl Format for Executor {
     fn format(&self, fmt: Formatter) {
-        defmt::write!(
-            fmt,
-            "Executor({}): task_num = {}",
-            self.id,
-            self.get_tasks_len()
-        );
+        defmt::write!(fmt, "Executor({}): task_num = {}", self.id, self.get_tasks_len());
     }
 }
 
 impl Executor {
     pub fn new(id: u8) -> Self {
-        Executor {
-            id,
-            tasks: Mutex::new(RefCell::new(Queue::new())),
-        }
+        Executor { id, tasks: Mutex::new(RefCell::new(Queue::new())) }
     }
 
     fn get_tasks_len(&self) -> usize {

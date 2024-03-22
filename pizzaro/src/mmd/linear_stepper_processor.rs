@@ -28,9 +28,7 @@ pub struct LinearStepperProcessor {
 
 impl LinearStepperProcessor {
     pub fn new(linear_stepper: ConveyorBeltLinearBullType) -> Self {
-        Self {
-            linear_stepper,
-        }
+        Self { linear_stepper }
     }
 
     pub async fn process_linear_stepper_request<'a>(
@@ -46,9 +44,7 @@ impl LinearStepperProcessor {
                 self.linear_stepper.move_to_relative(steps, speed).await
             }
             LinearStepperCommand::MoveToRelativeForce { steps, speed } => {
-                self.linear_stepper
-                    .move_to_relative_by_force(steps, speed)
-                    .await
+                self.linear_stepper.move_to_relative_by_force(steps, speed).await
             }
             LinearStepperCommand::Off => {
                 self.linear_stepper.disable().unwrap();
@@ -65,9 +61,7 @@ impl LinearStepperProcessor {
                 }
                 Ok(0)
             }
-            LinearStepperCommand::DummyWait {
-                seconds,
-            } => {
+            LinearStepperCommand::DummyWait { seconds } => {
                 // Testing only.
                 let _ = Delay::new((seconds as u64).secs()).await;
                 Ok(0)
