@@ -8,19 +8,6 @@ use alloc::boxed::Box;
 use cortex_m::asm::delay;
 use defmt::info;
 use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
-
-use pizzaro::bsp::config::{HPD_BR_DRIVER_N_EN, HPD_BR_THRESHOLD, REVERT_HPD_BR_DIRECTION};
-use pizzaro::common::async_initialization;
-use pizzaro::common::brush_motor::BrushMotor;
-use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{init_global_timer, Delay};
-use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
-use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::hpd::hpd_misc::{LinearScale, MOTOR150_PWM_TOP};
-use pizzaro::hpd::linear_bull_processor::LinearBullProcessor;
-use pizzaro::hpd::linear_scale::{core1_task, read_and_update_linear_scale};
-use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b, smart_led};
-
 use rp2040_hal::clocks::init_clocks_and_plls;
 use rp2040_hal::fugit::ExtU64;
 use rp2040_hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, SioOutput};
@@ -28,9 +15,22 @@ use rp2040_hal::multicore::{Multicore, Stack};
 use rp2040_hal::pio::PIOExt;
 use rp2040_hal::pwm::SliceId;
 use rp2040_hal::{entry, pac, Clock, Sio, Timer, Watchdog};
-
 use rp_pico::XOSC_CRYSTAL_FREQ;
 use ws2812_pio::Ws2812Direct;
+
+use pizzaro::bsp::config::{
+    HPD_BR_DRIVER_N_EN, HPD_BR_THRESHOLD, HPD_MOTOR150_PWM_TOP, REVERT_HPD_BR_DIRECTION,
+};
+use pizzaro::common::async_initialization;
+use pizzaro::common::brush_motor::BrushMotor;
+use pizzaro::common::executor::{spawn_task, start_global_executor};
+use pizzaro::common::global_timer::{init_global_timer, Delay};
+use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
+use pizzaro::common::rp2040_timer::Rp2040Timer;
+use pizzaro::hpd::hpd_misc::LinearScale;
+use pizzaro::hpd::linear_bull_processor::LinearBullProcessor;
+use pizzaro::hpd::linear_scale::{core1_task, read_and_update_linear_scale};
+use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b, smart_led};
 
 struct GlobalContainer {
     linear_scale: Option<LinearScale>,
@@ -85,7 +85,7 @@ fn main() -> ! {
         let pwm_slices = rp2040_hal::pwm::Slices::new(pac.PWM, &mut pac.RESETS);
         let mut pwm = pwm_slices.pwm0;
         pwm.set_ph_correct();
-        pwm.set_top(MOTOR150_PWM_TOP);
+        pwm.set_top(HPD_MOTOR150_PWM_TOP);
         pwm.enable();
         pwm.channel_a.output_to(hpd_br_pwm_a!(pins));
         pwm.channel_b.output_to(hpd_br_pwm_b!(pins));
@@ -99,6 +99,7 @@ fn main() -> ! {
                 HPD_BR_THRESHOLD,
                 REVERT_HPD_BR_DIRECTION,
                 HPD_BR_DRIVER_N_EN,
+                HPD_MOTOR150_PWM_TOP,
             ),
         );
         spawn_task(hpd_home(processor));

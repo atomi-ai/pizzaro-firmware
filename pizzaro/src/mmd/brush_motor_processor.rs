@@ -9,7 +9,7 @@ impl MmdPeristalicPumpProcessor {
         Self { peristaltic_pump_motor }
     }
 
-    pub fn set_peristaltic_pump_speed(&mut self, speed: i32) {
+    pub fn set_speed(&mut self, speed: i32) {
         self.peristaltic_pump_motor.apply_speed(speed as f32 / 1000.0);
     }
 }

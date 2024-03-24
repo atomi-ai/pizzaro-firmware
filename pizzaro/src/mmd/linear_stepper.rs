@@ -11,7 +11,7 @@ use crate::mmd::stepper::Stepper;
 use crate::mmd::GLOBAL_LINEAR_STEPPER_STOP;
 
 //const FAST_SPEED: u32 = 400; // steps / second
-const FAST_SPEED: u32 = 400; // steps / second
+pub const FAST_SPEED: u32 = 400; // steps / second
 const SLOW_SPEED: u32 = 50; // steps / second
 const SMALL_DISTANCE: i32 = 50; // steps
 

@@ -31,6 +31,8 @@ jobs:
       - run: cargo install flip-link
       - run: cargo build --all
       - run: cargo build --all --release
+      - run: cargo build --examples
+      - run: cargo build --examples --release
   linting:
     name: Linting
     runs-on: ubuntu-latest

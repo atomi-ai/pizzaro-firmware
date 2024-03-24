@@ -7,23 +7,24 @@ use alloc::boxed::Box;
 
 use cortex_m::asm::delay;
 use defmt::info;
-use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
-use pizzaro::{
-    mmd_limit0, mmd_limit1, mmd_stepper42_dir0, mmd_stepper42_nEN0, mmd_stepper42_step0, smart_led,
-};
+use rp2040_hal::pio::PIOExt;
 use rp2040_hal::Clock;
 use rp2040_hal::{clocks::init_clocks_and_plls, pac, sio::Sio, watchdog::Watchdog, Timer};
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
+use ws2812_pio::Ws2812Direct;
 
+use pizzaro::bsp::config::REVERT_MMD_STEPPER42_0_DIRECTION;
+use pizzaro::bsp::ConveyorBeltLinearBullType;
 use pizzaro::common::async_initialization;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, DelayCreator};
+use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::mmd::linear_stepper::LinearStepper;
-use pizzaro::mmd::mmd_dispatcher::LinearStepperType;
+use pizzaro::mmd::linear_stepper::{LinearStepper, FAST_SPEED};
 use pizzaro::mmd::stepper::Stepper;
-use rp2040_hal::pio::PIOExt;
-use ws2812_pio::Ws2812Direct;
+use pizzaro::{
+    mmd_limit0, mmd_limit1, mmd_stepper42_dir0, mmd_stepper42_nEN0, mmd_stepper42_step0, smart_led,
+};
 
 #[entry]
 fn main() -> ! {
@@ -56,7 +57,13 @@ fn main() -> ! {
         let right_limit_pin = mmd_limit1!(pins).into_pull_down_input();
         let delay_creator = DelayCreator::new();
         let linear_stepper = LinearStepper::new(
-            Stepper::new(enable_pin, dir_pin, step_pin, delay_creator),
+            Stepper::new(
+                enable_pin,
+                dir_pin,
+                step_pin,
+                delay_creator,
+                REVERT_MMD_STEPPER42_0_DIRECTION,
+            ),
             left_limit_pin,
             right_limit_pin,
         );
@@ -89,17 +96,17 @@ fn main() -> ! {
     }
 }
 
-async fn mmd_home(mut linear_stepper: LinearStepperType) {
-    let t = linear_stepper.move_to_relative(100).await;
+async fn mmd_home(mut linear_stepper: ConveyorBeltLinearBullType) {
+    let t = linear_stepper.move_to_relative(100, FAST_SPEED).await;
     info!("Result of move before homing: {}", t);
 
     let t = linear_stepper.home().await;
     info!("Home done, t = {}", t);
 
-    let _t = linear_stepper.move_to_relative(100).await;
-    let _t = linear_stepper.move_to_relative(100).await;
-    let _t = linear_stepper.move_to_relative(-100).await;
-    let _t = linear_stepper.move_to_relative(100).await;
-    let _t = linear_stepper.move_to(100).await;
-    let _t = linear_stepper.move_to(500).await;
+    let _t = linear_stepper.move_to_relative(100, FAST_SPEED).await;
+    let _t = linear_stepper.move_to_relative(100, FAST_SPEED).await;
+    let _t = linear_stepper.move_to_relative(-100, FAST_SPEED).await;
+    let _t = linear_stepper.move_to_relative(100, FAST_SPEED).await;
+    let _t = linear_stepper.move_to(100, FAST_SPEED).await;
+    let _t = linear_stepper.move_to(500, FAST_SPEED).await;
 }

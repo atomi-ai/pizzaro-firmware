@@ -294,7 +294,7 @@ async fn mmd_process_messages() {
                     }
 
                     // Stop other components.
-                    peristalic_pump_processor.set_peristaltic_pump_speed(PP_OFF_SPEED);
+                    peristalic_pump_processor.set_speed(PP_OFF_SPEED);
                     dispenser_motor_processor.set_dispenser0_speed(DISPENSER_OFF_SPEED);
                     dispenser_motor_processor.set_dispenser1_speed(DISPENSER_OFF_SPEED);
                     rotation_stepper_processor.set_conveyor_speed(BELT_OFF_SPEED);
@@ -366,7 +366,7 @@ async fn mmd_process_messages() {
 
                 AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(cmd)) => {
                     let PeristalticPumpCommand::SetRotation { speed } = cmd;
-                    peristalic_pump_processor.set_peristaltic_pump_speed(speed);
+                    peristalic_pump_processor.set_speed(speed);
                     uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck))
                 }
 

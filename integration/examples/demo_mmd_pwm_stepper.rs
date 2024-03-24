@@ -10,7 +10,19 @@ use alloc::boxed::Box;
 
 use cortex_m::asm::delay;
 use defmt::info;
+use fugit::ExtU64;
+use rp2040_hal::pio::PIOExt;
+use rp2040_hal::Clock;
+use rp2040_hal::{clocks::init_clocks_and_plls, pac, sio::Sio, watchdog::Watchdog, Timer};
+use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
+use ws2812_pio::Ws2812Direct;
+
+use pizzaro::common::async_initialization;
+use pizzaro::common::executor::{spawn_task, start_global_executor};
+use pizzaro::common::global_timer::{init_global_timer, Delay};
 use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
+use pizzaro::common::pwm_stepper::PwmStepper;
+use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::mmd::rotation_stepper_processor::RotationStepperProcessor;
 use pizzaro::smart_led;
 use pizzaro::{
@@ -19,18 +31,6 @@ use pizzaro::{
     mmd_stepper42_step1, mmd_stepper57_dir, mmd_stepper57_nEN, mmd_stepper57_pwm_slice,
     mmd_stepper57_step, mmd_stepper57_step_channel,
 };
-use rp2040_hal::Clock;
-use rp2040_hal::{clocks::init_clocks_and_plls, pac, sio::Sio, watchdog::Watchdog, Timer};
-use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
-
-use fugit::ExtU64;
-use pizzaro::common::async_initialization;
-use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{init_global_timer, Delay};
-use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::mmd::pwm_stepper::PwmStepper;
-use rp2040_hal::pio::PIOExt;
-use ws2812_pio::Ws2812Direct;
 
 #[entry]
 fn main() -> ! {
@@ -92,12 +92,11 @@ fn main() -> ! {
         let mut pwm_57 = mmd_stepper57_pwm_slice!(pwm_slices);
         mmd_stepper57_step_channel!(pwm_57).output_to(mmd_stepper57_step!(pins));
 
-        let mut processor = RotationStepperProcessor::new(
+        let processor = RotationStepperProcessor::new(
             PwmStepper::new(
                 enable_pin_42,
                 dir_pin_42,
                 MmdMotor42Step1Channel,
-                clocks.peripheral_clock.freq(),
                 pwm_42,
                 200, // 无细分，一圈200脉冲
                 false,
@@ -106,13 +105,11 @@ fn main() -> ! {
                 enable_pin_57,
                 dir_pin_57,
                 MmdMotor57StepChannel,
-                clocks.peripheral_clock.freq(),
                 pwm_57,
                 200, // 无细分，一圈200脉冲
                 false,
             ),
         );
-        processor.enable();
         spawn_task(process_rotation_stepper(processor));
     }
 
@@ -134,24 +131,18 @@ pub async fn process_rotation_stepper(mut processor: RotationStepperProcessor) {
         //         },
         //     )
         //     .await;
-        processor
-            .process_rotation_stepper_request(
-                generic::atomi_proto::RotationStepperCommand::SetPresserRotation { speed: 1000 },
-            )
-            .await;
+        let _ = processor.process_rotation_stepper_request(
+            generic::atomi_proto::RotationStepperCommand::SetPresserRotation { speed: 1000 },
+        );
 
         Delay::new(1.secs()).await;
 
-        processor
-            .process_rotation_stepper_request(
-                generic::atomi_proto::RotationStepperCommand::SetConveyorBeltRotation { speed: 0 },
-            )
-            .await;
-        processor
-            .process_rotation_stepper_request(
-                generic::atomi_proto::RotationStepperCommand::SetPresserRotation { speed: 0 },
-            )
-            .await;
+        let _ = processor.process_rotation_stepper_request(
+            generic::atomi_proto::RotationStepperCommand::SetConveyorBeltRotation { speed: 0 },
+        );
+        let _ = processor.process_rotation_stepper_request(
+            generic::atomi_proto::RotationStepperCommand::SetPresserRotation { speed: 0 },
+        );
 
         Delay::new(1.secs()).await;
         // processor
@@ -161,11 +152,9 @@ pub async fn process_rotation_stepper(mut processor: RotationStepperProcessor) {
         //         },
         //     )
         //     .await;
-        processor
-            .process_rotation_stepper_request(
-                generic::atomi_proto::RotationStepperCommand::SetPresserRotation { speed: -500 },
-            )
-            .await;
+        let _ = processor.process_rotation_stepper_request(
+            generic::atomi_proto::RotationStepperCommand::SetPresserRotation { speed: -500 },
+        );
 
         Delay::new(1.secs()).await;
     }
