@@ -170,6 +170,7 @@ impl McSystemExecutor {
     }
 
     async fn mmd_belt(&mut self, speed: i32) -> Result<(), AtomiError> {
+        info!("set belt spd:{}", speed);
         let res = self
             .forward(AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
                 RotationStepperCommand::SetConveyorBeltRotation { speed },
@@ -273,55 +274,71 @@ impl McSystemExecutor {
     }
 
     pub async fn sprinkle_cheese(&mut self) -> Result<(), AtomiError> {
+        let belt_spd_on_move = 100;
+        let spd_amp1 = 1.0;
+        let spd_amp2 = 1.0;
+        let spd_amp3 = 1.3;
+        let delay_acc = 1.5;
         // 启动传送带和起司，等待1.5秒让起司掉落到传送带上
         // init-temp
         // self.mmd_move_to(510, 500).await?;
         // self.mmd_pr(759).await?;
         // self.wait_for_linear_stepper_available().await?;
 
+        self.mmd_move_to(510, 500).await?;
+        self.mmd_pr((559_f32 * spd_amp1) as i32).await?;
+        self.wait_for_linear_stepper_available().await?;
+
         // init
         self.mmd_dispenser_on(0).await?;
         self.mmd_belt_on().await?;
         Delay::new(1500.millis()).await;
 
+        self.mmd_belt(BELT_ON_SPEED + belt_spd_on_move).await?;
         self.mmd_move_to(510, 500).await?;
-        self.mmd_pr(759).await?;
+        self.mmd_belt(BELT_ON_SPEED).await?;
+        self.mmd_pr((759_f32 * spd_amp1) as i32).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(1819.millis()).await;
+        //Delay::new(1819.millis()).await;
+        Delay::new(((2819_f32 / delay_acc) as u64).millis()).await;
 
+        self.mmd_belt(BELT_ON_SPEED + belt_spd_on_move).await?;
         self.mmd_move_to(355, 500).await?;
-        self.mmd_pr(421).await?;
+        self.mmd_belt(BELT_ON_SPEED).await?;
+        self.mmd_pr((421_f32 * spd_amp2) as i32).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(3275.millis()).await;
+        Delay::new(((3275_f32 / delay_acc) as u64).millis()).await;
 
+        self.mmd_belt(BELT_ON_SPEED + belt_spd_on_move).await?;
         self.mmd_move_to(200, 500).await?;
-        self.mmd_pr(292).await?;
+        self.mmd_belt(BELT_ON_SPEED).await?;
+        self.mmd_pr((292_f32 * spd_amp3) as i32).await?;
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(4730.millis()).await;
+        Delay::new(((4730_f32 / delay_acc) as u64).millis()).await;
 
         // 等待传送带上剩余起司全部送出
         self.mmd_dispenser_off(0).await?;
-        Delay::new(2.secs()).await;
+        Delay::new(3.secs()).await;
         Ok(())
     }
 
     pub async fn make_one_pizza(&mut self) -> Result<(), AtomiError> {
         // 压面团
-        self.hpd_move_to(52700).await?;
-        //self.hpd_move_to(22000).await?;
-        self.wait_for_linear_bull_available().await?;
-        Delay::new(3.secs()).await;
-        self.hpd_move_to(22000).await?;
-        self.wait_for_linear_bull_available().await?;
+        // self.hpd_move_to(52700).await?;
+        // //self.hpd_move_to(22000).await?;
+        // self.wait_for_linear_bull_available().await?;
+        // Delay::new(3.secs()).await;
+        // self.hpd_move_to(22000).await?;
+        // self.wait_for_linear_bull_available().await?;
 
         // 涂番茄酱
-        self.squeeze_ketchup().await?;
+        //        self.squeeze_ketchup().await?;
         // 撒起司
         self.sprinkle_cheese().await?;
 
         // 结束
         self.mmd_move_to(0, 500).await?;
-        self.hpd_move_to(0).await?;
+        // self.hpd_move_to(0).await?;
         self.wait_for_linear_stepper_available().await?;
         self.mmd_belt_off().await?;
         self.mmd_pr_off().await?;
