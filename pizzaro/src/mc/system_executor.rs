@@ -184,7 +184,15 @@ impl McSystemExecutor {
     }
 
     async fn mmd_belt_on(&mut self) -> Result<(), AtomiError> {
-        self.mmd_belt(BELT_ON_SPEED).await
+        self.mmd_belt(BELT_ON_SPEED / 4).await?;
+        Delay::new(100u64.millis()).await;
+        self.mmd_belt(BELT_ON_SPEED / 2).await?;
+        Delay::new(100u64.millis()).await;
+        self.mmd_belt(BELT_ON_SPEED * 3 / 4).await?;
+        Delay::new(100u64.millis()).await;
+        self.mmd_belt(BELT_ON_SPEED).await?;
+        Delay::new(100u64.millis()).await;
+        Ok(())
     }
 
     async fn _hpd_move_to(&mut self, position: i32) -> Result<(), AtomiError> {
@@ -274,51 +282,111 @@ impl McSystemExecutor {
     }
 
     pub async fn sprinkle_cheese(&mut self) -> Result<(), AtomiError> {
-        let belt_spd_on_move = 100;
+        let belt_spd_on_move = 0;
         let spd_amp1 = 1.0;
         let spd_amp2 = 1.0;
-        let spd_amp3 = 1.3;
-        let delay_acc = 1.5;
+        let spd_amp3 = 1.0;
+        let delay_acc = 1.0;
+        let delay_revert = 800_f32;
         // 启动传送带和起司，等待1.5秒让起司掉落到传送带上
         // init-temp
         // self.mmd_move_to(510, 500).await?;
         // self.mmd_pr(759).await?;
         // self.wait_for_linear_stepper_available().await?;
 
-        self.mmd_move_to(510, 500).await?;
-        self.mmd_pr((559_f32 * spd_amp1) as i32).await?;
+        // 传送带伸出去
+        self.mmd_move_to(510, 400).await?;
+        // 转盘启动
+        self.mmd_pr((459_f32 * spd_amp1) as i32).await?;
+        // 等待传送带运行就位
         self.wait_for_linear_stepper_available().await?;
+        // 转盘达到正式速度
+        self.mmd_pr((759_f32 * spd_amp1) as i32).await?;
 
         // init
-        self.mmd_dispenser_on(0).await?;
+        // 初始化，料斗启动，正转
+        self.mmd_dispenser(0, DISPENSER_ON_SPEED).await?;
+        // 传送带启动
         self.mmd_belt_on().await?;
+        // 等待一小会儿，等起司走完传送带
         Delay::new(1500.millis()).await;
 
-        self.mmd_belt(BELT_ON_SPEED + belt_spd_on_move).await?;
-        self.mmd_move_to(510, 500).await?;
-        self.mmd_belt(BELT_ON_SPEED).await?;
-        self.mmd_pr((759_f32 * spd_amp1) as i32).await?;
-        self.wait_for_linear_stepper_available().await?;
-        //Delay::new(1819.millis()).await;
-        Delay::new(((2819_f32 / delay_acc) as u64).millis()).await;
+        //self.mmd_belt(BELT_ON_SPEED + belt_spd_on_move).await?;
+        //self.mmd_move_to(510, 400).await?;
+        //self.mmd_dispenser_off(0).await?;
+        //self.mmd_belt(BELT_ON_SPEED).await?;
+        //self.mmd_pr((759_f32 * spd_amp1) as i32).await?;
+        //        Delay::new(((delay_revert) as u64).millis()).await;
+        //self.wait_for_linear_stepper_available().await?;
+        //self.mmd_dispenser(0, DISPENSER_ON_SPEED).await?;
 
+        //Delay::new(1819.millis()).await;
+        // 等待第一圈撒完
+        Delay::new(((1819_f32 / delay_acc) as u64).millis()).await;
+
+        // 传送带回撤，补偿回撤速度
         self.mmd_belt(BELT_ON_SPEED + belt_spd_on_move).await?;
-        self.mmd_move_to(355, 500).await?;
-        self.mmd_belt(BELT_ON_SPEED).await?;
-        self.mmd_pr((421_f32 * spd_amp2) as i32).await?;
+        // 停止转盘
+        self.mmd_pr(0).await?;
+        // 停止料斗
+        self.mmd_dispenser_off(0).await?;
+        // 传送带回撤
+        self.mmd_move_to(355, 400).await?;
+        // 等待传送带回撤结束
         self.wait_for_linear_stepper_available().await?;
+        // 重新启动传送带
+        self.mmd_belt(BELT_ON_SPEED).await?;
+        // 重新启动料斗，正转
+        self.mmd_dispenser(0, DISPENSER_ON_SPEED).await?;
+        // // 抵消反转造成的非连续性
+        // Delay::new(((delay_revert) as u64).millis()).await;
+        //        Delay::new(((delay_revert) as u64).millis()).await;
+        // 启动转盘
+        self.mmd_pr((421_f32 * spd_amp2) as i32).await?;
+        // 等待撒完
+        //Delay::new(((3275_f32 / delay_acc) as u64).millis()).await;
         Delay::new(((3275_f32 / delay_acc) as u64).millis()).await;
 
+        // 传送带回撤，补偿回撤速度
         self.mmd_belt(BELT_ON_SPEED + belt_spd_on_move).await?;
-        self.mmd_move_to(200, 500).await?;
-        self.mmd_belt(BELT_ON_SPEED).await?;
-        self.mmd_pr((292_f32 * spd_amp3) as i32).await?;
+        // 停止转盘
+        self.mmd_pr(0).await?;
+        // 停止料斗
+        self.mmd_dispenser_off(0).await?;
+        // 传送带回撤
+        self.mmd_move_to(200, 400).await?;
+        // 等待传送带回撤结束
         self.wait_for_linear_stepper_available().await?;
-        Delay::new(((4730_f32 / delay_acc) as u64).millis()).await;
+        // 停止传送带
+        self.mmd_belt_off().await?;
+        // 重新启动料斗，反转
+        self.mmd_dispenser(0, -DISPENSER_ON_SPEED).await?;
+        // 抵消反转造成的非连续性
+        Delay::new(((delay_revert) as u64).millis()).await;
+        //        Delay::new(((delay_revert) as u64).millis()).await;
+        // 启动转盘
+        self.mmd_pr((292_f32 * spd_amp3) as i32).await?;
+        // 恢复传送带速度
+        self.mmd_belt(BELT_ON_SPEED).await?;
+        //等待撒完
+        //Delay::new(((4730_f32 / delay_acc) as u64).millis()).await;
+        Delay::new(((4230_f32 / delay_acc) as u64).millis()).await;
+
+        // 下面要跳过一小块区域，这里容易产生堆积
+        // 暂停传送带
+        self.mmd_belt_off().await?;
+        // 转盘提速
+        self.mmd_pr(700).await?;
+        // 等转过去一点再启动
+        Delay::new(600_u64.millis()).await;
+        // 转盘恢复之前的速度
+        self.mmd_pr((292_f32 * spd_amp3) as i32).await?;
+        // 恢复传送带速度
+        self.mmd_belt(BELT_ON_SPEED).await?;
 
         // 等待传送带上剩余起司全部送出
         self.mmd_dispenser_off(0).await?;
-        Delay::new(3.secs()).await;
+        Delay::new(1800u64.millis()).await;
         Ok(())
     }
 

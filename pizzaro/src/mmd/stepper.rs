@@ -61,6 +61,35 @@ impl<OP1: StatefulOutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay>
         }
     }
 
+    // TODO:set_speed with acceleration, need test
+    //
+    // pub fn set_speed(&mut self, speed: u32, accl: u32) {
+    //     self.target_speed = speed;
+    //     self.current_speed = 0;
+    //     self.acceleration = accl;
+    // }
+
+    // pub fn update_current_speed(&mut self) {
+    //     if self.current_speed < self.target_speed {
+    //         self.current_speed = min(self.current_speed + self.acceleration, self.target_speed);
+    //         if self.current_speed > 0 {
+    //             self.wait_period = (1_000_000 / (self.current_speed * 2)) as u64;
+    //         }
+    //     }
+    // }
+
+    // pub async fn step(&mut self) -> Result<(), AtomiError> {
+    //     self.update_current_speed();
+    //     if self.speed == 0 {
+    //         return Err(AtomiError::MmdMoveWithZeroSpeed);
+    //     }
+    //     self.step_pin.set_high().map_err(|_| AtomiError::GpioPinError)?;
+    //     self.async_delay.delay(self.wait_period.micros()).await;
+    //     self.step_pin.set_low().map_err(|_| AtomiError::GpioPinError)?;
+    //     self.async_delay.delay(self.wait_period.micros()).await;
+    //     Ok(())
+    // }
+
     pub async fn step(&mut self) -> Result<(), AtomiError> {
         if self.speed == 0 {
             return Err(AtomiError::MmdMoveWithZeroSpeed);
