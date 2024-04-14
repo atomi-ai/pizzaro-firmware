@@ -8,6 +8,10 @@ use alloc::boxed::Box;
 use cortex_m::peripheral::NVIC;
 use defmt::{debug, error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
+use pizzaro::bsp::{mc_ui_uart_irq, McUiUartType};
+use pizzaro::common::uart::uart_read;
+use pizzaro::mc::touch_screen::TouchScreenEnum;
+use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
@@ -27,7 +31,7 @@ use usbd_serial::SerialPort;
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{wrap_result_into_proto, AtomiProto, McCommand};
-use pizzaro::bsp::mc_ui_uart_irq;
+use pizzaro::common::consts::UI_UART_MAX_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, now, Delay};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
@@ -37,16 +41,13 @@ use pizzaro::mc::system_executor::{
     process_executor_requests, system_executor_input_mq, system_executor_output_mq,
     wait_for_forward_dequeue, McSystemExecutor,
 };
-use pizzaro::mc::UiUartType;
 use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
-use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
 
 // TODO(lv): Put all static variables into GlobalContainer.
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
 static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
 static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
-static mut UIUART: Option<UiUartType> = None;
-
+//static mut UIUART: Option<UiUartType> = None;
 static mut FROM_PC_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
     unsafe { FROM_PC_MESSAGE_QUEUE.get_mut() }
@@ -112,11 +113,11 @@ fn main() -> ! {
             .unwrap();
 
         unsafe {
-            UIUART = Some(ui_uart);
+            // UIUART = Some(ui_uart);
             NVIC::unmask(mc_ui_uart_irq());
         }
 
-        //spawn_task(process_ui_screen(ui_uart));
+        spawn_task(process_ui_screen(ui_uart));
     }
 
     {
@@ -169,6 +170,43 @@ fn main() -> ! {
 
     loop {
         info!("In loop");
+    }
+}
+
+async fn process_ui_screen(mut uart: McUiUartType) {
+    let mut buffer = [0u8; UI_UART_MAX_RESPONSE_LENGTH];
+    let mut buffer_len = 0;
+    loop {
+        Delay::new(1.millis()).await;
+        if uart_read(&mut uart, &mut buffer[buffer_len..buffer_len + 1]).await.is_err() {
+            continue;
+        }
+        buffer_len += 1;
+
+        match TouchScreenEnum::parse(&buffer[..buffer_len]) {
+            Ok(TouchScreenEnum::Button { screen_id, object_id, clicked }) => {
+                buffer_len = 0;
+                // info!(
+                //     "btn clicked, screen_id: {}, obj_id:{}, click:{}",
+                //     screen_id, object_id, clicked
+                // );
+                if screen_id == 0 && object_id == 1 && clicked {
+                    // engage btn pressed down
+                    get_mq().enqueue(AtomiProto::Mc(McCommand::SystemRun(
+                        generic::atomi_proto::McSystemExecutorCmd::ExecuteOneFullRun,
+                    )))
+                }
+            }
+            Ok(_) => {
+                buffer_len = 0;
+            }
+            _ => {
+                if buffer_len >= UI_UART_MAX_RESPONSE_LENGTH {
+                    // 缓冲区溢出,清空缓冲区
+                    buffer_len = 0;
+                }
+            }
+        }
     }
 }
 

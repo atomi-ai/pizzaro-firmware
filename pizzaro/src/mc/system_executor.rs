@@ -165,6 +165,7 @@ impl McSystemExecutor {
         self.mmd_dispenser(idx, DISPENSER_OFF_SPEED).await
     }
 
+    #[allow(dead_code)]
     async fn mmd_dispenser_on(&mut self, idx: usize) -> Result<(), AtomiError> {
         self.mmd_dispenser(idx, DISPENSER_ON_SPEED).await
     }
