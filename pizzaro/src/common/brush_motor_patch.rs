@@ -5,6 +5,7 @@ use generic::atomi_error::AtomiError;
 use rp2040_hal::pwm::{FreeRunning, Slice, SliceId};
 
 use super::pwm_stepper::PwmChannels;
+const ENABLE_LOGIC_HIGH: bool = true;
 
 // pub const MMD_PWM_TOP: u16 = 5000;
 
@@ -41,7 +42,11 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatched<S, E> {
     }
 
     pub(crate) fn enable(&mut self) -> Result<(), AtomiError> {
-        self.enable_pin.set_high().map_err(|_| AtomiError::GpioPinError)?;
+        if ENABLE_LOGIC_HIGH {
+            self.enable_pin.set_high().map_err(|_| AtomiError::GpioPinError)?;
+        } else {
+            self.enable_pin.set_low().map_err(|_| AtomiError::GpioPinError)?;
+        }
 
         info!("enable motor pwm");
         self.pwm.enable();
@@ -51,7 +56,11 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatched<S, E> {
 
     pub(crate) fn disable(&mut self) -> Result<(), AtomiError> {
         debug!("disable motor, set enable_pin => LOW");
-        self.enable_pin.set_low().map_err(|_| AtomiError::GpioPinError)?;
+        if ENABLE_LOGIC_HIGH {
+            self.enable_pin.set_low().map_err(|_| AtomiError::GpioPinError)?;
+        } else {
+            self.enable_pin.set_high().map_err(|_| AtomiError::GpioPinError)?;
+        }
 
         debug!("disable motor pwm");
         self.pwm.disable();
@@ -59,7 +68,11 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatched<S, E> {
     }
 
     pub fn ensure_enable(&mut self) -> Result<(), AtomiError> {
-        if self.enable_pin.is_set_high().map_err(|_| AtomiError::GpioPinError)? {
+        if ENABLE_LOGIC_HIGH
+            && self.enable_pin.is_set_low().map_err(|_| AtomiError::GpioPinError)?
+            || !ENABLE_LOGIC_HIGH
+                && self.enable_pin.is_set_high().map_err(|_| AtomiError::GpioPinError)?
+        {
             self.enable()
         } else {
             Ok(())
@@ -75,7 +88,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatched<S, E> {
         let (s1, s2, s3, s4) = self.thres_speed;
         let spd = if self.revert_dir { -speed.clamp(-1.0, 1.0) } else { speed.clamp(-1.0, 1.0) };
 
-        // info!("spd:{}", spd);
+        info!("spd:{}", spd);
         let spd_mapped = if spd > 0.0 {
             self.ensure_enable().expect("Failed to enable motor");
             spd * (s4 - s3) * 2.0

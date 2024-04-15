@@ -196,7 +196,7 @@ impl McSystemExecutor {
         Ok(())
     }
 
-    async fn _hpd_move_to(&mut self, position: i32) -> Result<(), AtomiError> {
+    async fn hpd_move_to(&mut self, position: i32) -> Result<(), AtomiError> {
         let res = self
             .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::MoveTo {
                 position,
@@ -393,15 +393,15 @@ impl McSystemExecutor {
 
     pub async fn make_one_pizza(&mut self) -> Result<(), AtomiError> {
         // 压面团
-        // self.hpd_move_to(52700).await?;
-        // //self.hpd_move_to(22000).await?;
-        // self.wait_for_linear_bull_available().await?;
-        // Delay::new(3.secs()).await;
-        // self.hpd_move_to(22000).await?;
-        // self.wait_for_linear_bull_available().await?;
+        self.hpd_move_to(53020).await?;
+        //self.hpd_move_to(22000).await?;
+        self.wait_for_linear_bull_available().await?;
+        Delay::new(3.secs()).await;
+        self.hpd_move_to(22000).await?;
+        self.wait_for_linear_bull_available().await?;
 
         // 涂番茄酱
-        //        self.squeeze_ketchup().await?;
+        self.squeeze_ketchup().await?;
         // 撒起司
         self.sprinkle_cheese().await?;
 

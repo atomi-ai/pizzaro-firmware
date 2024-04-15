@@ -195,6 +195,11 @@ async fn process_ui_screen(mut uart: McUiUartType) {
                     get_mq().enqueue(AtomiProto::Mc(McCommand::SystemRun(
                         generic::atomi_proto::McSystemExecutorCmd::ExecuteOneFullRun,
                     )))
+                } else if screen_id == 0 && object_id == 2 && clicked {
+                    // stop btn pressed, FIXME: currently run init instead
+                    get_mq().enqueue(AtomiProto::Mc(McCommand::SystemRun(
+                        generic::atomi_proto::McSystemExecutorCmd::InitSystem,
+                    )))
                 }
             }
             Ok(_) => {
