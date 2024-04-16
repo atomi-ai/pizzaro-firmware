@@ -19,6 +19,7 @@ pub mod rp2040_timer;
 pub mod state;
 pub mod uart;
 pub mod uart_comm;
+pub mod weight_sensor;
 
 pub fn async_initialization() {
     init_allocator();

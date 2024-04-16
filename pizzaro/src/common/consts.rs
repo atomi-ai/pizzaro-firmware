@@ -9,3 +9,4 @@ pub const DISPENSER_ON_SPEED: i32 = 750;
 pub const DISPENSER_OFF_SPEED: i32 = 0;
 pub const BELT_ON_SPEED: i32 = 290;
 pub const BELT_OFF_SPEED: i32 = 0;
+pub const LINEAR_BULL_MAX_PRESSURE: u32 = 1000;

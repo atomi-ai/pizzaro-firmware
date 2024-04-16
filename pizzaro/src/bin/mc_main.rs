@@ -12,6 +12,10 @@ use pizzaro::bsp::{mc_ui_uart_irq, McUiUartType};
 use pizzaro::common::uart::uart_read;
 use pizzaro::mc::touch_screen::TouchScreenEnum;
 use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
+use pizzaro::{
+    mc_cap_dout0, mc_cap_dout1, mc_cap_dout2, mc_cap_dout3, mc_cap_sck0, mc_cap_sck1, mc_cap_sck2,
+    mc_cap_sck3,
+};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
@@ -37,6 +41,7 @@ use pizzaro::common::global_timer::{init_global_timer, now, Delay};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
+use pizzaro::common::weight_sensor::WeightSensors;
 use pizzaro::mc::system_executor::{
     process_executor_requests, system_executor_input_mq, system_executor_output_mq,
     wait_for_forward_dequeue, McSystemExecutor,
@@ -92,8 +97,24 @@ fn main() -> ! {
             .unwrap();
         let uart_dir = mc_485_dir!(pins).reconfigure();
 
+        // let t = mc_cap_sck0!(pins).into_push_pull_output().into_dyn_pin();
+        let weight_sensors = WeightSensors::new(
+            mc_cap_sck0!(pins).into_push_pull_output().into_dyn_pin(),
+            mc_cap_dout0!(pins).into_pull_up_input().into_dyn_pin(),
+            mc_cap_sck1!(pins).into_push_pull_output().into_dyn_pin(),
+            mc_cap_dout1!(pins).into_pull_up_input().into_dyn_pin(),
+            mc_cap_sck2!(pins).into_push_pull_output().into_dyn_pin(),
+            mc_cap_dout2!(pins).into_pull_up_input().into_dyn_pin(),
+            mc_cap_sck3!(pins).into_push_pull_output().into_dyn_pin(),
+            mc_cap_dout3!(pins).into_pull_up_input().into_dyn_pin(),
+        );
+
         spawn_task(process_messages());
-        spawn_task(process_executor_requests(McSystemExecutor::new(uart, Some(uart_dir))));
+        spawn_task(process_executor_requests(McSystemExecutor::new(
+            uart,
+            Some(uart_dir),
+            weight_sensors,
+        )));
     }
 
     {

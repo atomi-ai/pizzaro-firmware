@@ -1,7 +1,6 @@
 use cortex_m::asm::delay;
 use defmt::{error, info, warn};
 use fugit::ExtU64;
-
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{
     wrap_result_into_proto, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand,
@@ -11,13 +10,15 @@ use generic::atomi_proto::{
 use generic::mmd_status::MmdStatus;
 
 use crate::common::consts::{
-    BELT_OFF_SPEED, BELT_ON_SPEED, DISPENSER_OFF_SPEED, DISPENSER_ON_SPEED, PP_OFF_SPEED,
-    PP_ON_SPEED, PR_OFF_SPEED, PR_ON_SPEED, UART_EXPECTED_RESPONSE_LENGTH,
+    BELT_OFF_SPEED, BELT_ON_SPEED, DISPENSER_OFF_SPEED, DISPENSER_ON_SPEED,
+    LINEAR_BULL_MAX_PRESSURE, PP_OFF_SPEED, PP_ON_SPEED, PR_OFF_SPEED, PR_ON_SPEED,
+    UART_EXPECTED_RESPONSE_LENGTH,
 };
 use crate::common::global_timer::Delay;
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use crate::common::once::Once;
 use crate::common::uart_comm::UartComm;
+use crate::common::weight_sensor::WeightSensors;
 use crate::mc::{UartDirType, UartType};
 
 static mut SYSTEM_EXECUTOR_INPUT_MQ_ONCE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
@@ -33,11 +34,16 @@ pub fn system_executor_output_mq() -> &'static mut MessageQueueWrapper<McSystemE
 pub struct McSystemExecutor {
     uart: UartType,
     uart_dir: Option<UartDirType>,
+    weight_sensors: WeightSensors,
 }
 
 impl McSystemExecutor {
-    pub fn new(uart: UartType, uart_dir: Option<UartDirType>) -> Self {
-        Self { uart, uart_dir }
+    pub fn new(
+        uart: UartType,
+        uart_dir: Option<UartDirType>,
+        weight_sensors: WeightSensors,
+    ) -> Self {
+        Self { uart, uart_dir, weight_sensors }
     }
 
     fn get_uart_comm(&mut self) -> UartComm<'_, UartDirType, UartType> {
@@ -86,6 +92,13 @@ impl McSystemExecutor {
             let t = self
                 .forward(AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)))
                 .await;
+
+            // Check pressure.
+            let (w1, w2, w3, w4) = self.weight_sensors.get_all_weights().await;
+            if w1 + w2 + w3 + w4 > LINEAR_BULL_MAX_PRESSURE {
+                return self.hpd_stop().await;
+            }
+
             match t {
                 Ok(AtomiProto::AtomiError(AtomiError::HpdUnavailable)) => {
                     // info!("unavailable, retry...");

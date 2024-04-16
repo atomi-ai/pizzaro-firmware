@@ -16,11 +16,10 @@ use rp2040_hal::{clocks::init_clocks_and_plls, pac, sio::Sio, watchdog::Watchdog
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 use ws2812_pio::Ws2812Direct;
 
-use pizzaro::bsp::config::{MMD_BRUSHLESS_MOTOR_PWM_TOP, MMD_PERISTALTIC_PUMP_PWM_TOP};
-use pizzaro::bsp::{MmdBrushMotorChannel, MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel};
+use pizzaro::bsp::config::MMD_PERISTALTIC_PUMP_PWM_TOP;
+use pizzaro::bsp::MmdBrushMotorChannel;
 use pizzaro::common::async_initialization;
 use pizzaro::common::brush_motor_patch::BrushMotorPatched;
-use pizzaro::common::brushless_motor::BrushlessMotor;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, Delay};
 use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
@@ -28,9 +27,7 @@ use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::mmd::brush_motor_processor::MmdPeristalicPumpProcessor;
 // use pizzaro::mmd::brushless_motor_processor::DispenserMotorProcessor;
 use pizzaro::{
-    mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel, mmd_bl2_ctl_pwm_slice,
-    mmd_br0_pwm_slice, mmd_br_channel_a, mmd_br_nEN, mmd_br_pwm_a, mmd_br_pwm_b, mmd_dir_bl0,
-    mmd_dir_bl1, mmd_spd_ctrl_bl0, mmd_spd_ctrl_bl1, smart_led,
+    mmd_br0_pwm_slice, mmd_br_channel_a, mmd_br_nEN, mmd_br_pwm_a, mmd_br_pwm_b, smart_led,
 };
 
 // static mut BRUSHLESS_MOTOR_PROCESSOR: Option<DispenserMotorProcessor> = None;
