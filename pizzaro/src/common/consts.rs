@@ -10,3 +10,8 @@ pub const DISPENSER_OFF_SPEED: i32 = 0;
 pub const BELT_ON_SPEED: i32 = 290;
 pub const BELT_OFF_SPEED: i32 = 0;
 pub const LINEAR_BULL_MAX_PRESSURE: u32 = 1000;
+
+pub const CANBUS_FREQUENCY: u32 = 10000;
+pub const MC_CAN_ID: u16 = 1;
+pub const MMD_CAN_ID: u16 = 2;
+pub const HPD_CAN_ID: u16 = 3;
