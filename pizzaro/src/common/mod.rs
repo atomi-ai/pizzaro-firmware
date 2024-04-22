@@ -1,3 +1,4 @@
+// TODO(zephyr): create a atomi-common crate for usage in other repos.
 extern crate alloc;
 
 use crate::common::global_allocator::init_allocator;

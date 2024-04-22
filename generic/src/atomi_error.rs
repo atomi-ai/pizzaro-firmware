@@ -8,6 +8,10 @@ pub enum AtomiError {
     IgnoredMsg,
     UnaccepableCommand,
 
+    CanCobIdError,
+    CanFrameError,
+    CanTransmitError,
+
     UartReadError,
     UartReadTimeout,
     UartWriteError,
