@@ -1,3 +1,5 @@
+// TODO(zephyr): Upgrade embedded-hal to 1.0
+
 #![no_std]
 
 extern crate alloc;
