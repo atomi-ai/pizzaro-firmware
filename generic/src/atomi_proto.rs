@@ -26,6 +26,18 @@ pub enum AtomiProto {
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+pub struct AtomiErrorWithCanId {
+    error_can_id: u16,
+    error: AtomiError,
+}
+
+impl AtomiErrorWithCanId {
+    pub fn new(error_can_id: u16, error: AtomiError) -> Self {
+        AtomiErrorWithCanId { error_can_id, error }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum McCommand {
     McError,
     McPing,

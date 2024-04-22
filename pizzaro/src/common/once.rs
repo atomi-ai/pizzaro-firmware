@@ -17,7 +17,10 @@ impl<T> Once<T> {
         }
     }
 
-    pub fn init_once_with_function<F>(&mut self, f: F) where F: FnOnce() -> T {
+    pub fn init_once_with_function<F>(&mut self, f: F)
+    where
+        F: FnOnce() -> T,
+    {
         if !self.initialized {
             let value = f();
             self.init_once_with_variable(value);
