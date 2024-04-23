@@ -71,7 +71,7 @@ pub enum McSystemExecutorResponse {
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum MmdCommand {
-    MmdError,
+    MmdError(AtomiError),
     MmdPing,
     MmdPong,
     MmdAck,
@@ -164,7 +164,7 @@ pub enum StepperResponse {
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum HpdCommand {
-    HpdError,
+    HpdError(AtomiError),
     HpdPing,
     HpdPong,
     HpdAck,

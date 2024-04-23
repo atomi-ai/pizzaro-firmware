@@ -7,7 +7,7 @@ use crate::common::global_status::initialize_status;
 pub mod brush_motor;
 pub mod brush_motor_patch;
 pub mod brushless_motor;
-pub mod can;
+pub mod can_messenger;
 pub mod consts;
 pub mod executor;
 pub mod global_allocator;
