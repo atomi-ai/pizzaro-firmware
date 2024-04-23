@@ -11,6 +11,9 @@ pub enum AtomiError {
     CanCobIdError,
     CanFrameError,
     CanTransmitError,
+    CanExtendedIdError,
+    CanMessageTimeout,
+    CanInvalidData,
 
     UartReadError,
     UartReadTimeout,
@@ -29,7 +32,7 @@ pub enum AtomiError {
 
     McLockedForSystemRun,
     McForwardTimeout,
-    McWeightSensorNotInited,
+    McForwardIncorrectMsg,
 
     MmdUnavailable(MmdStatus),
     MmdStepperHomingError,
@@ -48,13 +51,6 @@ pub enum AtomiError {
     HpdNeedToHome,
     HpdCannotStart,
     HpdStopped,
-
-    DtuStepperNeedToHome,
-    DtuNotAcceptedPosition,
-    DtuStopped,
-    DtuStopError,
-    DtuUnavailable,
-    DtuTMCWriteRequestError,
 
     // Used by AtomiProto parsing
     NotIntStr,
