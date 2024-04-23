@@ -9,29 +9,23 @@ extern crate alloc;
 use alloc::boxed::Box;
 use core::sync::atomic::Ordering;
 
-use can2040::{Can2040, CanFrame};
+use can2040::CanFrame;
 use cortex_m::asm::delay;
-use defmt::{debug, error, info, Debug2Format, Format};
-use embedded_can::nb::Can;
-use embedded_can::{Frame, Id, StandardId};
+use defmt::{info, Debug2Format};
 use fugit::ExtU64;
 use rp2040_hal::multicore::{Multicore, Stack};
 use rp2040_hal::{clocks::init_clocks_and_plls, pac, sio::Sio, watchdog::Watchdog, Timer};
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
-use serde::Serialize;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::{AtomiErrorWithCanId, HpdCommand, LinearBullCommand, LinearBullResponse};
-use generic::mmd_status::MmdStatus;
+use generic::atomi_proto::{HpdCommand, LinearBullCommand, LinearBullResponse};
 use pizzaro::bsp::config::{
     HPD_BR_DRIVER_N_EN, HPD_BR_THRESHOLD, HPD_MOTOR150_PWM_TOP, REVERT_HPD_BR_DIRECTION,
 };
 use pizzaro::common::async_initialization;
 use pizzaro::common::brush_motor::BrushMotor;
-use pizzaro::common::can::{
-    enqueue_can_frame_if_possible, get_can, init_can_bus, send_can_message,
-};
-use pizzaro::common::consts::{CANBUS_FREQUENCY, HPD_CAN_ID, MC_CAN_ID, MMD_CAN_ID};
+use pizzaro::common::can_messenger::{get_can_messenger, init_can_messenger, parse_frame};
+use pizzaro::common::consts::{CANBUS_FREQUENCY, HPD_CAN_ID};
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, Delay};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
@@ -51,8 +45,8 @@ struct GlobalContainer {
 }
 static mut GLOBAL_CONTAINER: GlobalContainer = GlobalContainer { linear_scale: None };
 
-static mut HPD_MESSAGE_QUEUE_ONCE: Once<MessageQueueWrapper<HpdCommand>> = Once::new();
-fn get_hpd_mq() -> &'static mut MessageQueueWrapper<HpdCommand> {
+static mut HPD_MESSAGE_QUEUE_ONCE: Once<MessageQueueWrapper<CanFrame>> = Once::new();
+fn get_hpd_mq() -> &'static mut MessageQueueWrapper<CanFrame> {
     unsafe { HPD_MESSAGE_QUEUE_ONCE.get_mut() }
 }
 static mut CORE1_STACK: Stack<4096> = Stack::new();
@@ -125,13 +119,15 @@ fn main() -> ! {
 
     {
         // init CAN bus here.
-        init_can_bus(
+        init_can_messenger(
+            HPD_CAN_ID,
             &mut core,
             CANBUS_FREQUENCY,
             hpd_sys_rx!(pins).id().num as u32,
             hpd_sys_tx!(pins).id().num as u32,
         );
-        spawn_task(process_can_hpd_message());
+        get_can_messenger().set_default_queue(get_hpd_mq());
+        spawn_task(get_can_messenger().receive_task());
     }
 
     start_global_executor();
@@ -147,12 +143,19 @@ async fn hpd_process_messages() {
     loop {
         Delay::new(1.millis()).await;
 
-        if let Some(message) = get_hpd_mq().dequeue() {
-            info!("[HPD] process_messages() 1.1 | dequeued message: {}", message);
-            // 处理消息
-            let res = match message {
-                HpdCommand::HpdPing => send_can_message(MC_CAN_ID, HpdCommand::HpdPong),
-
+        if let Some(frame) = get_hpd_mq().dequeue() {
+            info!("[HPD] hpd_process_messages() 1.1 | dequeued message: {}", Debug2Format(&frame));
+            let parse_res = parse_frame::<HpdCommand>(frame);
+            if let Err(err) = parse_res {
+                info!(
+                    "[HPD] hpd_process_messages(): errors in parsing frame, {}",
+                    Debug2Format(&err)
+                );
+                continue;
+            }
+            let (resp_id, hpd_cmd) = parse_res.unwrap();
+            let process_res = match hpd_cmd {
+                HpdCommand::HpdPing => get_can_messenger().send_raw(resp_id, HpdCommand::HpdPong),
                 HpdCommand::HpdStop => {
                     if !linear_bull_available {
                         GLOBAL_LINEAR_BULL_STOP.store(true, Ordering::Relaxed);
@@ -166,34 +169,34 @@ async fn hpd_process_messages() {
                         linear_bull_available = true;
                         GLOBAL_LINEAR_BULL_STOP.store(false, Ordering::Relaxed);
                     }
-                    send_can_message(MC_CAN_ID, HpdCommand::HpdAck)
+                    get_can_messenger().send_raw(resp_id, HpdCommand::HpdAck)
                 }
 
                 HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle) => {
                     if linear_bull_available {
-                        send_can_message(MC_CAN_ID, HpdCommand::HpdAck)
+                        get_can_messenger().send_raw(resp_id, HpdCommand::HpdAck)
                     } else {
-                        let _ = send_can_message(MC_CAN_ID, AtomiErrorWithCanId::new(
-                            HPD_CAN_ID, AtomiError::HpdUnavailable));
+                        let _ = get_can_messenger()
+                            .send_raw(resp_id, HpdCommand::HpdError(AtomiError::HpdUnavailable));
                         Err(AtomiError::HpdUnavailable)
                     }
                 }
 
                 HpdCommand::HpdLinearBull(cmd) => {
                     if linear_bull_available {
-                        let res = send_can_message(MC_CAN_ID, HpdCommand::HpdAck);
+                        let res = get_can_messenger().send_raw(resp_id, HpdCommand::HpdAck);
                         linear_bull_input_mq().enqueue(cmd);
                         linear_bull_available = false;
                         res
                     } else {
-                        let _ = send_can_message(MC_CAN_ID, AtomiErrorWithCanId::new(
-                            HPD_CAN_ID, AtomiError::HpdUnavailable));
+                        let _ = get_can_messenger()
+                            .send_raw(resp_id, HpdCommand::HpdError(AtomiError::HpdUnavailable));
                         Err(AtomiError::HpdUnavailable)
                     }
                 }
                 _ => Err(AtomiError::IgnoredMsg), // Ignore unrelated commands
             };
-            if let Err(err) = res {
+            if let Err(err) = process_res {
                 info!("[HPD] message processing error: {}", err);
             }
         }
@@ -201,22 +204,6 @@ async fn hpd_process_messages() {
         if let Some(linear_bull_resp) = linear_bull_output_mq().dequeue() {
             info!("[HPD] get response from linear bull: {}", linear_bull_resp);
             linear_bull_available = true;
-        }
-    }
-}
-
-async fn process_can_hpd_message() {
-    loop {
-        Delay::new(100.micros()).await;
-
-        match get_can().receive() {
-            Ok(f) => {
-                enqueue_can_frame_if_possible(HPD_CAN_ID, f, get_hpd_mq());
-            }
-            Err(nb::Error::Other(err)) => {
-                error!("Canbus error: {}", err);
-            }
-            Err(_) => (),
         }
     }
 }

@@ -4,16 +4,17 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
+use can2040::CanFrame;
 
 use cortex_m::peripheral::NVIC;
 use defmt::{debug, info, Debug2Format};
 use fugit::RateExtU32;
 use pizzaro::bsp::mc_ui_uart_irq;
-use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
 use pizzaro::{
     mc_cap_dout0, mc_cap_dout1, mc_cap_dout2, mc_cap_dout3, mc_cap_sck0, mc_cap_sck1, mc_cap_sck2,
     mc_cap_sck3,
 };
+use pizzaro::{mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
@@ -32,30 +33,34 @@ use usb_device::UsbError;
 use usbd_serial::SerialPort;
 
 use generic::atomi_proto::AtomiProto;
+use pizzaro::common::can_messenger::{get_can_messenger, init_can_messenger};
+use pizzaro::common::consts::{CANBUS_FREQUENCY, MC_CAN_ID};
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, now};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::weight_sensor::WeightSensors;
-use pizzaro::mc::system_executor::{process_executor_requests, McSystemExecutor, UartForwarder};
-use pizzaro::mc::{process_messages, process_ui_screen};
+use pizzaro::mc::system_executor::{process_executor_requests, CanForwarder, McSystemExecutor};
+use pizzaro::mc::{get_mc_mq, process_messages, process_ui_screen};
 use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
 
-// TODO(lv): Put all static variables into GlobalContainer.
+// TODO(zephyr): Put all static variables into GlobalContainer.
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
 static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
 static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
 //static mut UIUART: Option<UiUartType> = None;
-static mut FROM_PC_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
-fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
-    unsafe { FROM_PC_MESSAGE_QUEUE.get_mut() }
+
+static mut MC_CAN_QUEUE: Once<MessageQueueWrapper<CanFrame>> = Once::new();
+pub fn get_mc_can_mq() -> &'static mut MessageQueueWrapper<CanFrame> {
+    unsafe { MC_CAN_QUEUE.get_mut() }
 }
 
 #[entry]
 fn main() -> ! {
     async_initialization();
     let mut pac = pac::Peripherals::take().unwrap();
+    let mut core = pac::CorePeripherals::take().unwrap();
     let sio = Sio::new(pac.SIO);
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
     let clocks = init_clocks_and_plls(
@@ -76,21 +81,15 @@ fn main() -> ! {
     let pins = rp_pico::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
     {
-        // Initialize UART
-        let uart_pins = (
-            // UART TX (characters sent from RP2040) on pin 1 (GPIO0)
-            mc_sys_tx!(pins).into_function::<FunctionUart>(),
-            // UART RX (characters received by RP2040) on pin 2 (GPIO1)
-            mc_sys_rx!(pins).into_function::<FunctionUart>(),
+        // Initialize CAN-bus
+        init_can_messenger(
+            MC_CAN_ID,
+            &mut core,
+            CANBUS_FREQUENCY,
+            mc_sys_rx!(pins).id().num as u32,
+            mc_sys_tx!(pins).id().num as u32,
         );
-        let uart = UartPeripheral::new(mc_uart!(pac), uart_pins, &mut pac.RESETS)
-            .enable(
-                UartConfig::new(115200.Hz(), DataBits::Eight, None, StopBits::One),
-                clocks.peripheral_clock.freq(),
-            )
-            .unwrap();
-        let uart_dir = mc_485_dir!(pins).reconfigure();
-        let uart_forwarder = UartForwarder::new(uart, Some(uart_dir));
+        get_can_messenger().set_default_queue(get_mc_can_mq());
 
         // let t = mc_cap_sck0!(pins).into_push_pull_output().into_dyn_pin();
         let weight_sensors = WeightSensors::new(
@@ -106,9 +105,10 @@ fn main() -> ! {
 
         spawn_task(process_messages());
         spawn_task(process_executor_requests(McSystemExecutor::new(
-            uart_forwarder,
+            CanForwarder(),
             weight_sensors,
         )));
+        spawn_task(get_can_messenger().receive_task());
     }
 
     {
@@ -188,7 +188,6 @@ fn main() -> ! {
     }
 }
 
-// TODO(zephyr): Move this to mc/mod.rs
 #[interrupt]
 unsafe fn USBCTRL_IRQ() {
     use core::sync::atomic::{AtomicBool, Ordering};
@@ -221,7 +220,7 @@ unsafe fn USBCTRL_IRQ() {
                 debug!("xfguo: got data: ({}) {}", count, &buf);
                 match postcard::from_bytes::<AtomiProto>(&buf[..count]) {
                     Ok(message) => {
-                        get_mq().enqueue(message);
+                        get_mc_mq().enqueue(message);
                         debug!("{} | Received message: {:?}, added to mq", now().ticks(), message);
                     }
                     Err(err) => info!(

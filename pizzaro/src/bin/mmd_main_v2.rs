@@ -4,52 +4,41 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
-use alloc::vec;
+use can2040::CanFrame;
 use core::sync::atomic::Ordering;
-use can2040::{CanError, CanFrame};
 
 use cortex_m::asm::delay;
-use cortex_m::peripheral::NVIC;
-use defmt::{debug, error, info, Debug2Format};
-use embedded_can::blocking::Can;
+use defmt::{debug, info, Debug2Format};
 use embedded_hal::digital::v2::OutputPin;
-use fugit::{ExtU64, RateExtU32};
-use rp2040_hal::gpio::FunctionUart;
-use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
-use rp2040_hal::{
-    clocks::{init_clocks_and_plls, Clock},
-    entry, pac,
-    pac::interrupt,
-    sio::Sio,
-    uart::UartPeripheral,
-    watchdog::Watchdog,
-    Timer,
-};
+use fugit::ExtU64;
+use rp2040_hal::{clocks::init_clocks_and_plls, entry, pac, sio::Sio, watchdog::Watchdog, Timer};
 use rp_pico::XOSC_CRYSTAL_FREQ;
 
 use generic::atomi_error::AtomiError;
-use generic::atomi_proto::MmdCommand::MmdBusy;
-use generic::atomi_proto::{wrap_result_into_proto, AtomiProto, LinearStepperCommand, LinearStepperResponse, MmdCommand, PeristalticPumpCommand, AtomiErrorWithCanId};
+use generic::atomi_proto::{
+    AtomiProto, LinearStepperCommand, LinearStepperResponse, MmdCommand, PeristalticPumpCommand,
+};
 use generic::mmd_status::MmdStatus;
 use pizzaro::bsp::config::{
     MMD_BRUSHLESS_MOTOR_PWM_TOP, MMD_PERISTALTIC_PUMP_PWM_TOP, REVERT_MMD_STEPPER42_0_DIRECTION,
     REVERT_MMD_STEPPER42_1_DIRECTION, REVERT_MMD_STEPPER57_DIRECTION,
 };
 use pizzaro::bsp::{
-    mmd_uart_irq, MmdBrushMotorChannel, MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel,
-    MmdMotor42Step1Channel, MmdMotor57StepChannel, MmdUartDirPinType, MmdUartType,
+    MmdBrushMotorChannel, MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel,
+    MmdMotor42Step1Channel, MmdMotor57StepChannel,
 };
 use pizzaro::common::brush_motor_patch::BrushMotorPatched;
 use pizzaro::common::brushless_motor::BrushlessMotor;
-use pizzaro::common::consts::{BELT_OFF_SPEED, CANBUS_FREQUENCY, DISPENSER_OFF_SPEED, MC_CAN_ID, MMD_CAN_ID, PP_OFF_SPEED, PR_OFF_SPEED, UART_EXPECTED_RESPONSE_LENGTH};
+use pizzaro::common::can_messenger::{get_can_messenger, init_can_messenger, parse_frame};
+use pizzaro::common::consts::{
+    BELT_OFF_SPEED, CANBUS_FREQUENCY, DISPENSER_OFF_SPEED, MMD_CAN_ID, PP_OFF_SPEED, PR_OFF_SPEED,
+};
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_status::{get_status, FutureStatus, FutureType};
-use pizzaro::common::global_timer::{init_global_timer, now, Delay, DelayCreator};
+use pizzaro::common::global_timer::{init_global_timer, Delay, DelayCreator};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::pwm_stepper::PwmStepper;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::common::uart_comm::UartComm;
 use pizzaro::mmd::brush_motor_processor::MmdPeristalicPumpProcessor;
 use pizzaro::mmd::brushless_motor_processor::DispenserMotorProcessor;
 use pizzaro::mmd::linear_stepper::LinearStepper;
@@ -60,25 +49,24 @@ use pizzaro::mmd::linear_stepper_processor::{
 use pizzaro::mmd::rotation_stepper_processor::RotationStepperProcessor;
 use pizzaro::mmd::stepper::Stepper;
 use pizzaro::mmd::GLOBAL_LINEAR_STEPPER_STOP;
-use pizzaro::{common::async_initialization, hpd_sys_rx, hpd_sys_tx, mmd_sys_rx, mmd_sys_tx};
+use pizzaro::{common::async_initialization, mmd_sys_rx, mmd_sys_tx};
 use pizzaro::{
-    mmd_485_dir, mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel,
-    mmd_bl2_ctl_pwm_slice, mmd_br0_pwm_slice, mmd_br_channel_a, mmd_br_nEN, mmd_br_pwm_a,
-    mmd_br_pwm_b, mmd_dir_bl0, mmd_dir_bl1, mmd_limit0, mmd_limit1, mmd_motor42_pwm_slice1,
-    mmd_motor42_step1_channel, mmd_spd_ctrl_bl0, mmd_spd_ctrl_bl1, mmd_stepper42_dir0,
-    mmd_stepper42_dir1, mmd_stepper42_nEN0, mmd_stepper42_nEN1, mmd_stepper42_step0,
-    mmd_stepper42_step1, mmd_stepper57_dir, mmd_stepper57_nEN, mmd_stepper57_pwm_slice,
-    mmd_stepper57_step, mmd_stepper57_step_channel, mmd_tmc_uart_tx, mmd_uart,
+    mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel, mmd_bl2_ctl_pwm_slice,
+    mmd_br0_pwm_slice, mmd_br_channel_a, mmd_br_nEN, mmd_br_pwm_a, mmd_br_pwm_b, mmd_dir_bl0,
+    mmd_dir_bl1, mmd_limit0, mmd_limit1, mmd_motor42_pwm_slice1, mmd_motor42_step1_channel,
+    mmd_spd_ctrl_bl0, mmd_spd_ctrl_bl1, mmd_stepper42_dir0, mmd_stepper42_dir1, mmd_stepper42_nEN0,
+    mmd_stepper42_nEN1, mmd_stepper42_step0, mmd_stepper42_step1, mmd_stepper57_dir,
+    mmd_stepper57_nEN, mmd_stepper57_pwm_slice, mmd_stepper57_step, mmd_stepper57_step_channel,
+    mmd_tmc_uart_tx,
 };
-use pizzaro::common::can::{enqueue_can_frame_if_possible, get_can, init_can_bus, send_can_message};
 
 // TODO(zephyr): 把下面结构改成Once<>结构.
 static mut DISPENSER_MOTOR_PROCESSOR: Option<DispenserMotorProcessor> = None;
 static mut PERISTALIC_PUMP_PROCESSOR: Option<MmdPeristalicPumpProcessor> = None;
 static mut ROTATION_STEPPER_PROCESSOR: Option<RotationStepperProcessor> = None;
 
-static mut MESSAGE_MMD_QUEUE_ONCE: Once<MessageQueueWrapper<MmdCommand>> = Once::new();
-fn get_mmd_mq() -> &'static mut MessageQueueWrapper<MmdCommand> {
+static mut MESSAGE_MMD_QUEUE_ONCE: Once<MessageQueueWrapper<CanFrame>> = Once::new();
+fn get_mmd_mq() -> &'static mut MessageQueueWrapper<CanFrame> {
     unsafe { MESSAGE_MMD_QUEUE_ONCE.get_mut() }
 }
 
@@ -108,13 +96,15 @@ fn main() -> ! {
 
     {
         // init CAN bus here.
-        init_can_bus(
+        init_can_messenger(
+            MMD_CAN_ID,
             &mut core,
             CANBUS_FREQUENCY,
             mmd_sys_rx!(pins).id().num as u32,
             mmd_sys_tx!(pins).id().num as u32,
         );
-        spawn_task(process_can_mmd_message());
+        get_can_messenger().set_default_queue(get_mmd_mq());
+        spawn_task(get_can_messenger().receive_task());
     }
 
     let pwm_slices = rp2040_hal::pwm::Slices::new(pac.PWM, &mut pac.RESETS);
@@ -267,16 +257,21 @@ async fn mmd_process_messages() {
     let peristalic_pump_processor = unsafe { PERISTALIC_PUMP_PROCESSOR.as_mut().unwrap() };
     let rotation_stepper_processor = unsafe { ROTATION_STEPPER_PROCESSOR.as_mut().unwrap() };
     loop {
-        if let Some(message) = get_mmd_mq().dequeue() {
-            info!("[MMD] process_messages() 1.1 | dequeued message: {}", message);
+        if let Some(frame) = get_mmd_mq().dequeue() {
+            info!("[MMD] mmd_process_messages() 1.1 | dequeued message: {}", Debug2Format(&frame));
+            let parse_res = parse_frame::<MmdCommand>(frame);
+            if let Err(err) = parse_res {
+                info!(
+                    "[MMD] mmd_process_messages(): errors in parsing frame, {}",
+                    Debug2Format(&err)
+                );
+                continue;
+            }
+            let (resp_id, mmd_cmd) = parse_res.unwrap();
+            let process_res = match mmd_cmd {
+                MmdCommand::MmdPing => get_can_messenger().send_raw(resp_id, MmdCommand::MmdPong),
 
-            // 处理消息
-            let res = match message {
-                AtomiProto::Mmd(MmdCommand::MmdPing) => {
-                    send_can_message(MC_CAN_ID, MmdCommand::MmdPong)
-                }
-
-                AtomiProto::Mmd(MmdCommand::MmdStop) => {
+                MmdCommand::MmdStop => {
                     if !mmd_linear_stepper_available {
                         // If linear_stepper is running, stop it directly.
                         GLOBAL_LINEAR_STEPPER_STOP.store(true, Ordering::Relaxed);
@@ -305,65 +300,63 @@ async fn mmd_process_messages() {
                         GLOBAL_LINEAR_STEPPER_STOP.store(false, Ordering::Relaxed);
                         mmd_linear_stepper_available = true;
                     }
-                    send_can_message(MC_CAN_ID, MmdCommand::MmdAck)
+                    get_can_messenger().send_raw(resp_id, MmdCommand::MmdAck)
                 }
 
-                AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle)) => {
+                MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle) => {
                     // // 处理wait idle 不能受 mmd_linear_stepper_available限制，先用这个办法workaround掉
                     // let res = uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck));
                     // linear_stepper_input_mq().enqueue(LinearStepperCommand::WaitIdle);
                     // res
 
                     if mmd_linear_stepper_available {
-                        send_can_message(MC_CAN_ID, MmdCommand::MmdAck)
+                        get_can_messenger().send_raw(resp_id, MmdCommand::MmdAck)
                     } else {
-                        let _ = send_can_message(MC_CAN_ID, AtomiErrorWithCanId::new(
-                            MMD_CAN_ID, AtomiError::MmdUnavailable(MmdStatus::Unavailable)));
+                        let _ = get_can_messenger()
+                            .send_raw(resp_id, MmdCommand::MmdError(AtomiError::HpdUnavailable));
                         Err(AtomiError::MmdUnavailable(MmdStatus::Unavailable))
                     }
                 }
 
-                AtomiProto::Mmd(MmdCommand::MmdLinearStepper(cmd)) => {
+                MmdCommand::MmdLinearStepper(cmd) => {
                     if mmd_linear_stepper_available {
-                        let res = send_can_message(MC_CAN_ID, MmdCommand::MmdAck);
+                        let res = get_can_messenger().send_raw(resp_id, MmdCommand::MmdAck);
                         linear_stepper_input_mq().enqueue(cmd);
                         mmd_linear_stepper_available = false;
                         res
                     } else {
-                        let _ = send_can_message(MC_CAN_ID, AtomiErrorWithCanId::new(
-                            MMD_CAN_ID, AtomiError::MmdUnavailable(MmdStatus::Unavailable)));
+                        let _ = get_can_messenger()
+                            .send_raw(resp_id, MmdCommand::MmdError(AtomiError::HpdUnavailable));
                         Err(AtomiError::MmdUnavailable(MmdStatus::Unavailable))
                     }
                 }
 
-                AtomiProto::Mmd(MmdCommand::MmdRotationStepper(cmd)) => {
+                MmdCommand::MmdRotationStepper(cmd) => {
                     match rotation_stepper_processor.process_rotation_stepper_request(cmd) {
-                        Ok(AtomiProto::Mmd(msg)) => {
-                            send_can_message(MC_CAN_ID, msg)
-                        }
+                        Ok(AtomiProto::Mmd(msg)) => get_can_messenger().send_raw(resp_id, msg),
                         Err(err) => {
-                            send_can_message(MC_CAN_ID, AtomiErrorWithCanId::new(MMD_CAN_ID, err))
+                            get_can_messenger().send_raw(resp_id, MmdCommand::MmdError(err))
                         }
-                        _ => Ok(())
+                        _ => Ok(()),
                     }
                 }
 
-                AtomiProto::Mmd(MmdCommand::MmdDisperser(cmd)) => {
+                MmdCommand::MmdDisperser(cmd) => {
                     dispenser_motor_processor.process(cmd).unwrap();
                     // info!("send ack 1");
-                    send_can_message(MC_CAN_ID, MmdCommand::MmdAck)
+                    get_can_messenger().send_raw(resp_id, MmdCommand::MmdAck)
                 }
 
-                AtomiProto::Mmd(MmdCommand::MmdPeristalticPump(cmd)) => {
+                MmdCommand::MmdPeristalticPump(cmd) => {
                     let PeristalticPumpCommand::SetRotation { speed } = cmd;
                     peristalic_pump_processor.set_speed(speed);
-                    send_can_message(MC_CAN_ID, MmdCommand::MmdAck)
+                    get_can_messenger().send_raw(resp_id, MmdCommand::MmdAck)
                 }
 
                 _ => Err(AtomiError::IgnoredMsg), // Ignore unrelated commands
             };
 
-            if let Err(err) = res {
+            if let Err(err) = process_res {
                 info!("[MMD] message processing error: {}", err);
                 continue;
             }
@@ -376,21 +369,5 @@ async fn mmd_process_messages() {
 
         // 延迟一段时间
         Delay::new(1.millis()).await;
-    }
-}
-
-async fn process_can_mmd_message() {
-    loop {
-        Delay::new(100.micros()).await;
-
-        match get_can().receive() {
-            Ok(f) => {
-                enqueue_can_frame_if_possible(MMD_CAN_ID, f, get_mmd_mq())
-            }
-            Err(nb::Error::Other(err)) => {
-                error!("Canbus error: {}", err);
-            }
-            Err(_) => (),
-        }
     }
 }

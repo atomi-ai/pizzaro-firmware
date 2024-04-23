@@ -11,6 +11,9 @@ pub enum AtomiError {
     CanCobIdError,
     CanFrameError,
     CanTransmitError,
+    CanExtendedIdError,
+    CanMessageTimeout,
+    CanInvalidData,
 
     UartReadError,
     UartReadTimeout,
@@ -29,6 +32,7 @@ pub enum AtomiError {
 
     McLockedForSystemRun,
     McForwardTimeout,
+    McForwardIncorrectMsg,
 
     MmdUnavailable(MmdStatus),
     MmdStepperHomingError,

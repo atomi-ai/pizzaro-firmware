@@ -1,6 +1,7 @@
-use cortex_m::asm::delay;
-use defmt::{error, info, warn};
+use defmt::{error, info, Debug2Format};
+use embedded_can::Frame;
 use fugit::ExtU64;
+
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{
     wrap_result_into_proto, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand,
@@ -9,9 +10,10 @@ use generic::atomi_proto::{
 };
 use generic::mmd_status::MmdStatus;
 
+use crate::common::can_messenger::get_can_messenger;
 use crate::common::consts::{
-    BELT_OFF_SPEED, BELT_ON_SPEED, DISPENSER_OFF_SPEED, DISPENSER_ON_SPEED,
-    LINEAR_BULL_MAX_PRESSURE, PP_OFF_SPEED, PP_ON_SPEED, PR_OFF_SPEED, PR_ON_SPEED,
+    BELT_OFF_SPEED, BELT_ON_SPEED, DISPENSER_OFF_SPEED, DISPENSER_ON_SPEED, HPD_CAN_ID,
+    LINEAR_BULL_MAX_PRESSURE, MMD_CAN_ID, PP_OFF_SPEED, PP_ON_SPEED, PR_OFF_SPEED, PR_ON_SPEED,
     UART_EXPECTED_RESPONSE_LENGTH,
 };
 use crate::common::global_timer::Delay;
@@ -19,7 +21,7 @@ use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use crate::common::once::Once;
 use crate::common::uart_comm::UartComm;
 use crate::common::weight_sensor::WeightSensors;
-use crate::mc::{UartDirType, UartType};
+use crate::mc::{error_or_done, expect_result, UartDirType, UartType};
 
 static mut SYSTEM_EXECUTOR_INPUT_MQ_ONCE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 static mut SYSTEM_EXECUTOR_OUTPUT_MQ_ONCE: Once<MessageQueueWrapper<McSystemExecutorResponse>> =
@@ -31,26 +33,28 @@ pub fn system_executor_output_mq() -> &'static mut MessageQueueWrapper<McSystemE
     unsafe { SYSTEM_EXECUTOR_OUTPUT_MQ_ONCE.get_mut() }
 }
 
-pub struct McSystemExecutor {
-    uart: UartType,
-    uart_dir: Option<UartDirType>,
-    weight_sensors: WeightSensors,
+#[allow(async_fn_in_trait)]
+pub trait Forwarder {
+    async fn forward(&mut self, msg: AtomiProto) -> Result<AtomiProto, AtomiError>;
 }
 
-impl McSystemExecutor {
-    pub fn new(
-        uart: UartType,
-        uart_dir: Option<UartDirType>,
-        weight_sensors: WeightSensors,
-    ) -> Self {
-        Self { uart, uart_dir, weight_sensors }
+pub struct UartForwarder {
+    uart: UartType,
+    uart_dir: Option<UartDirType>,
+}
+
+impl UartForwarder {
+    pub fn new(uart: UartType, uart_dir: Option<UartDirType>) -> Self {
+        Self { uart, uart_dir }
     }
 
     fn get_uart_comm(&mut self) -> UartComm<'_, UartDirType, UartType> {
         UartComm::new(&mut self.uart, &mut self.uart_dir, UART_EXPECTED_RESPONSE_LENGTH)
     }
+}
 
-    pub async fn forward(&mut self, msg: AtomiProto) -> Result<AtomiProto, AtomiError> {
+impl Forwarder for UartForwarder {
+    async fn forward(&mut self, msg: AtomiProto) -> Result<AtomiProto, AtomiError> {
         info!("Forward msg: {}", msg);
         let mut uart_comm = self.get_uart_comm();
         if let Err(e) = uart_comm.send(msg) {
@@ -60,6 +64,51 @@ impl McSystemExecutor {
 
         // 异步读取响应长度 or timeout
         uart_comm.recv_timeout::<AtomiProto>(500.millis()).await
+    }
+}
+
+pub struct CanForwarder();
+
+impl Forwarder for CanForwarder {
+    async fn forward(&mut self, msg: AtomiProto) -> Result<AtomiProto, AtomiError> {
+        match msg {
+            AtomiProto::Mmd(mmd_cmd) => {
+                let resp_id = get_can_messenger().send_to(MMD_CAN_ID, mmd_cmd)?;
+                let f = get_can_messenger().wait_for_message_with_eid(resp_id).await;
+                postcard::from_bytes::<MmdCommand>(&f.data()[..f.dlc()])
+                    .map(AtomiProto::Mmd)
+                    .map_err(|_| AtomiError::CanInvalidData)
+            }
+            AtomiProto::Hpd(hpd_cmd) => {
+                let resp_id = get_can_messenger().send_to(HPD_CAN_ID, hpd_cmd)?;
+                let f = get_can_messenger().wait_for_message_with_eid(resp_id).await;
+                postcard::from_bytes::<HpdCommand>(&f.data()[..f.dlc()])
+                    .map(AtomiProto::Hpd)
+                    .map_err(|_| AtomiError::CanInvalidData)
+            }
+            _ => {
+                error!(
+                    "CanForwarder::forward(): to forward an incorrect msg: {}",
+                    Debug2Format(&msg)
+                );
+                Err(AtomiError::McForwardIncorrectMsg)
+            }
+        }
+    }
+}
+
+pub struct McSystemExecutor<F: Forwarder> {
+    forwarder: F,
+    weight_sensors: WeightSensors,
+}
+
+impl<F: Forwarder> McSystemExecutor<F> {
+    pub fn new(forwarder: F, weight_sensors: WeightSensors) -> Self {
+        Self { forwarder, weight_sensors }
+    }
+
+    pub async fn forward(&mut self, msg: AtomiProto) -> Result<AtomiProto, AtomiError> {
+        self.forwarder.forward(msg).await
     }
 
     async fn wait_for_linear_stepper_available(&mut self) -> Result<(), AtomiError> {
@@ -428,23 +477,7 @@ impl McSystemExecutor {
     }
 }
 
-fn expect_result(_actual: AtomiProto, _expected: AtomiProto) -> Result<(), AtomiError> {
-    // TODO(zephyr): Figure a way to expect the correct result.
-    Ok(())
-}
-
-fn error_or_done(
-    res: Result<(), AtomiError>,
-    mq_out: &mut MessageQueueWrapper<McSystemExecutorResponse>,
-) {
-    info!("Got result: {}", res);
-    match res {
-        Ok(_) => mq_out.enqueue(McSystemExecutorResponse::Done),
-        Err(err) => mq_out.enqueue(McSystemExecutorResponse::Error(err)),
-    }
-}
-
-pub async fn process_executor_requests(mut executor: McSystemExecutor) {
+pub async fn process_executor_requests<F: Forwarder>(mut executor: McSystemExecutor<F>) {
     info!("process_mc_one_full_run() 0");
     let mq_in = system_executor_input_mq();
     let mq_out = system_executor_output_mq();
@@ -479,22 +512,4 @@ pub async fn process_executor_requests(mut executor: McSystemExecutor) {
             _ => continue,
         };
     }
-}
-
-// TODO(zephyr): put this into message_queue.rs
-pub fn wait_for_forward_dequeue() -> Result<AtomiProto, AtomiError> {
-    let unit_delay = 10;
-    let loop_times = 2_000 / unit_delay;
-    for _ in 0..loop_times {
-        if let Some(McSystemExecutorResponse::ForwardResponse(resp)) =
-            system_executor_output_mq().dequeue()
-        {
-            info!("wait_for_forward_dequeue() 5: got response: {}", resp);
-            return Ok(resp);
-        }
-        delay(100_000);
-    }
-    warn!("Not getting correct forward response, loop_times = {}", loop_times);
-    // timeout
-    Err(AtomiError::McForwardTimeout)
 }
