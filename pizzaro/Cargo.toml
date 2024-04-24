@@ -7,6 +7,7 @@ edition = "2021"
 generic = { version = "0.1", path = "../generic" }
 
 alloc-cortex-m = "0.4"
+bitfield = "0.15"
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
 critical-section = "1.1"
@@ -27,7 +28,6 @@ usbd-serial = "0.1"
 smart-leds = "0.4.0"
 smart-leds-trait = "0.2.1"
 ws2812-pio = "0.7.0"
-bitfield = "0.14.0"
 
 [dev-dependencies]
 

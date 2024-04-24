@@ -44,6 +44,13 @@ pub enum AtomiError {
     HpdCannotStart,
     HpdStopped,
 
+    DtuStepperNeedToHome,
+    DtuNotAcceptedPosition,
+    DtuStopped,
+    DtuStopError,
+    DtuUnavailable,
+    DtuTMCWriteRequestError,
+
     // Used by AtomiProto parsing
     NotIntStr,
 

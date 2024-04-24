@@ -20,6 +20,7 @@ pub mod state;
 pub mod uart;
 pub mod uart_comm;
 pub mod weight_sensor;
+pub mod tmc2209;
 
 pub fn async_initialization() {
     init_allocator();

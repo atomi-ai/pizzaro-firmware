@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 //     Done,
 // }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, defmt::Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum AtomiProto {
     Unknown,
     Status,
@@ -20,6 +20,7 @@ pub enum AtomiProto {
     Mc(McCommand),
     Mmd(MmdCommand),
     Hpd(HpdCommand),
+    Dtu(DtuCommand),
 
     AtomiError(AtomiError),
 }
@@ -69,6 +70,18 @@ pub enum MmdCommand {
     MmdInHoming,
     MmdOnMove,
     MmdBusy,
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+pub enum DtuCommand {
+    DtuPing,
+    DtuPong,
+    DtuAck,
+    DtuStop,
+
+    DtuLinear(LinearStepperCommand),
+
+    DtuBusy,
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]

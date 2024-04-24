@@ -26,6 +26,10 @@ pub enum FutureStatus {
     // HPD status
     HpdAvailable,
     HpdBusy,
+
+    // DTU status
+    DtuAvailable,
+    DtuBusy,
     // More future specific status
 }
 

@@ -1,4 +1,5 @@
 // BSP version: 1.5.4
+use rp2040_hal::gpio::bank0::{Gpio0, Gpio1};
 use rp2040_hal::{
     gpio::{
         bank0::{
@@ -31,6 +32,10 @@ pub type HpdUartDirPinType = Pin<Gpio12, FunctionSioOutput, PullUp>;
 pub type MmdUartPins = (Pin<Gpio4, FunctionUart, PullDown>, Pin<Gpio5, FunctionUart, PullDown>);
 pub type MmdUartType = UartPeripheral<Enabled, UART1, MmdUartPins>;
 pub type MmdUartDirPinType = Pin<Gpio21, FunctionSioOutput, PullUp>;
+
+pub type DtuUartPins = (Pin<Gpio0, FunctionUart, PullDown>, Pin<Gpio1, FunctionUart, PullDown>);
+pub type DtuUartType = UartPeripheral<Enabled, UART0, DtuUartPins>;
+pub type DtuUartDirPinType = Pin<Gpio18, FunctionSioOutput, PullUp>;
 
 pub type McUartPins = (Pin<Gpio12, FunctionUart, PullDown>, Pin<Gpio13, FunctionUart, PullDown>);
 pub type McUartType = UartPeripheral<Enabled, UART0, McUartPins>;
@@ -94,7 +99,8 @@ define_pins! {
     mc_uart, UART0,
     mc_ui_uart, UART1,
     mmd_uart, UART1,
-    hpd_uart, UART1
+    hpd_uart, UART1,
+    dtu_uart, UART0
 }
 
 pub fn hpd_uart_irq() -> Interrupt {
@@ -103,6 +109,10 @@ pub fn hpd_uart_irq() -> Interrupt {
 
 pub fn mmd_uart_irq() -> Interrupt {
     Interrupt::UART1_IRQ
+}
+
+pub fn dtu_uart_irq() -> Interrupt {
+    Interrupt::UART0_IRQ
 }
 
 pub fn mc_ui_uart_irq() -> Interrupt {
@@ -193,6 +203,19 @@ define_pins! {
     mc_sys_rx, gpio13,
     mc_emstop, gpio14,
     mc_emled, gpio15,
+
+    // DTU: Detacher Unit
+    dtu_sys_tx, gpio0,
+    dtu_sys_rx, gpio1,
+    dtu_485_dir, gpio18,
+    dtu_stepper_step, gpio2,
+    dtu_stepper_dir, gpio3,
+    dtu_stepper_nEN, gpio24,
+    dtu_stepper_diag, gpio19,
+    dtu_limit0, gpio26,
+    dtu_limit1, gpio27,
+    dtu_tmc_uart_tx, gpio8,
+    dtu_tmc_uart_rx, gpio9,
 
     demo_pwm_a, gpio0,
     demo_pwm_b, gpio1,

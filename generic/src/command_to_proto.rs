@@ -1,8 +1,5 @@
 use crate::atomi_error::AtomiError;
-use crate::atomi_proto::{
-    AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McCommand,
-    McSystemExecutorCmd, MmdCommand, PeristalticPumpCommand, RotationStepperCommand,
-};
+use crate::atomi_proto::{AtomiProto, DispenserCommand, DtuCommand, HpdCommand, LinearBullCommand, LinearStepperCommand, McCommand, McSystemExecutorCmd, MmdCommand, PeristalticPumpCommand, RotationStepperCommand};
 
 const FAST_SPEED: u32 = 100; // steps / second
 
@@ -19,6 +16,7 @@ where
         Some("mc") => parse_mc_command(tokens),
         Some("mmd") => parse_mmd_command(tokens),
         Some("hpd") => parse_hpd_command(tokens),
+        Some("dtu") => parse_dtu_command(tokens),
         _ => AtomiProto::Unknown,
     }
 }
@@ -248,6 +246,67 @@ where
         Some("dummy") => {
             if let Ok(seconds) = parse_int(tokens.next()) {
                 AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::DummyWait { seconds }))
+            } else {
+                AtomiProto::Unknown
+            }
+        }
+        _ => AtomiProto::Unknown,
+    }
+}
+
+
+fn parse_dtu_command<'a, I>(tokens: &mut I) -> AtomiProto
+    where
+        I: Iterator<Item = &'a str>,
+{
+    match tokens.next() {
+        Some("ping") => AtomiProto::Dtu(DtuCommand::DtuPing),
+        Some("stop") => AtomiProto::Dtu(DtuCommand::DtuStop),
+        Some("trigger") => {
+            AtomiProto::Dtu(DtuCommand::DtuLinear(LinearStepperCommand::GetTriggerStatus))
+        }
+        Some("home") => AtomiProto::Dtu(DtuCommand::DtuLinear(LinearStepperCommand::Home)),
+        Some("stepper_off") => {
+            AtomiProto::Dtu(DtuCommand::DtuLinear(LinearStepperCommand::Off))
+        }
+        Some("force_move") => {
+            if let Ok(steps) = parse_int(tokens.next()) {
+                AtomiProto::Dtu(DtuCommand::DtuLinear(
+                    LinearStepperCommand::MoveToRelativeForce { steps, speed: FAST_SPEED },
+                ))
+            } else {
+                AtomiProto::Unknown
+            }
+        }
+        Some("move_rel") => {
+            if let Ok(steps) = parse_int(tokens.next()) {
+                AtomiProto::Dtu(DtuCommand::DtuLinear(
+                    LinearStepperCommand::MoveToRelative { steps, speed: FAST_SPEED },
+                ))
+            } else {
+                AtomiProto::Unknown
+            }
+        }
+        Some("move_to") => {
+            if let Ok(position) = parse_int(tokens.next()) {
+                AtomiProto::Dtu(DtuCommand::DtuLinear(LinearStepperCommand::MoveTo {
+                    position,
+                    speed: FAST_SPEED,
+                }))
+            } else {
+                AtomiProto::Unknown
+            }
+        }
+
+        Some("wait_idle") => {
+            AtomiProto::Dtu(DtuCommand::DtuLinear(LinearStepperCommand::WaitIdle))
+        }
+
+        Some("dummy") => {
+            if let Ok(seconds) = parse_int(tokens.next()) {
+                AtomiProto::Dtu(DtuCommand::DtuLinear(LinearStepperCommand::DummyWait {
+                    seconds,
+                }))
             } else {
                 AtomiProto::Unknown
             }
