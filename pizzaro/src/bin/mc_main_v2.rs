@@ -42,13 +42,12 @@ use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::weight_sensor::WeightSensors;
 use pizzaro::mc::system_executor::{process_executor_requests, CanForwarder, McSystemExecutor};
-use pizzaro::mc::{get_mc_mq, process_messages, process_ui_screen};
+use pizzaro::mc::{get_mc_mq, process_messages, process_ui_screen, USB_SERIAL};
 use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
 
 // TODO(zephyr): Put all static variables into GlobalContainer.
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
 static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
-static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
 //static mut UIUART: Option<UiUartType> = None;
 
 static mut MC_CAN_QUEUE: Once<MessageQueueWrapper<CanFrame>> = Once::new();
@@ -89,7 +88,8 @@ fn main() -> ! {
             mc_sys_rx!(pins).id().num as u32,
             mc_sys_tx!(pins).id().num as u32,
         );
-        get_can_messenger().set_default_queue(get_mc_can_mq());
+        // TODO(zephyr): Do we need to have a default queue for MC?
+        // get_can_messenger().set_default_queue(get_mc_can_mq());
 
         // let t = mc_cap_sck0!(pins).into_push_pull_output().into_dyn_pin();
         let weight_sensors = WeightSensors::new(

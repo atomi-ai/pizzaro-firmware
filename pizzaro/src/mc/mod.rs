@@ -7,7 +7,7 @@ pub type UartType = McUartType;
 pub type UartDirType = McUartDirPinType;
 pub type UiUartType = McUiUartType;
 
-static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
+pub static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
 
 static mut FROM_PC_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 pub fn get_mc_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
@@ -91,8 +91,9 @@ pub async fn process_messages() {
                 if system_locked {
                     Err(AtomiError::McLockedForSystemRun)
                 } else {
+                    debug!("[MC] add msg to system_executor_input_mq: {:?}", Debug2Format(&msg));
                     system_executor_input_mq().enqueue(msg);
-                    wait_for_output_mq()
+                    wait_for_output_mq().await
                 }
             }
         };
@@ -147,9 +148,8 @@ pub fn error_or_done(
     }
 }
 
-fn wait_for_output_mq() -> Result<AtomiProto, AtomiError> {
-    let unit_delay = 10;
-    let loop_times = 2_000 / unit_delay;
+async fn wait_for_output_mq() -> Result<AtomiProto, AtomiError> {
+    let loop_times = 1_000;
     for _ in 0..loop_times {
         if let Some(McSystemExecutorResponse::ForwardResponse(resp)) =
             system_executor_output_mq().dequeue()
@@ -157,7 +157,7 @@ fn wait_for_output_mq() -> Result<AtomiProto, AtomiError> {
             info!("wait_for_forward_dequeue() 5: got response: {}", resp);
             return Ok(resp);
         }
-        delay(100_000);
+        Delay::new(1.millis()).await;
     }
     warn!("Not getting correct forward response, loop_times = {}", loop_times);
     // timeout

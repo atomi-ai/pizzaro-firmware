@@ -240,6 +240,7 @@ fn main() -> ! {
         }
     }
 
+    // spawn_task(dump_executor_status());
     start_global_executor();
     GLOBAL_LINEAR_STEPPER_STOP.store(false, Ordering::Relaxed);
 

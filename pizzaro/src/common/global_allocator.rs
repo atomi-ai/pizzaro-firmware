@@ -9,3 +9,7 @@ pub fn init_allocator() {
     static mut HEAP: [u8; HEAP_SIZE] = [0; HEAP_SIZE];
     unsafe { ALLOCATOR.init(HEAP.as_ptr() as usize, HEAP.len()) }
 }
+
+pub fn dump_memory_usage() {
+    defmt::debug!("ALLOCATOR | used: {:?}, free: {:?}", ALLOCATOR.used(), ALLOCATOR.free(),);
+}
