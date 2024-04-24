@@ -1,4 +1,4 @@
-use defmt::{error, info, Debug2Format};
+use defmt::{debug, error, info, Debug2Format};
 use embedded_can::Frame;
 use fugit::ExtU64;
 
@@ -23,6 +23,7 @@ use crate::common::uart_comm::UartComm;
 use crate::common::weight_sensor::WeightSensors;
 use crate::mc::{error_or_done, expect_result, UartDirType, UartType};
 
+const REQUEST_TIMEOUT: u64 = 500;
 static mut SYSTEM_EXECUTOR_INPUT_MQ_ONCE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
 static mut SYSTEM_EXECUTOR_OUTPUT_MQ_ONCE: Once<MessageQueueWrapper<McSystemExecutorResponse>> =
     Once::new();
@@ -63,7 +64,7 @@ impl Forwarder for UartForwarder {
         }
 
         // 异步读取响应长度 or timeout
-        uart_comm.recv_timeout::<AtomiProto>(500.millis()).await
+        uart_comm.recv_timeout::<AtomiProto>(REQUEST_TIMEOUT.millis()).await
     }
 }
 
@@ -71,17 +72,22 @@ pub struct CanForwarder();
 
 impl Forwarder for CanForwarder {
     async fn forward(&mut self, msg: AtomiProto) -> Result<AtomiProto, AtomiError> {
+        debug!("CanForwarder::forward(): to forward msg: {:?}", Debug2Format(&msg));
         match msg {
             AtomiProto::Mmd(mmd_cmd) => {
                 let resp_id = get_can_messenger().send_to(MMD_CAN_ID, mmd_cmd)?;
-                let f = get_can_messenger().wait_for_message_with_eid(resp_id).await;
+                let f = get_can_messenger()
+                    .wait_for_message_with_eid(resp_id, REQUEST_TIMEOUT.millis())
+                    .await?;
                 postcard::from_bytes::<MmdCommand>(&f.data()[..f.dlc()])
                     .map(AtomiProto::Mmd)
                     .map_err(|_| AtomiError::CanInvalidData)
             }
             AtomiProto::Hpd(hpd_cmd) => {
                 let resp_id = get_can_messenger().send_to(HPD_CAN_ID, hpd_cmd)?;
-                let f = get_can_messenger().wait_for_message_with_eid(resp_id).await;
+                let f = get_can_messenger()
+                    .wait_for_message_with_eid(resp_id, REQUEST_TIMEOUT.millis())
+                    .await?;
                 postcard::from_bytes::<HpdCommand>(&f.data()[..f.dlc()])
                     .map(AtomiProto::Hpd)
                     .map_err(|_| AtomiError::CanInvalidData)
@@ -478,11 +484,11 @@ impl<F: Forwarder> McSystemExecutor<F> {
 }
 
 pub async fn process_executor_requests<F: Forwarder>(mut executor: McSystemExecutor<F>) {
-    info!("process_mc_one_full_run() 0");
+    info!("process_executor_requests() 0");
     let mq_in = system_executor_input_mq();
     let mq_out = system_executor_output_mq();
     loop {
-        Delay::new(1.millis()).await;
+        Delay::new(10.millis()).await;
         match mq_in.dequeue() {
             Some(AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::StopSystem))) => {
                 info!("To stop the system");
@@ -505,7 +511,9 @@ pub async fn process_executor_requests<F: Forwarder>(mut executor: McSystemExecu
                 info!("Done on executing one full run");
             }
             Some(msg) => {
+                debug!("[MC] Forward msg: {:?}", Debug2Format(&msg));
                 let res = executor.forward(msg).await;
+                debug!("[MC] Forward response: {:?}", Debug2Format(&res));
                 let wrapped_msg = wrap_result_into_proto(res);
                 mq_out.enqueue(McSystemExecutorResponse::ForwardResponse(wrapped_msg))
             }

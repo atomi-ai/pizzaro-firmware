@@ -3,11 +3,10 @@
 ## Run
 Start MMD / HPD / MC:
 ```shell
-cargo run --release --package pizzaro --bin mmd_main -- --probe 2e8a:000c:<mmd_serial>
-cargo run --release --package pizzaro --bin hpd_main -- --probe 2e8a:000c:<hpd_serial>
-cargo run --release --package pizzaro --bin mc_main -- --probe 2e8a:000c:<mc_serial>
+DEFMT_LOG=pizzaro=debug,can2040=debug,debug cargo run --release --package pizzaro --bin mmd_main -- --probe 2e8a:000c:<mmd_serial>
+DEFMT_LOG=pizzaro=debug,can2040=debug,debug cargo run --release --package pizzaro --bin hpd_main -- --probe 2e8a:000c:<hpd_serial>
+DEFMT_LOG=pizzaro=debug,can2040=debug,debug cargo run --release --package pizzaro --bin mc_main -- --probe 2e8a:000c:<mc_serial>
 ```
-
 Run pc_controller to connect MC:
 ```shell
 cargo run --bin pc_controller -- --probe 16c0:27dd

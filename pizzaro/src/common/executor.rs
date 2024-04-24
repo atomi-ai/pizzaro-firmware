@@ -6,6 +6,7 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+use crate::common::global_allocator::dump_memory_usage;
 use critical_section::Mutex;
 use defmt::{debug, info, warn, Format, Formatter};
 use fugit::ExtU64;
@@ -84,6 +85,7 @@ pub async fn dump_executor_status() {
         unsafe {
             info!("dump_executor_status() {}", GLOBAL_EXECUTOR.as_ref());
         }
+        dump_memory_usage();
         Delay::new(5.secs()).await;
         info!("dump_executor_status() 9: wait one round");
     }
