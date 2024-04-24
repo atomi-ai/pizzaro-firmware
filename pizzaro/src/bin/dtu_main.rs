@@ -27,23 +27,26 @@ use rp_pico::XOSC_CRYSTAL_FREQ;
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::DtuCommand::{self};
-use generic::atomi_proto::{
-     AtomiProto, LinearStepperCommand, LinearStepperResponse,
-    };
+use generic::atomi_proto::{AtomiProto, StepperCommand, StepperResponse};
 use pizzaro::bsp::{dtu_uart_irq, DtuUartDirPinType, DtuUartType};
+use pizzaro::common::async_initialization;
+use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, now, Delay, DelayCreator};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
-use pizzaro::dtu::dtu_linear_stepper::DtuLinearStepper;
-use pizzaro::dtu::dtu_linear_stepper_processor::{dtu_linear_stepper_input_mq, dtu_linear_stepper_output_mq, DtuLinearStepperProcessor, process_dtu_linear_stepper_message};
-use pizzaro::dtu::GLOBAL_DTU_LINEAR_STEPPER_STOP;
+use pizzaro::dtu::tmc_driver::TmcDriver;
 use pizzaro::dtu::tmc_stepper::TmcStepper;
-use pizzaro::{dtu_485_dir, dtu_limit0, dtu_limit1, dtu_stepper_dir, dtu_stepper_nEN, dtu_stepper_step, dtu_sys_rx, dtu_sys_tx, dtu_uart};
-use pizzaro::common::async_initialization;
-use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
+use pizzaro::dtu::tmc_stepper_processor::{
+    dtu_stepper_input_mq, dtu_stepper_output_mq, process_dtu_stepper_message, TmcStepperProcessor,
+};
+use pizzaro::dtu::GLOBAL_DTU_STEPPER_STOP;
+use pizzaro::{
+    dtu_485_dir, dtu_limit0, dtu_limit1, dtu_stepper_dir, dtu_stepper_nEN, dtu_stepper_step,
+    dtu_sys_rx, dtu_sys_tx, dtu_uart,
+};
 
 // TODO(zephyr): Move these global static into a GlobalStatic struct.
 static mut UART: Option<(DtuUartType, Option<DtuUartDirPinType>)> = None;
@@ -127,16 +130,17 @@ fn main() -> ! {
         let left_limit_pin = dtu_limit0!(pins).into_pull_down_input();
         let right_limit_pin = dtu_limit1!(pins).into_pull_down_input();
 
-        let stepper = DtuLinearStepper::new(
-            TmcStepper::new(enable_pin, dir_pin, step_pin, delay_creator, false, tmc_tx, tmc_rx, 0),
-            left_limit_pin, right_limit_pin,
+        let stepper = TmcStepper::new(
+            TmcDriver::new(enable_pin, dir_pin, step_pin, delay_creator, false, tmc_tx, tmc_rx, 0),
+            left_limit_pin,
+            right_limit_pin,
         );
-        let processor = DtuLinearStepperProcessor::new(stepper);
-        spawn_task(process_dtu_linear_stepper_message(processor));
+        let processor = TmcStepperProcessor::new(stepper);
+        spawn_task(process_dtu_stepper_message(processor));
     }
 
     start_global_executor();
-    GLOBAL_DTU_LINEAR_STEPPER_STOP.store(false, Ordering::Relaxed);
+    GLOBAL_DTU_STEPPER_STOP.store(false, Ordering::Relaxed);
 
     loop {
         info!("in loop");
@@ -149,7 +153,7 @@ async fn dtu_process_messages() {
     debug!("[DTU] dtu_process_messages 0");
     let (uart, uart_dir) = unsafe { UART.as_mut().unwrap() };
     let mut uart_comm = UartComm::new(uart, uart_dir, UART_EXPECTED_RESPONSE_LENGTH);
-    let mut dtu_linear_stepper_available = true;
+    let mut dtu_stepper_available = true;
     loop {
         if let Some(message) = get_mq().dequeue() {
             info!("[MMD] process_messages() 1.1 | dequeued message: {}", message);
@@ -160,13 +164,13 @@ async fn dtu_process_messages() {
                     uart_comm.send(AtomiProto::Dtu(DtuCommand::DtuPong))
                 }
 
-                AtomiProto::Dtu(DtuCommand::DtuLinear(LinearStepperCommand::WaitIdle)) => {
-                    // // 处理wait idle 不能受 dtu_linear_stepper_available限制，先用这个办法workaround掉
+                AtomiProto::Dtu(DtuCommand::DtuLinear(StepperCommand::WaitIdle)) => {
+                    // // 处理wait idle 不能受 dtu_stepper_available限制，先用这个办法workaround掉
                     // let res = uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck));
-                    // linear_stepper_input_mq().enqueue(LinearStepperCommand::WaitIdle);
+                    // stepper_input_mq().enqueue(LinearStepperCommand::WaitIdle);
                     // res
 
-                    if dtu_linear_stepper_available {
+                    if dtu_stepper_available {
                         uart_comm.send(AtomiProto::Dtu(DtuCommand::DtuAck))
                     } else {
                         let _ = uart_comm.send(AtomiProto::AtomiError(AtomiError::DtuUnavailable));
@@ -175,10 +179,10 @@ async fn dtu_process_messages() {
                 }
 
                 AtomiProto::Dtu(DtuCommand::DtuLinear(cmd)) => {
-                    if dtu_linear_stepper_available {
+                    if dtu_stepper_available {
                         let res = uart_comm.send(AtomiProto::Dtu(DtuCommand::DtuAck));
-                        dtu_linear_stepper_input_mq().enqueue(cmd);
-                        dtu_linear_stepper_available = false;
+                        dtu_stepper_input_mq().enqueue(cmd);
+                        dtu_stepper_available = false;
                         res
                     } else {
                         let _ = uart_comm.send(AtomiProto::AtomiError(AtomiError::DtuUnavailable));
@@ -187,26 +191,25 @@ async fn dtu_process_messages() {
                 }
 
                 AtomiProto::Dtu(DtuCommand::DtuStop) => {
-                    if !dtu_linear_stepper_available {
-                        // If linear_stepper is running, stop it directly.
-                        GLOBAL_DTU_LINEAR_STEPPER_STOP.store(true, Ordering::Relaxed);
+                    if !dtu_stepper_available {
+                        // If stepper is running, stop it directly.
+                        GLOBAL_DTU_STEPPER_STOP.store(true, Ordering::Relaxed);
                     }
 
-                    if !dtu_linear_stepper_available {
-                        // wait till the linear_stepper is stopped.
+                    if !dtu_stepper_available {
+                        // wait till the stepper is stopped.
                         loop {
-                            if let Some(linear_stepper_resp) = dtu_linear_stepper_output_mq().dequeue()
-                            {
-                                info!("linear_stepper_resp: {}", linear_stepper_resp);
+                            if let Some(stepper_resp) = dtu_stepper_output_mq().dequeue() {
+                                info!("stepper_resp: {}", stepper_resp);
                                 assert_eq!(
-                                    linear_stepper_resp,
-                                    LinearStepperResponse::Error(AtomiError::MmdStopped)
+                                    stepper_resp,
+                                    StepperResponse::Error(AtomiError::MmdStopped)
                                 );
                                 break;
                             }
                         }
-                        GLOBAL_DTU_LINEAR_STEPPER_STOP.store(false, Ordering::Relaxed);
-                        dtu_linear_stepper_available = true;
+                        GLOBAL_DTU_STEPPER_STOP.store(false, Ordering::Relaxed);
+                        dtu_stepper_available = true;
                     }
                     uart_comm.send(AtomiProto::Dtu(DtuCommand::DtuAck))
                 }
@@ -220,9 +223,9 @@ async fn dtu_process_messages() {
             }
         }
 
-        if let Some(linear_stepper_resp) = dtu_linear_stepper_output_mq().dequeue() {
-            info!("[MMD] get response from linear stepper: {}", linear_stepper_resp);
-            dtu_linear_stepper_available = true;
+        if let Some(stepper_resp) = dtu_stepper_output_mq().dequeue() {
+            info!("[MMD] get response from linear stepper: {}", stepper_resp);
+            dtu_stepper_available = true;
         }
 
         // 延迟一段时间

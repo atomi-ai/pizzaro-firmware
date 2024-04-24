@@ -7,6 +7,7 @@ use alloc::boxed::Box;
 
 use cortex_m::asm::delay;
 use defmt::info;
+use embedded_hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin};
 use rp2040_hal::pio::PIOExt;
 use rp2040_hal::Clock;
 use rp2040_hal::{clocks::init_clocks_and_plls, pac, sio::Sio, watchdog::Watchdog, Timer};
@@ -17,11 +18,11 @@ use pizzaro::bsp::config::REVERT_MMD_STEPPER42_0_DIRECTION;
 use pizzaro::bsp::ConveyorBeltLinearBullType;
 use pizzaro::common::async_initialization;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{init_global_timer, DelayCreator};
+use pizzaro::common::global_timer::{init_global_timer, AsyncDelay, DelayCreator};
 use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::mmd::linear_stepper::{LinearStepper, FAST_SPEED};
-use pizzaro::mmd::stepper::Stepper;
+use pizzaro::common::stepper_driver::StepperDriver;
+use pizzaro::mmd::stepper::{Stepper, FAST_SPEED};
 use pizzaro::{
     mmd_limit0, mmd_limit1, mmd_stepper42_dir0, mmd_stepper42_nEN0, mmd_stepper42_step0, smart_led,
 };
@@ -56,8 +57,8 @@ fn main() -> ! {
         let left_limit_pin = mmd_limit0!(pins).into_pull_down_input();
         let right_limit_pin = mmd_limit1!(pins).into_pull_down_input();
         let delay_creator = DelayCreator::new();
-        let linear_stepper = LinearStepper::new(
-            Stepper::new(
+        let stepper = Stepper::new(
+            StepperDriver::new(
                 enable_pin,
                 dir_pin,
                 step_pin,
@@ -67,7 +68,7 @@ fn main() -> ! {
             left_limit_pin,
             right_limit_pin,
         );
-        spawn_task(mmd_home(linear_stepper));
+        spawn_task(mmd_home(stepper));
     }
 
     {
@@ -96,17 +97,26 @@ fn main() -> ! {
     }
 }
 
-async fn mmd_home(mut linear_stepper: ConveyorBeltLinearBullType) {
-    let t = linear_stepper.move_to_relative(100, FAST_SPEED).await;
+async fn mmd_home<
+    IP1: InputPin,
+    IP2: InputPin,
+    OP1: StatefulOutputPin,
+    OP2: OutputPin,
+    OP3: OutputPin,
+    D: AsyncDelay,
+>(
+    mut stepper: Stepper<IP1, IP2, OP1, OP2, OP3, D>,
+) {
+    let t = stepper.move_to_relative(100, FAST_SPEED).await;
     info!("Result of move before homing: {}", t);
 
-    let t = linear_stepper.home().await;
+    let t = stepper.home().await;
     info!("Home done, t = {}", t);
 
-    let _t = linear_stepper.move_to_relative(100, FAST_SPEED).await;
-    let _t = linear_stepper.move_to_relative(100, FAST_SPEED).await;
-    let _t = linear_stepper.move_to_relative(-100, FAST_SPEED).await;
-    let _t = linear_stepper.move_to_relative(100, FAST_SPEED).await;
-    let _t = linear_stepper.move_to(100, FAST_SPEED).await;
-    let _t = linear_stepper.move_to(500, FAST_SPEED).await;
+    let _t = stepper.move_to_relative(100, FAST_SPEED).await;
+    let _t = stepper.move_to_relative(100, FAST_SPEED).await;
+    let _t = stepper.move_to_relative(-100, FAST_SPEED).await;
+    let _t = stepper.move_to_relative(100, FAST_SPEED).await;
+    let _t = stepper.move_to(100, FAST_SPEED).await;
+    let _t = stepper.move_to(500, FAST_SPEED).await;
 }

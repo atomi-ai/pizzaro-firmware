@@ -14,6 +14,7 @@ use rp2040_hal::{
     uart::{Enabled, UartPeripheral},
 };
 
+use crate::common::stepper_driver::StepperDriver;
 use crate::{
     common::{
         brush_motor_patch::BrushMotorPatched,
@@ -22,7 +23,7 @@ use crate::{
         pwm_stepper::{PwmChannels, PwmStepper},
     },
     define_pins,
-    mmd::{linear_stepper::LinearStepper, stepper::Stepper},
+    mmd::stepper::Stepper,
 };
 
 pub type HpdUartPins = (Pin<Gpio8, FunctionUart, PullDown>, Pin<Gpio9, FunctionUart, PullDown>);
@@ -68,13 +69,13 @@ pub type MmdStepper42_0DirPinType = Pin<Gpio18, FunctionSio<SioOutput>, PullDown
 pub type MmdStepper42_0StepPinType = Pin<Gpio11, FunctionSio<SioOutput>, PullDown>;
 pub type MmdLimitSwitch0 = Pin<Gpio26, FunctionSio<SioInput>, PullDown>;
 pub type MmdLimitSwitch1 = Pin<Gpio27, FunctionSio<SioInput>, PullDown>;
-pub type ConveyorBeltLinearStepperType = Stepper<
+pub type ConveyorBeltLinearStepperType = StepperDriver<
     MmdStepper42_0EnablePinType,
     MmdStepper42_0DirPinType,
     MmdStepper42_0StepPinType,
     DelayCreator,
 >;
-pub type ConveyorBeltLinearBullType = LinearStepper<
+pub type ConveyorBeltLinearBullType = Stepper<
     MmdLimitSwitch0,
     MmdLimitSwitch1,
     MmdStepper42_0EnablePinType,

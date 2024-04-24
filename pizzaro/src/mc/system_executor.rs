@@ -3,9 +3,9 @@ use defmt::{error, info, warn};
 use fugit::ExtU64;
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{
-    wrap_result_into_proto, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand,
-    LinearStepperCommand, McCommand, McSystemExecutorCmd, McSystemExecutorResponse, MmdCommand,
-    PeristalticPumpCommand, RotationStepperCommand,
+    wrap_result_into_proto, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, McCommand,
+    McSystemExecutorCmd, McSystemExecutorResponse, MmdCommand, PeristalticPumpCommand,
+    RotationStepperCommand, StepperCommand,
 };
 use generic::mmd_status::MmdStatus;
 
@@ -62,12 +62,10 @@ impl McSystemExecutor {
         uart_comm.recv_timeout::<AtomiProto>(500.millis()).await
     }
 
-    async fn wait_for_linear_stepper_available(&mut self) -> Result<(), AtomiError> {
+    async fn wait_for_stepper_available(&mut self) -> Result<(), AtomiError> {
         loop {
             let t = self
-                .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                    LinearStepperCommand::WaitIdle,
-                )))
+                .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(StepperCommand::WaitIdle)))
                 .await;
             match t {
                 Ok(AtomiProto::AtomiError(AtomiError::MmdUnavailable(MmdStatus::Unavailable))) => {
@@ -117,9 +115,9 @@ impl McSystemExecutor {
         }
     }
 
-    async fn mmd_linear_stepper_home(&mut self) -> Result<(), AtomiError> {
+    async fn mmd_stepper_home(&mut self) -> Result<(), AtomiError> {
         let res = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::Home)))
+            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(StepperCommand::Home)))
             .await?;
         expect_result(res, AtomiProto::Unknown)
     }
@@ -219,10 +217,11 @@ impl McSystemExecutor {
     }
 
     async fn mmd_move_to(&mut self, position: i32, speed: u32) -> Result<(), AtomiError> {
-        let res =
-            self.forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                LinearStepperCommand::MoveTo { position, speed },
-            )))
+        let res = self
+            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(StepperCommand::MoveTo {
+                position,
+                speed,
+            })))
             .await?;
         expect_result(res, AtomiProto::Unknown)
     }
@@ -253,13 +252,13 @@ impl McSystemExecutor {
 
     pub async fn system_init(&mut self) -> Result<(), AtomiError> {
         // Init the system
-        self.mmd_linear_stepper_home().await?;
+        self.mmd_stepper_home().await?;
         self.hpd_linear_bull_home().await?;
         self.mmd_pr_off().await?; // self.pr_set(off)
         self.mmd_pp_off().await?; // self.pp_set(off)
         self.mmd_dispenser_off(0).await?; // self.dispenser(0, off)
         self.mmd_belt_off().await?; // self.belt_set(off)
-        self.wait_for_linear_stepper_available().await?;
+        self.wait_for_stepper_available().await?;
         self.wait_for_linear_bull_available().await?;
         Ok(())
     }
@@ -272,22 +271,22 @@ impl McSystemExecutor {
 
         self.mmd_move_to(200, 500).await?;
         self.mmd_pr(218).await?;
-        self.wait_for_linear_stepper_available().await?;
+        self.wait_for_stepper_available().await?;
         Delay::new(6329.millis()).await;
 
         self.mmd_move_to(303, 500).await?;
         self.mmd_pr(277).await?;
-        self.wait_for_linear_stepper_available().await?;
+        self.wait_for_stepper_available().await?;
         Delay::new(4973.millis()).await;
 
         self.mmd_move_to(406, 500).await?;
         self.mmd_pr(381).await?;
-        self.wait_for_linear_stepper_available().await?;
+        self.wait_for_stepper_available().await?;
         Delay::new(3617.millis()).await;
 
         self.mmd_move_to(510, 500).await?;
         self.mmd_pr(611).await?;
-        self.wait_for_linear_stepper_available().await?;
+        self.wait_for_stepper_available().await?;
         Delay::new(2260.millis()).await;
 
         // finish
@@ -306,14 +305,14 @@ impl McSystemExecutor {
         // init-temp
         // self.mmd_move_to(510, 500).await?;
         // self.mmd_pr(759).await?;
-        // self.wait_for_linear_stepper_available().await?;
+        // self.wait_for_stepper_available().await?;
 
         // 传送带伸出去
         self.mmd_move_to(510, 400).await?;
         // 转盘启动
         self.mmd_pr((459_f32 * spd_amp1) as i32).await?;
         // 等待传送带运行就位
-        self.wait_for_linear_stepper_available().await?;
+        self.wait_for_stepper_available().await?;
         // 转盘达到正式速度
         self.mmd_pr((759_f32 * spd_amp1) as i32).await?;
 
@@ -331,7 +330,7 @@ impl McSystemExecutor {
         //self.mmd_belt(BELT_ON_SPEED).await?;
         //self.mmd_pr((759_f32 * spd_amp1) as i32).await?;
         //        Delay::new(((delay_revert) as u64).millis()).await;
-        //self.wait_for_linear_stepper_available().await?;
+        //self.wait_for_stepper_available().await?;
         //self.mmd_dispenser(0, DISPENSER_ON_SPEED).await?;
 
         //Delay::new(1819.millis()).await;
@@ -347,7 +346,7 @@ impl McSystemExecutor {
         // 传送带回撤
         self.mmd_move_to(355, 400).await?;
         // 等待传送带回撤结束
-        self.wait_for_linear_stepper_available().await?;
+        self.wait_for_stepper_available().await?;
         // 重新启动传送带
         self.mmd_belt(BELT_ON_SPEED).await?;
         // 重新启动料斗，正转
@@ -370,7 +369,7 @@ impl McSystemExecutor {
         // 传送带回撤
         self.mmd_move_to(200, 400).await?;
         // 等待传送带回撤结束
-        self.wait_for_linear_stepper_available().await?;
+        self.wait_for_stepper_available().await?;
         // 停止传送带
         self.mmd_belt_off().await?;
         // 重新启动料斗，反转
@@ -421,7 +420,7 @@ impl McSystemExecutor {
         // 结束
         self.mmd_move_to(0, 500).await?;
         // self.hpd_move_to(0).await?;
-        self.wait_for_linear_stepper_available().await?;
+        self.wait_for_stepper_available().await?;
         self.mmd_belt_off().await?;
         self.mmd_pr_off().await?;
         Ok(())

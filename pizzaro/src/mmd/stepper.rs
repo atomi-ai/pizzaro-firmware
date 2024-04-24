@@ -1,123 +1,212 @@
-use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
-use fugit::ExtU64;
+use core::sync::atomic::{AtomicBool, Ordering};
+
+use defmt::{debug, info};
+use embedded_hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin};
 
 use generic::atomi_error::AtomiError;
 
 use crate::common::global_timer::AsyncDelay;
+use crate::common::state::{LinearMotionState, MotionState};
+use crate::common::stepper_driver::StepperDriver;
+use crate::mmd::GLOBAL_STEPPER_STOP;
 
-pub struct Stepper<OP1: StatefulOutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay> {
-    enable_pin: OP1,
-    dir_pin: OP2,
-    step_pin: OP3,
-    revert_dir: bool,
+//const FAST_SPEED: u32 = 400; // steps / second
+pub const FAST_SPEED: u32 = 400; // steps / second
+const SLOW_SPEED: u32 = 50; // steps / second
+const SMALL_DISTANCE: i32 = 50; // steps
 
-    speed: u32,
-    wait_period: u64,
-    async_delay: D,
+pub struct Stepper<
+    IP1: InputPin,
+    IP2: InputPin,
+    OP1: StatefulOutputPin,
+    OP2: OutputPin,
+    OP3: OutputPin,
+    D: AsyncDelay,
+> {
+    stepper: StepperDriver<OP1, OP2, OP3, D>,
+    limit_left: IP1,
+    // limit switch on the forward direction
+    limit_right: IP2, // limit switch on the backward direction
+
+    is_home: AtomicBool,
+    current_position: i32,
+    state: MotionState,
 }
 
-impl<OP1: StatefulOutputPin, OP2: OutputPin, OP3: OutputPin, D: AsyncDelay>
-    Stepper<OP1, OP2, OP3, D>
+impl<IP1, IP2, OP1, OP2, OP3, D> Stepper<IP1, IP2, OP1, OP2, OP3, D>
+where
+    IP1: InputPin,
+    IP2: InputPin,
+    OP1: StatefulOutputPin,
+    OP2: OutputPin,
+    OP3: OutputPin,
+    D: AsyncDelay,
 {
     pub fn new(
-        enable_pin: OP1,
-        dir_pin: OP2,
-        step_pin: OP3,
-        async_delay: D,
-        revert_dir: bool,
+        mut stepper: StepperDriver<OP1, OP2, OP3, D>,
+        limit_left: IP1,
+        limit_right: IP2,
     ) -> Self {
-        Stepper { enable_pin, dir_pin, step_pin, revert_dir, async_delay, speed: 0, wait_period: 0 }
+        // TODO(zephyr): 问问Lv步进电机一直使能会不会有问题。
+        // 这里会有问题，首次上电会乱跑，此外一直使能，电流也会比较大，电机和驱动都会发烫。先禁用使能直到需要使用的时候再打开。
+        // stepper
+        //     .enable()
+        //     .expect("[MMD] Errors in enable the stepper on linear actuator");
+        stepper.disable().expect("[MMD] Errors in disable the stepper on linear actuator");
+
+        Stepper {
+            stepper,
+            limit_left,
+            limit_right,
+            is_home: AtomicBool::new(false),
+            current_position: 0,
+            state: MotionState::new(),
+        }
     }
 
-    pub fn enable(&mut self) -> Result<(), AtomiError> {
-        self.enable_pin.set_low().map_err(|_| AtomiError::GpioPinError)
+    pub fn is_idle(&mut self) -> bool {
+        info!("cur state: {}", self.state);
+        self.state.is_idle()
     }
 
     pub fn disable(&mut self) -> Result<(), AtomiError> {
-        self.enable_pin.set_high().map_err(|_| AtomiError::GpioPinError)
+        self.is_home.store(false, Ordering::Relaxed);
+        self.stepper.disable()
     }
 
-    pub fn ensure_enable(&mut self) -> Result<(), AtomiError> {
-        if self.enable_pin.is_set_high().map_err(|_| AtomiError::GpioPinError)? {
-            self.enable()
-        } else {
-            Ok(())
-        }
+    pub async fn home(&mut self) -> Result<i32, AtomiError> {
+        // Start to re-home
+        self.is_home.store(false, Ordering::Relaxed);
+
+        self.state.push(LinearMotionState::HOMING)?;
+        debug!("homing start, state: {}", self.state);
+        // 第一步：快速向前直到触发限位开关
+        debug!("[MMD] Home 1: move to max with fast speed till reach the limit");
+        let mut steps =
+            self.move_to_relative_internal(FAST_SPEED, -i32::MAX).await.map_err(|e| {
+                self.state.pop();
+                e
+            })?;
+
+        // 第二步：快速向后退移动一小段距离
+        debug!("[MMD] Home 2: last move {} steps, now move small distance back", steps);
+        steps = self.move_to_relative_internal(FAST_SPEED, SMALL_DISTANCE).await.map_err(|e| {
+            self.state.pop();
+            e
+        })?;
+
+        debug!(
+            "[MMD] Home 3: last move {} steps, now move to the limit again with slow speed",
+            steps
+        );
+        // 第三步：慢速向前进直到再次触发限位开关
+        steps = self.move_to_relative_internal(SLOW_SPEED, -i32::MAX).await.map_err(|e| {
+            self.state.pop();
+            e
+        })?;
+
+        info!("[MMD] Done for home, last move {} steps", steps);
+        // 将当前位置设置为 0
+        self.current_position = 0;
+        self.is_home.store(true, Ordering::Relaxed);
+
+        self.state.pop();
+        debug!("homing done, state: {}", self.state);
+        Ok(0)
     }
 
-    pub fn set_direction(&mut self, forward: bool) -> Result<(), AtomiError> {
-        if forward ^ self.revert_dir {
-            self.dir_pin.set_high().map_err(|_| AtomiError::GpioPinError)?;
-        } else {
-            self.dir_pin.set_low().map_err(|_| AtomiError::GpioPinError)?;
+    fn check_homed(&self) -> Result<(), AtomiError> {
+        if !self.is_home.load(Ordering::Relaxed) {
+            return Err(AtomiError::MmdStepperNeedToHome);
         }
         Ok(())
     }
 
-    pub fn set_speed(&mut self, speed: u32) {
-        self.speed = speed;
-        if self.speed != 0 {
-            self.wait_period = (1_000_000 / (speed * 2)) as u64;
-        }
+    pub async fn move_to_relative(&mut self, steps: i32, speed: u32) -> Result<i32, AtomiError> {
+        self.check_homed()?;
+        self.move_to_relative_internal(speed, steps).await
     }
 
-    // TODO:set_speed with acceleration, need test
-    //
-    // pub fn set_speed(&mut self, speed: u32, accl: u32) {
-    //     self.target_speed = speed;
-    //     self.current_speed = 0;
-    //     self.acceleration = accl;
-    // }
-
-    // pub fn update_current_speed(&mut self) {
-    //     if self.current_speed < self.target_speed {
-    //         self.current_speed = min(self.current_speed + self.acceleration, self.target_speed);
-    //         if self.current_speed > 0 {
-    //             self.wait_period = (1_000_000 / (self.current_speed * 2)) as u64;
-    //         }
-    //     }
-    // }
-
-    // pub async fn step(&mut self) -> Result<(), AtomiError> {
-    //     self.update_current_speed();
-    //     if self.speed == 0 {
-    //         return Err(AtomiError::MmdMoveWithZeroSpeed);
-    //     }
-    //     self.step_pin.set_high().map_err(|_| AtomiError::GpioPinError)?;
-    //     self.async_delay.delay(self.wait_period.micros()).await;
-    //     self.step_pin.set_low().map_err(|_| AtomiError::GpioPinError)?;
-    //     self.async_delay.delay(self.wait_period.micros()).await;
-    //     Ok(())
-    // }
-
-    pub async fn step(&mut self) -> Result<(), AtomiError> {
-        if self.speed == 0 {
-            return Err(AtomiError::MmdMoveWithZeroSpeed);
-        }
-        self.step_pin.set_high().map_err(|_| AtomiError::GpioPinError)?;
-        self.async_delay.delay(self.wait_period.micros()).await;
-        self.step_pin.set_low().map_err(|_| AtomiError::GpioPinError)?;
-        self.async_delay.delay(self.wait_period.micros()).await;
-        Ok(())
+    pub async fn move_to_relative_by_force(
+        &mut self,
+        steps: i32,
+        speed: u32,
+    ) -> Result<i32, AtomiError> {
+        self.move_to_relative_internal(speed, steps).await
     }
-    //
-    // pub async fn run(&mut self, steps: u32, speed: u32) -> Result<u32, T::Error> {
-    //     self.should_stop.store(false, Ordering::Relaxed);
-    //
-    //     let wait_period = 1_000_000 / (speed * 2) as u64;
-    //     for i in 0..steps {
-    //         if self.should_stop.load(Ordering::Relaxed) {
-    //             return Ok(i);
-    //         }
-    //         self.step_pin.set_high()?;
-    //         self.async_delay.delay(wait_period.micros()).await;
-    //         self.step_pin.set_low()?;
-    //         self.async_delay.delay(wait_period.micros()).await;
-    //     }
-    //     Ok(steps)
-    // }
-    //
-    // pub fn stop(&mut self) {
-    //     self.should_stop.store(true, Ordering::Relaxed)
-    // }
+
+    pub async fn move_to(&mut self, position: i32, speed: u32) -> Result<i32, AtomiError> {
+        if position < 0 {
+            return Err(AtomiError::MmdNotAcceptedPosition);
+        }
+        self.check_homed()?;
+        info!(
+            "[MMD] current pos = {}, to pos: {}, relative: {}",
+            self.current_position,
+            position,
+            position - self.current_position
+        );
+        self.move_to_relative_internal(speed, position - self.current_position).await
+    }
+
+    fn update_position_and_return(&mut self, delta: i32) -> Result<i32, AtomiError> {
+        debug!(
+            "[MMD] current pos: {}, new pos: {}",
+            self.current_position,
+            self.current_position + delta
+        );
+        self.current_position += delta;
+        Ok(delta)
+    }
+
+    pub fn get_limit_status(&mut self) -> (bool, bool) {
+        let l = self.limit_left.is_high().unwrap_or(false);
+        let r = self.limit_right.is_high().unwrap_or(false);
+        (l, r)
+    }
+
+    async fn move_to_relative_internal(
+        &mut self,
+        speed: u32,
+        steps: i32,
+    ) -> Result<i32, AtomiError> {
+        self.stepper.ensure_enable()?;
+
+        self.state.push(LinearMotionState::MOVING)?;
+        debug!("moving start, state: {}", self.state);
+
+        let moving_right = steps > 0;
+        self.stepper.set_speed(speed);
+        self.stepper.set_direction(moving_right).map_err(|e| {
+            self.state.pop();
+            e
+        })?;
+        for i in 0..steps.abs() {
+            if GLOBAL_STEPPER_STOP.load(Ordering::Relaxed) {
+                return Err(AtomiError::MmdStopped);
+            }
+            let l = self.limit_left.is_high().unwrap_or(false);
+            let r = self.limit_right.is_high().unwrap_or(false);
+            // info!(
+            //     "[MMD: Debug] moving_right = {}, limit_left = {}, limit_right = {}",
+            //     moving_right, l, r
+            // );
+            // 在每一步之前检查限位开关
+            if moving_right && r {
+                self.state.pop();
+                return self.update_position_and_return(i);
+            } else if !moving_right && l {
+                self.state.pop();
+                return self.update_position_and_return(-i);
+            }
+            self.stepper.step().await.map_err(|e| {
+                self.state.pop();
+                e
+            })?;
+        }
+        let result = self.update_position_and_return(steps);
+        self.state.pop();
+        debug!("moving done, state: {}", self.state);
+        result
+    }
 }

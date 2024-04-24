@@ -61,7 +61,7 @@ pub enum MmdCommand {
     MmdAck,
 
     MmdStop,
-    MmdLinearStepper(LinearStepperCommand),
+    MmdLinearStepper(StepperCommand),
     MmdRotationStepper(RotationStepperCommand),
     MmdDisperser(DispenserCommand),
     MmdPeristalticPump(PeristalticPumpCommand),
@@ -79,7 +79,7 @@ pub enum DtuCommand {
     DtuAck,
     DtuStop,
 
-    DtuLinear(LinearStepperCommand),
+    DtuLinear(StepperCommand),
 
     DtuBusy,
 }
@@ -122,7 +122,7 @@ pub enum RotationStepperCommand {
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
-pub enum LinearStepperCommand {
+pub enum StepperCommand {
     Home,                                           // wait
     MoveTo { position: i32, speed: u32 },           // wait
     MoveToRelative { steps: i32, speed: u32 },      // wait
@@ -140,7 +140,7 @@ pub enum RotationStepperResponse {
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
-pub enum LinearStepperResponse {
+pub enum StepperResponse {
     TriggerStatus(TriggerStatusResponse),
     Error(AtomiError),
     Done,

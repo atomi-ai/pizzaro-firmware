@@ -28,7 +28,7 @@ def calc(r_inner=510, r_outer=200, r_offset=27, ratio=83.6/400, n=5, max_rpm=300
             print("""
         self.mmd_move_to({pos}, 500).await?;
         self.mmd_pr({rpm}).await?;
-        self.wait_for_linear_stepper_available().await?;
+        self.wait_for_stepper_available().await?;
             Delay::new({delay}.millis()).await;""".format(delay=int(delay*1000*delay_c), pos=int(pos), rpm=int(rpm)))
         else:
             print("move_to:{}, r:{}, spd:{}, delay:{}".format(pos, r, rpm, delay*delay_c))
