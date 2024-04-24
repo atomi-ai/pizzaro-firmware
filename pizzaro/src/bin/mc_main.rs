@@ -34,23 +34,17 @@ use usbd_serial::SerialPort;
 use generic::atomi_proto::AtomiProto;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, now};
-use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
-use pizzaro::common::once::Once;
+use pizzaro::common::message_queue::MessageQueueInterface;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::weight_sensor::WeightSensors;
 use pizzaro::mc::system_executor::{process_executor_requests, McSystemExecutor, UartForwarder};
-use pizzaro::mc::{process_messages, process_ui_screen};
+use pizzaro::mc::{get_mc_mq, process_messages, process_ui_screen, USB_SERIAL};
 use pizzaro::{common::async_initialization, mc_sys_rx, mc_sys_tx};
 
 // TODO(lv): Put all static variables into GlobalContainer.
 static mut USB_DEVICE: Option<UsbDevice<hal::usb::UsbBus>> = None;
 static mut USB_BUS: Option<UsbBusAllocator<hal::usb::UsbBus>> = None;
-static mut USB_SERIAL: Option<SerialPort<hal::usb::UsbBus>> = None;
 //static mut UIUART: Option<UiUartType> = None;
-static mut FROM_PC_MESSAGE_QUEUE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
-fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
-    unsafe { FROM_PC_MESSAGE_QUEUE.get_mut() }
-}
 
 #[entry]
 fn main() -> ! {
@@ -221,7 +215,7 @@ unsafe fn USBCTRL_IRQ() {
                 debug!("xfguo: got data: ({}) {}", count, &buf);
                 match postcard::from_bytes::<AtomiProto>(&buf[..count]) {
                     Ok(message) => {
-                        get_mq().enqueue(message);
+                        get_mc_mq().enqueue(message);
                         debug!("{} | Received message: {:?}, added to mq", now().ticks(), message);
                     }
                     Err(err) => info!(
