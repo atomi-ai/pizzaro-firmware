@@ -107,19 +107,20 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
     async fn home_on_direction(&mut self, dir: LinearBullDirection) -> Result<i32, AtomiError> {
         self.state.push(LinearMotionState::HOMING)?;
         info!("home_on_direction 0, now = {}", now().ticks());
-        self.move_with_speed(dir.get_dir_seg() * 1.0, 10_000_000).await.map_err(|e| {
-            self.state.pop();
-            e
-        })?;
-        info!("home_on_direction 2, now = {}", now().ticks());
-        self.move_with_speed(dir.get_dir_seg() * -1.0, 1000).await.map_err(|e| {
-            self.state.pop();
-            e
-        })?;
-        info!("home_on_direction 4, now = {}", now().ticks());
         let t = self.move_with_speed(dir.get_dir_seg() * 1.0, 10_000_000).await;
+        // .map_err(|e| {
         self.state.pop();
-        info!("home_on_direction 9, now = {}", now().ticks());
+        //     e
+        // })?;
+        // info!("home_on_direction 2, now = {}", now().ticks());
+        // self.move_with_speed(dir.get_dir_seg() * -1.0, 1000).await.map_err(|e| {
+        //     self.state.pop();
+        //     e
+        // })?;
+        // info!("home_on_direction 4, now = {}", now().ticks());
+        // let t = self.move_with_speed(dir.get_dir_seg() * 1.0, 10_000_000).await;
+        // self.state.pop();
+        // info!("home_on_direction 9, now = {}", now().ticks());
         t
     }
 
@@ -167,7 +168,7 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
             // }
             // Only trigger PID when the position is changed.
             let speed = pid.calculate(pos, dt);
-            debug!("Current pos: {}, speed = {}, target = {}", pos, speed, target);
+            info!("Current pos: {}, speed = {}, target = {}", pos, speed, target);
             self.pwm_motor.apply_speed_freerun(speed, false);
         }
         self.pwm_motor.apply_speed(0.0);

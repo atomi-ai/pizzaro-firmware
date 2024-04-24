@@ -3,9 +3,9 @@ use defmt::{error, info, warn};
 use fugit::ExtU64;
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{
-    wrap_result_into_proto, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, McCommand,
-    McSystemExecutorCmd, McSystemExecutorResponse, MmdCommand, PeristalticPumpCommand,
-    RotationStepperCommand, StepperCommand,
+    wrap_result_into_proto, AtomiProto, DispenserCommand, DtuCommand, HpdCommand,
+    LinearBullCommand, McCommand, McSystemExecutorCmd, McSystemExecutorResponse, MmdCommand,
+    PeristalticPumpCommand, RotationStepperCommand, StepperCommand,
 };
 use generic::mmd_status::MmdStatus;
 
@@ -60,6 +60,29 @@ impl McSystemExecutor {
 
         // 异步读取响应长度 or timeout
         uart_comm.recv_timeout::<AtomiProto>(500.millis()).await
+    }
+
+    async fn wait_for_dtu_available(&mut self) -> Result<(), AtomiError> {
+        loop {
+            let t = self
+                .forward(AtomiProto::Dtu(DtuCommand::DtuLinear(StepperCommand::WaitIdle)))
+                .await;
+            match t {
+                Ok(AtomiProto::AtomiError(AtomiError::DtuUnavailable)) => {
+                    // info!("unavailable, retry...");
+                    Delay::new(500.millis()).await;
+                    continue;
+                }
+                Ok(_) => {
+                    // info!("ok: {}", r);
+                    return t.map(|_| ());
+                }
+                Err(_) => {
+                    // info!("errors: {}", e);
+                    return t.map(|_| ());
+                }
+            }
+        }
     }
 
     async fn wait_for_stepper_available(&mut self) -> Result<(), AtomiError> {
@@ -119,6 +142,12 @@ impl McSystemExecutor {
         let res = self
             .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(StepperCommand::Home)))
             .await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
+    async fn dtu_home(&mut self) -> Result<(), AtomiError> {
+        let res =
+            self.forward(AtomiProto::Dtu(DtuCommand::DtuLinear(StepperCommand::Home))).await?;
         expect_result(res, AtomiProto::Unknown)
     }
 
@@ -216,6 +245,16 @@ impl McSystemExecutor {
         expect_result(res, AtomiProto::Unknown)
     }
 
+    async fn dtu_move_to(&mut self, position: i32, speed: u32) -> Result<(), AtomiError> {
+        let res = self
+            .forward(AtomiProto::Dtu(DtuCommand::DtuLinear(StepperCommand::MoveTo {
+                position,
+                speed,
+            })))
+            .await?;
+        expect_result(res, AtomiProto::Unknown)
+    }
+
     async fn mmd_move_to(&mut self, position: i32, speed: u32) -> Result<(), AtomiError> {
         let res = self
             .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(StepperCommand::MoveTo {
@@ -254,12 +293,16 @@ impl McSystemExecutor {
         // Init the system
         self.mmd_stepper_home().await?;
         self.hpd_linear_bull_home().await?;
+        self.dtu_home().await?;
+
         self.mmd_pr_off().await?; // self.pr_set(off)
         self.mmd_pp_off().await?; // self.pp_set(off)
         self.mmd_dispenser_off(0).await?; // self.dispenser(0, off)
         self.mmd_belt_off().await?; // self.belt_set(off)
+
         self.wait_for_stepper_available().await?;
         self.wait_for_linear_bull_available().await?;
+        self.wait_for_dtu_available().await?;
         Ok(())
     }
 
@@ -404,18 +447,47 @@ impl McSystemExecutor {
     }
 
     pub async fn make_one_pizza(&mut self) -> Result<(), AtomiError> {
+        let hpd_end_pos = 10000; // 压饼的终点位置  56000
+        let hpd_dtu_pos = 49500; // 抬高到能让不沾铲插入的位置
+        let hpd_pre_end_pos = 53000; // 压饼之后抬高但并不会把饼带太高的位置，也即刚好等于饼松弛状态下的厚度
+        let hpd_dock_pos = 22000; // 平时压饼悬空的位置。
+
+        let dtu_insert_pos = 12000; // 不沾铲刚开始插入的位置
+        let dtu_end_pos = 45000; // 不沾铲伸出的极限位置
+
         // 压面团
-        self.hpd_move_to(53020).await?;
+        self.hpd_move_to(hpd_end_pos).await?;
         //self.hpd_move_to(22000).await?;
         self.wait_for_linear_bull_available().await?;
         Delay::new(3.secs()).await;
-        self.hpd_move_to(22000).await?;
+
+        // 抬高一点
+        self.hpd_move_to(hpd_dtu_pos).await?;
+        self.wait_for_linear_bull_available().await?;
+
+        // 铲入一部分
+        self.dtu_move_to(dtu_insert_pos, 5000).await?;
+        self.wait_for_dtu_available().await?;
+
+        // 压下去一点
+        self.hpd_move_to(hpd_pre_end_pos).await?;
+        self.wait_for_linear_bull_available().await?;
+
+        // 继续铲下去
+        self.dtu_move_to(dtu_end_pos, 5000).await?;
+        self.wait_for_dtu_available().await?;
+
+        // 抽回
+        self.dtu_move_to(0, 7000).await?;
+        self.wait_for_dtu_available().await?;
+
+        self.hpd_move_to(hpd_dock_pos).await?;
         self.wait_for_linear_bull_available().await?;
 
         // 涂番茄酱
-        self.squeeze_ketchup().await?;
+        //self.squeeze_ketchup().await?;
         // 撒起司
-        self.sprinkle_cheese().await?;
+        //self.sprinkle_cheese().await?;
 
         // 结束
         self.mmd_move_to(0, 500).await?;

@@ -7,7 +7,6 @@ extern crate alloc;
 use alloc::boxed::Box;
 use alloc::vec;
 use core::sync::atomic::Ordering;
-
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
 use defmt::{debug, error, info, Debug2Format};
@@ -38,6 +37,7 @@ use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::uart_comm::UartComm;
 use pizzaro::dtu::tmc_driver::TmcDriver;
+//use pizzaro::dtu::tmc_stepper_sensorless::TmcStepper;
 use pizzaro::dtu::tmc_stepper::TmcStepper;
 use pizzaro::dtu::tmc_stepper_processor::{
     dtu_stepper_input_mq, dtu_stepper_output_mq, process_dtu_stepper_message, TmcStepperProcessor,
@@ -121,6 +121,41 @@ fn main() -> ! {
             .unwrap();
         let (tmc_rx, tmc_tx) = tmc_2209_uart.split();
 
+        // 初始化tmc驱动
+        // let mut gconf = tmc2209::reg::GCONF::default();
+        // //gconf.set_en_spread_cycle(false);
+        // gconf.set_en_spread_cycle(true);
+
+        // let mut clear_gstat = tmc2209::reg::GSTAT::default();
+        // clear_gstat.clear_uv_cp(true);
+        // clear_gstat.clear_reset(true);
+        // clear_gstat.clear_drv_err(true);
+        // let mut ihold_run = tmc2209::reg::IHOLD_IRUN::default();
+        // ihold_run.set_ihold(25); // 运行电流
+        // ihold_run.set_irun(5); // 待机电流
+        // ihold_run.set_ihold_delay(1);
+        // let sgthres = tmc2209::reg::SGTHRS(100);
+        // let mut tpwmthrs = tmc2209::reg::TPWMTHRS::default();
+        // let mut chopconf = tmc2209::reg::CHOPCONF::default();
+        // tpwmthrs.set(500);
+        // chopconf.set_toff(5);
+        // chopconf.set_hend(1);
+        // chopconf.set_hstrt(4);
+        // chopconf.set_tbl(2);
+        // chopconf.set_mres(0);
+
+        // let addr = 0;
+        // tmc2209::send_write_request(addr, gconf, &mut tmc_tx, &mut tmc_rx)
+        //     .expect("write gconf err");
+        // tmc2209::send_write_request(addr, clear_gstat, &mut tmc_tx, &mut tmc_rx)
+        //     .expect("write clear gstat err");
+        // tmc2209::send_write_request(addr, chopconf, &mut tmc_tx, &mut tmc_rx)
+        //     .expect("write chopconf err");
+        // tmc2209::send_write_request(addr, ihold_run, &mut tmc_tx, &mut tmc_rx)
+        //     .expect("write ihold_run err");
+        // tmc2209::send_write_request(addr, sgthres, &mut tmc_tx, &mut tmc_rx)
+        //     .expect("write sgthres err");
+
         // tmc_uart_tx.set_low().unwrap();
         // 使用第一个通道连接驱动伸缩的电机
         let enable_pin = dtu_stepper_nEN!(pins).into_push_pull_output();
@@ -130,11 +165,11 @@ fn main() -> ! {
         let left_limit_pin = dtu_limit0!(pins).into_pull_down_input();
         let right_limit_pin = dtu_limit1!(pins).into_pull_down_input();
 
-        let stepper = TmcStepper::new(
-            TmcDriver::new(enable_pin, dir_pin, step_pin, delay_creator, false, tmc_tx, tmc_rx, 0),
-            left_limit_pin,
-            right_limit_pin,
-        );
+        let mut tmc_driver =
+            TmcDriver::new(enable_pin, dir_pin, step_pin, delay_creator, true, tmc_tx, tmc_rx, 0);
+        tmc_driver.init_tmc_parameters(25, 5, Some(100)).expect("init tmc error");
+
+        let stepper = TmcStepper::new(tmc_driver, left_limit_pin, right_limit_pin);
         let processor = TmcStepperProcessor::new(stepper);
         spawn_task(process_dtu_stepper_message(processor));
     }
@@ -269,3 +304,71 @@ unsafe fn UART0_IRQ() {
         }
     }
 }
+
+// type UartPinsType = (Pin<Gpio8, FunctionUart, PullUp>, Pin<Gpio9, FunctionUart, PullUp>);
+
+// fn read_reg<R: ReadableRegister>(
+//     tx: &mut Writer<UART1, UartPinsType>,
+//     rx: &mut Reader<UART1, UartPinsType>,
+//     tmc_reader: &mut tmc2209::Reader,
+// ) -> Option<R> {
+//     let mut buffer = [0u8; 32];
+//     tmc2209::send_read_request::<R, _, _>(0, tx, rx).unwrap();
+
+//     let mut timeout = 50000u64;
+//     loop {
+//         match rx.read_raw(&mut buffer) {
+//             Ok(bytes) => {
+//                 // info!("bytes:{}, buffer:{}", bytes, buffer);
+//                 timeout = 50000u64;
+//                 let (_processed_bytes, tmc_response) = tmc_reader.read_response(&buffer[..bytes]);
+//                 // info!(
+//                 //     "processed bytes: {}, recv bytes: {}",
+//                 //     processed_bytes, bytes
+//                 // );
+//                 let res = if let Some(response) = tmc_response {
+//                     if !response.crc_is_valid() {
+//                         error!("Received invalid response!");
+//                         return None;
+//                     }
+//                     // info!("Received valid response: {}", Debug2Format(&response));
+//                     match response.reg_addr() {
+//                         Ok(addr) => {
+//                             // info!("xfguo: addr = {}, R::ADDR = {}", Debug2Format(&addr), Debug2Format(&R::ADDRESS));
+//                             if addr == R::ADDRESS {
+//                                 let reg = response.register::<R>().unwrap();
+//                                 // info!("xfguo: {}: {}", Debug2Format(&R::ADDRESS), Debug2Format(&reg));
+//                                 Some(reg)
+//                             } else {
+//                                 None
+//                             }
+//                         }
+//                         _ => None,
+//                     }
+//                 } else {
+//                     None
+//                 };
+//                 if res.is_none() {
+//                     continue;
+//                 }
+//                 return res;
+//             }
+//             Err(nb::Error::WouldBlock) => {
+//                 if timeout > 0 {
+//                     timeout -= 1;
+//                     delay(10);
+//                     continue;
+//                 } else {
+//                     error!("timeout in reading");
+//                     return None;
+//                 }
+//             }
+//             Err(_) => {
+//                 error!("Errors in read data");
+//                 return None;
+//             }
+//         }
+//     }
+// }
+
+//type UartPinsType = (Pin<Gpio8, FunctionUart, PullUp>, Pin<Gpio9, FunctionUart, PullUp>);

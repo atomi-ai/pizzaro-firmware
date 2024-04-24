@@ -288,10 +288,14 @@ where
         }
         Some("move_to") => {
             if let Ok(position) = parse_int(tokens.next()) {
-                AtomiProto::Dtu(DtuCommand::DtuLinear(StepperCommand::MoveTo {
-                    position,
-                    speed: FAST_SPEED,
-                }))
+                if let Ok(speed) = parse_int(tokens.next()) {
+                    AtomiProto::Dtu(DtuCommand::DtuLinear(StepperCommand::MoveTo {
+                        position,
+                        speed: speed as u32,
+                    }))
+                } else {
+                    AtomiProto::Unknown
+                }
             } else {
                 AtomiProto::Unknown
             }

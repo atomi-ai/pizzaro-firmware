@@ -1,7 +1,6 @@
 use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
 use embedded_hal::serial::{Read, Write};
 use fugit::ExtU64;
-
 use generic::atomi_error::AtomiError;
 
 use crate::common::{global_timer::AsyncDelay, tmc2209};
@@ -65,9 +64,18 @@ impl<
         &mut self,
         irun: u8,
         ihold: u8,
-        stallguard_thres: u32,
+        stallguard_thres: Option<u32>,
     ) -> Result<(), AtomiError> {
-        let gconf = tmc2209::reg::GCONF::default();
+        let mut gconf = tmc2209::reg::GCONF::default();
+        let sgthres = if let Some(sgt) = stallguard_thres {
+            // enter stealth chop mode to enable sensorless
+            gconf.set_en_spread_cycle(false);
+            Some(tmc2209::reg::SGTHRS(sgt))
+        } else {
+            // enter spread cycle mode
+            gconf.set_en_spread_cycle(true);
+            None
+        };
         let mut clear_gstat = tmc2209::reg::GSTAT::default();
         clear_gstat.clear_uv_cp(true);
         clear_gstat.clear_reset(true);
@@ -80,7 +88,7 @@ impl<
         // let mut amax = tmc2209::reg::AMAX::default();
         let mut tpwmthrs = tmc2209::reg::TPWMTHRS::default();
         let mut chopconf = tmc2209::reg::CHOPCONF::default();
-        let sgthres = tmc2209::reg::SGTHRS(stallguard_thres);
+
         ihold_run.set_ihold(ihold);
         ihold_run.set_irun(irun);
         ihold_run.set_ihold_delay(1);
@@ -104,16 +112,20 @@ impl<
             .map_err(|_| AtomiError::DtuTMCWriteRequestError)?;
         tmc2209::send_write_request(addr, ihold_run, &mut self.uart_tx, &mut self.uart_rx)
             .map_err(|_| AtomiError::DtuTMCWriteRequestError)?;
-        tmc2209::send_write_request(addr, sgthres, &mut self.uart_tx, &mut self.uart_rx)
-            .map_err(|_| AtomiError::DtuTMCWriteRequestError)?;
+        if let Some(sgthres) = sgthres {
+            tmc2209::send_write_request(addr, sgthres, &mut self.uart_tx, &mut self.uart_rx)
+                .map_err(|_| AtomiError::DtuTMCWriteRequestError)?;
+        }
         Ok(())
     }
     //
     pub fn enable(&mut self) -> Result<(), AtomiError> {
+        // info!("tmc driver enable");
         self.enable_pin.set_low().map_err(|_| AtomiError::GpioPinError)
     }
 
     pub fn disable(&mut self) -> Result<(), AtomiError> {
+        // info!("tmc driver disable");
         self.enable_pin.set_high().map_err(|_| AtomiError::GpioPinError)
     }
 
@@ -152,7 +164,14 @@ impl<
         Ok(())
     }
 
-    // TODO(zephyr): 现在还不需要speed mode，暂时删掉下面代码。
+    // pub fn sg_result(&mut self) -> Result<tmc2209::reg::SG_RESULT, AtomiError> {
+    //     let reader = tmc2209::Reader::default();
+    //     Ok(self
+    //         .read_reg::<tmc2209::reg::SG_RESULT>(&mut self.uart_tx, &mut self.uart_rx, &mut reader)
+    //         .expect("read failed"))
+    // }
+
+    // todo(zephyr): 现在还不需要speed mode，暂时删掉下面代码。
     // // TODO:set_speed with acceleration, need test
     // pub fn set_speed(&mut self, speed: u32, accl: u32) {
     //     self.target_speed = speed;
@@ -200,4 +219,71 @@ impl<
     // pub fn stop(&mut self) {
     //     self.should_stop.store(true, Ordering::Relaxed)
     // }
+
+    // fn read_reg<R: ReadableRegister>(
+    //     tx: &mut U,
+    //     rx: &mut X,
+    //     tmc_reader: &mut tmc2209::Reader,
+    // ) -> Option<R> {
+    //     let mut buffer = [0u8; 32];
+    //     tmc2209::send_read_request::<R, _, _>(0, tx, rx).unwrap();
+
+    //     let mut timeout = 50000u64;
+    //     loop {
+    //         match rx.read_raw(&mut buffer) {
+    //             Ok(bytes) => {
+    //                 // info!("bytes:{}, buffer:{}", bytes, buffer);
+    //                 timeout = 50000u64;
+    //                 let (_processed_bytes, tmc_response) =
+    //                     tmc_reader.read_response(&buffer[..bytes]);
+    //                 // info!(
+    //                 //     "processed bytes: {}, recv bytes: {}",
+    //                 //     processed_bytes, bytes
+    //                 // );
+    //                 let res = if let Some(response) = tmc_response {
+    //                     if !response.crc_is_valid() {
+    //                         error!("Received invalid response!");
+    //                         return None;
+    //                     }
+    //                     // info!("Received valid response: {}", Debug2Format(&response));
+    //                     match response.reg_addr() {
+    //                         Ok(addr) => {
+    //                             // info!("xfguo: addr = {}, R::ADDR = {}", Debug2Format(&addr), Debug2Format(&R::ADDRESS));
+    //                             if addr == R::ADDRESS {
+    //                                 let reg = response.register::<R>().unwrap();
+    //                                 // info!("xfguo: {}: {}", Debug2Format(&R::ADDRESS), Debug2Format(&reg));
+    //                                 Some(reg)
+    //                             } else {
+    //                                 None
+    //                             }
+    //                         }
+    //                         _ => None,
+    //                     }
+    //                 } else {
+    //                     None
+    //                 };
+    //                 if res.is_none() {
+    //                     continue;
+    //                 }
+    //                 return res;
+    //             }
+    //             Err(nb::Error::WouldBlock) => {
+    //                 if timeout > 0 {
+    //                     timeout -= 1;
+    //                     delay(10);
+    //                     continue;
+    //                 } else {
+    //                     error!("timeout in reading");
+    //                     return None;
+    //                 }
+    //             }
+    //             Err(_) => {
+    //                 error!("Errors in read data");
+    //                 return None;
+    //             }
+    //         }
+    //     }
+    // }
 }
+
+// type UartPinsType = (Pin<Gpio8, FunctionUart, PullUp>, Pin<Gpio9, FunctionUart, PullUp>);
