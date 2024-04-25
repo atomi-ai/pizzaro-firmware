@@ -115,10 +115,12 @@ impl McSystemExecutor {
                 .await;
 
             // Check pressure.
-            let (w1, w2, w3, w4) = self.weight_sensors.get_all_weights().await;
-            if w1 + w2 + w3 + w4 > LINEAR_BULL_MAX_PRESSURE {
-                return self.hpd_stop().await;
-            }
+            // TODO: To Zephyr, HPD stop not working
+            // let (w1, w2, w3, w4) = self.weight_sensors.get_all_weights().await;
+            // if w1 + w2 + w3 + w4 > LINEAR_BULL_MAX_PRESSURE {
+            //     info!("hpd stop due to exceed max pressure:{} {} {} {} ", w1, w2, w3, w4);
+            //     return self.hpd_stop().await;
+            // }
 
             match t {
                 Ok(AtomiProto::AtomiError(AtomiError::HpdUnavailable)) => {
@@ -447,9 +449,9 @@ impl McSystemExecutor {
     }
 
     pub async fn make_one_pizza(&mut self) -> Result<(), AtomiError> {
-        let hpd_end_pos = 10000; // 压饼的终点位置  56000
+        let hpd_end_pos = 56500; // 压饼的终点位置  56000
         let hpd_dtu_pos = 49500; // 抬高到能让不沾铲插入的位置
-        let hpd_pre_end_pos = 53000; // 压饼之后抬高但并不会把饼带太高的位置，也即刚好等于饼松弛状态下的厚度
+        let hpd_pre_end_pos = 54000; // 压饼之后抬高但并不会把饼带太高的位置，也即刚好等于饼松弛状态下的厚度
         let hpd_dock_pos = 22000; // 平时压饼悬空的位置。
 
         let dtu_insert_pos = 12000; // 不沾铲刚开始插入的位置

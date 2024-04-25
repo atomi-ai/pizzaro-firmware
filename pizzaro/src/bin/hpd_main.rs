@@ -9,7 +9,7 @@ use core::sync::atomic::Ordering;
 
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
-use defmt::{debug, error, info, Debug2Format};
+use defmt::{debug, error, info, warn, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::multicore::{Multicore, Stack};
@@ -171,14 +171,18 @@ async fn hpd_process_messages() {
                 }
 
                 AtomiProto::Hpd(HpdCommand::HpdStop) => {
+                    //info!("pre stop1, linear_bull_available:{}", linear_bull_available);
                     if !linear_bull_available {
                         GLOBAL_LINEAR_BULL_STOP.store(true, Ordering::Relaxed);
+                        //info!("set linear_bull stop");
                         loop {
                             if let Some(resp) = linear_bull_output_mq().dequeue() {
-                                info!("linear bull resp: {}", resp);
+                                //info!("linear bull resp: {}", resp);
                                 assert_eq!(resp, LinearBullResponse::Error(AtomiError::HpdStopped));
                                 break;
                             }
+                            //info!("await");
+                            Delay::new(1.millis()).await;
                         }
                         linear_bull_available = true;
                         GLOBAL_LINEAR_BULL_STOP.store(false, Ordering::Relaxed);
@@ -206,7 +210,10 @@ async fn hpd_process_messages() {
                         Err(AtomiError::HpdUnavailable)
                     }
                 }
-                _ => Err(AtomiError::IgnoredMsg), // Ignore unrelated commands
+                unknown => {
+                    warn!("message ignored: {}", unknown);
+                    Err(AtomiError::IgnoredMsg)
+                } // Ignore unrelated commands
             };
             if let Err(err) = res {
                 info!("[HPD] message processing error: {}", err);

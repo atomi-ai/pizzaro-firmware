@@ -130,6 +130,8 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
         for _ in 0..repeat_times {
             Delay::new(1.millis()).await;
             if GLOBAL_LINEAR_BULL_STOP.load(Ordering::Relaxed) {
+                // info!("stop flag got");
+                self.pwm_motor.apply_speed(0.0);
                 return Err(AtomiError::HpdStopped);
             }
             if self.linear_scale.is_stationary() {
@@ -154,6 +156,8 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
         loop {
             Delay::new(1.millis()).await;
             if GLOBAL_LINEAR_BULL_STOP.load(Ordering::Relaxed) {
+                // info!("stop flag got");
+                self.pwm_motor.apply_speed(0.0);
                 return Err(AtomiError::HpdStopped);
             }
             let pos = self.linear_scale.get_rel_position().map_err(|e| {
@@ -168,7 +172,7 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
             // }
             // Only trigger PID when the position is changed.
             let speed = pid.calculate(pos, dt);
-            info!("Current pos: {}, speed = {}, target = {}", pos, speed, target);
+            // info!("Current pos: {}, speed = {}, target = {}", pos, speed, target);
             self.pwm_motor.apply_speed_freerun(speed, false);
         }
         self.pwm_motor.apply_speed(0.0);
