@@ -183,7 +183,7 @@ fn main() -> ! {
     }
 }
 
-// MMD main future
+// DTU main future
 async fn dtu_process_messages() {
     debug!("[DTU] dtu_process_messages 0");
     let (uart, uart_dir) = unsafe { UART.as_mut().unwrap() };
@@ -191,7 +191,7 @@ async fn dtu_process_messages() {
     let mut dtu_stepper_available = true;
     loop {
         if let Some(message) = get_mq().dequeue() {
-            info!("[MMD] process_messages() 1.1 | dequeued message: {}", message);
+            info!("[DTU] process_messages() 1.1 | dequeued message: {}", message);
 
             // 处理消息
             let res = match message {
@@ -238,7 +238,7 @@ async fn dtu_process_messages() {
                                 info!("stepper_resp: {}", stepper_resp);
                                 assert_eq!(
                                     stepper_resp,
-                                    StepperResponse::Error(AtomiError::MmdStopped)
+                                    StepperResponse::Error(AtomiError::DtuStopped)
                                 );
                                 break;
                             }
@@ -253,13 +253,13 @@ async fn dtu_process_messages() {
             };
 
             if let Err(err) = res {
-                info!("[MMD] message processing error: {}", err);
+                info!("[DTU] message processing error: {}", err);
                 continue;
             }
         }
 
         if let Some(stepper_resp) = dtu_stepper_output_mq().dequeue() {
-            info!("[MMD] get response from linear stepper: {}", stepper_resp);
+            info!("[DTU] get response from linear stepper: {}", stepper_resp);
             dtu_stepper_available = true;
         }
 

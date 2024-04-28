@@ -38,6 +38,9 @@ pub enum McCommand {
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum McSystemExecutorCmd {
+    WeightSensorInit,
+    GetWeight,
+
     ExecuteOneFullRun,
     InitSystem,
     MakePizza,
@@ -50,6 +53,7 @@ pub enum McSystemExecutorResponse {
     ForwardResponse(AtomiProto),
     FinishedOneFullRun,
     Error(AtomiError),
+    Weight(i32),
     Done,
 }
 

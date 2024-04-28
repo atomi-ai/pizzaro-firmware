@@ -147,7 +147,7 @@ fn main() -> ! {
             false,
             MMD_BRUSHLESS_MOTOR_PWM_TOP,
         );
-        let dispenser1_motor = BrushlessMotor::new(
+        let mut dispenser1_motor = BrushlessMotor::new(
             mmd_dir_bl1!(pins).into_push_pull_output().into_dyn_pin(),
             pwm1,
             MmdBrushlessMotor1Channel,
@@ -155,6 +155,7 @@ fn main() -> ! {
             false,
             MMD_BRUSHLESS_MOTOR_PWM_TOP,
         );
+        dispenser1_motor.apply_speed(0.98);
         let dispenser_motor_processor =
             DispenserMotorProcessor::new(dispenser0_motor, dispenser1_motor);
 

@@ -25,6 +25,7 @@ pub enum AtomiError {
 
     McLockedForSystemRun,
     McForwardTimeout,
+    McWeightSensorNotInited,
 
     MmdUnavailable(MmdStatus),
     MmdStepperHomingError,

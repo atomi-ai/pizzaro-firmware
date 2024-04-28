@@ -1,5 +1,5 @@
 use cortex_m::asm::delay;
-use defmt::{error, info, warn};
+use defmt::{debug, error, info, warn};
 use fugit::ExtU64;
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{
@@ -35,6 +35,7 @@ pub struct McSystemExecutor {
     uart: UartType,
     uart_dir: Option<UartDirType>,
     weight_sensors: WeightSensors,
+    weight_zero_values: Option<[u32; 4]>,
 }
 
 impl McSystemExecutor {
@@ -43,7 +44,7 @@ impl McSystemExecutor {
         uart_dir: Option<UartDirType>,
         weight_sensors: WeightSensors,
     ) -> Self {
-        Self { uart, uart_dir, weight_sensors }
+        Self { uart, uart_dir, weight_sensors, weight_zero_values: None }
     }
 
     fn get_uart_comm(&mut self) -> UartComm<'_, UartDirType, UartType> {
@@ -108,6 +109,26 @@ impl McSystemExecutor {
         }
     }
 
+    async fn weight_sensor_init(&mut self) -> Result<(), AtomiError> {
+        let (w1, w2, w3, w4) = self.weight_sensors.get_all_weights().await;
+        debug!("raw weight values: {}, {}, {}, {}", w1, w2, w3, w4);
+        self.weight_zero_values = Some([w1, w2, w3, w4]);
+        Ok(())
+    }
+
+    async fn calc_weight(&mut self) -> Result<i32, AtomiError> {
+        let (w1, w2, w3, w4) = self.weight_sensors.get_all_weights().await;
+        debug!("raw weight values: {}, {}, {}, {}", w1, w2, w3, w4);
+        if let Some([zw1, zw2, zw3, zw4]) = self.weight_zero_values {
+            let w_sum = w1 as i32 - zw1 as i32 + w2 as i32 - zw2 as i32 + w3 as i32 - zw3 as i32
+                + w4 as i32
+                - zw4 as i32;
+            Ok(w_sum)
+        } else {
+            Err(AtomiError::McWeightSensorNotInited)
+        }
+    }
+
     async fn wait_for_linear_bull_available(&mut self) -> Result<(), AtomiError> {
         loop {
             let t = self
@@ -116,11 +137,14 @@ impl McSystemExecutor {
 
             // Check pressure.
             // TODO: To Zephyr, HPD stop not working
-            // let (w1, w2, w3, w4) = self.weight_sensors.get_all_weights().await;
-            // if w1 + w2 + w3 + w4 > LINEAR_BULL_MAX_PRESSURE {
-            //     info!("hpd stop due to exceed max pressure:{} {} {} {} ", w1, w2, w3, w4);
-            //     return self.hpd_stop().await;
-            // }
+            // DONE: HPD stop issue fixed
+
+            if let Ok(weight) = self.calc_weight().await {
+                if weight > 0 && weight as u32 > LINEAR_BULL_MAX_PRESSURE {
+                    info!("hpd stop due to exceed max pressure: {}", weight);
+                    return self.hpd_stop().await;
+                }
+            }
 
             match t {
                 Ok(AtomiProto::AtomiError(AtomiError::HpdUnavailable)) => {
@@ -291,11 +315,22 @@ impl McSystemExecutor {
         // }
     }
 
+    pub async fn vibratory_on(&mut self) -> Result<(), AtomiError> {
+        //-1000 ~ -1的转速范围会启动振动马达，1-1000的转速范围马达会被掐断供电
+        //-1000转速最低，-1转速最高
+        self.mmd_dispenser(1, -1).await // set vibratory motor to maximum speed
+    }
+
+    pub async fn vibratory_off(&mut self) -> Result<(), AtomiError> {
+        self.mmd_dispenser(1, 980).await // set vibratory motor to slow speed
+    }
+
     pub async fn system_init(&mut self) -> Result<(), AtomiError> {
         // Init the system
         self.mmd_stepper_home().await?;
         self.hpd_linear_bull_home().await?;
         self.dtu_home().await?;
+        self.vibratory_off().await?; // set vibratory motor to slow state
 
         self.mmd_pr_off().await?; // self.pr_set(off)
         self.mmd_pp_off().await?; // self.pp_set(off)
@@ -305,13 +340,15 @@ impl McSystemExecutor {
         self.wait_for_stepper_available().await?;
         self.wait_for_linear_bull_available().await?;
         self.wait_for_dtu_available().await?;
+
+        self.weight_sensor_init().await?;
         Ok(())
     }
 
     pub async fn squeeze_ketchup(&mut self) -> Result<(), AtomiError> {
         // 挤番茄酱
         // init
-        self.mmd_pr(300).await?;
+        self.mmd_pr(200).await?;
         self.mmd_pp(-300).await?;
 
         self.mmd_move_to(200, 500).await?;
@@ -328,6 +365,10 @@ impl McSystemExecutor {
         self.mmd_pr(381).await?;
         self.wait_for_stepper_available().await?;
         Delay::new(3617.millis()).await;
+
+        // 加速度
+        self.mmd_pr(500).await?;
+        Delay::new(300.millis()).await;
 
         self.mmd_move_to(510, 500).await?;
         self.mmd_pr(611).await?;
@@ -354,15 +395,22 @@ impl McSystemExecutor {
 
         // 传送带伸出去
         self.mmd_move_to(510, 400).await?;
+
         // 转盘启动
         self.mmd_pr((459_f32 * spd_amp1) as i32).await?;
         // 等待传送带运行就位
         self.wait_for_stepper_available().await?;
+
+        // 加速度
+        self.mmd_pr(620).await?;
+        Delay::new(200.millis()).await;
+
         // 转盘达到正式速度
         self.mmd_pr((759_f32 * spd_amp1) as i32).await?;
 
         // init
         // 初始化，料斗启动，正转
+        self.vibratory_on().await?;
         self.mmd_dispenser(0, DISPENSER_ON_SPEED).await?;
         // 传送带启动
         self.mmd_belt_on().await?;
@@ -399,6 +447,11 @@ impl McSystemExecutor {
         // // 抵消反转造成的非连续性
         // Delay::new(((delay_revert) as u64).millis()).await;
         //        Delay::new(((delay_revert) as u64).millis()).await;
+
+        // 加速度
+        self.mmd_pr(200).await?;
+        Delay::new(200.millis()).await;
+
         // 启动转盘
         self.mmd_pr((421_f32 * spd_amp2) as i32).await?;
         // 等待撒完
@@ -433,10 +486,20 @@ impl McSystemExecutor {
         // 下面要跳过一小块区域，这里容易产生堆积
         // 暂停传送带
         self.mmd_belt_off().await?;
+
+        // 加速度
+        self.mmd_pr(500).await?;
+        Delay::new(200.millis()).await;
+
         // 转盘提速
         self.mmd_pr(700).await?;
         // 等转过去一点再启动
         Delay::new(600_u64.millis()).await;
+
+        // 加速度
+        self.mmd_pr(500).await?;
+        Delay::new(200.millis()).await;
+
         // 转盘恢复之前的速度
         self.mmd_pr((292_f32 * spd_amp3) as i32).await?;
         // 恢复传送带速度
@@ -444,14 +507,15 @@ impl McSystemExecutor {
 
         // 等待传送带上剩余起司全部送出
         self.mmd_dispenser_off(0).await?;
+        self.vibratory_off().await?;
         Delay::new(1800u64.millis()).await;
         Ok(())
     }
 
     pub async fn make_one_pizza(&mut self) -> Result<(), AtomiError> {
-        let hpd_end_pos = 56500; // 压饼的终点位置  56000
+        let hpd_end_pos = 56800; // 压饼的终点位置  56000
         let hpd_dtu_pos = 49500; // 抬高到能让不沾铲插入的位置
-        let hpd_pre_end_pos = 54000; // 压饼之后抬高但并不会把饼带太高的位置，也即刚好等于饼松弛状态下的厚度
+        let hpd_pre_end_pos = 55000; // 压饼之后抬高但并不会把饼带太高的位置，也即刚好等于饼松弛状态下的厚度
         let hpd_dock_pos = 22000; // 平时压饼悬空的位置。
 
         let dtu_insert_pos = 12000; // 不沾铲刚开始插入的位置
@@ -459,7 +523,6 @@ impl McSystemExecutor {
 
         // 压面团
         self.hpd_move_to(hpd_end_pos).await?;
-        //self.hpd_move_to(22000).await?;
         self.wait_for_linear_bull_available().await?;
         Delay::new(3.secs()).await;
 
@@ -487,9 +550,9 @@ impl McSystemExecutor {
         self.wait_for_linear_bull_available().await?;
 
         // 涂番茄酱
-        //self.squeeze_ketchup().await?;
+        self.squeeze_ketchup().await?;
         // 撒起司
-        //self.sprinkle_cheese().await?;
+        self.sprinkle_cheese().await?;
 
         // 结束
         self.mmd_move_to(0, 500).await?;
@@ -524,6 +587,15 @@ pub async fn process_executor_requests(mut executor: McSystemExecutor) {
     loop {
         Delay::new(1.millis()).await;
         match mq_in.dequeue() {
+            Some(AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::WeightSensorInit))) => {
+                error_or_done(executor.weight_sensor_init().await, mq_out);
+            }
+            Some(AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::GetWeight))) => {
+                match executor.calc_weight().await {
+                    Ok(weight) => mq_out.enqueue(McSystemExecutorResponse::Weight(weight)),
+                    Err(err) => mq_out.enqueue(McSystemExecutorResponse::Error(err)),
+                }
+            }
             Some(AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::StopSystem))) => {
                 info!("To stop the system");
                 error_or_done(executor.system_stop().await, mq_out);

@@ -46,7 +46,7 @@ impl<S: SliceId> BrushlessMotor<S> {
         Ok(())
     }
 
-    pub(crate) fn apply_speed(&mut self, speed: f32) {
+    pub fn apply_speed(&mut self, speed: f32) {
         // speed范围-1.0~1.0
         // 这里duty需要注意，静止为0.5，但最小最大值不能到0-1.0，必须限制在大致0.03~0.97的范围内。
         // 此外，因为阻力的缘故，启动速度也要加一个偏置，比如0.54才开始转。

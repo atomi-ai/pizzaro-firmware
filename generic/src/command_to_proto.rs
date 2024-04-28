@@ -37,6 +37,10 @@ where
         Some("autorun") => {
             AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::ExecuteOneFullRun))
         }
+        Some("weightinit") => {
+            AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::WeightSensorInit))
+        }
+        Some("weight") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::GetWeight)),
         Some("init") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::InitSystem)),
         Some("make") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::MakePizza)),
         Some("stop") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::StopSystem)),
