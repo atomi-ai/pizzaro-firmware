@@ -19,13 +19,13 @@ use generic::atomi_proto::{
     AtomiProto, MmdCommand, PeristalticPumpCommand, StepperCommand, StepperResponse,
 };
 use generic::mmd_status::MmdStatus;
+use pizzaro::bsp::board_mmd_release_sb::{
+    MmdBrushMotorChannel, MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel,
+    MmdMotor42Step1Channel, MmdMotor57StepChannel,
+};
 use pizzaro::bsp::config::{
     MMD_BRUSHLESS_MOTOR_PWM_TOP, MMD_PERISTALTIC_PUMP_PWM_TOP, REVERT_MMD_STEPPER42_0_DIRECTION,
     REVERT_MMD_STEPPER42_1_DIRECTION, REVERT_MMD_STEPPER57_DIRECTION,
-};
-use pizzaro::bsp::{
-    MmdBrushMotorChannel, MmdBrushlessMotor0Channel, MmdBrushlessMotor1Channel,
-    MmdMotor42Step1Channel, MmdMotor57StepChannel,
 };
 use pizzaro::common::brush_motor_patch::BrushMotorPatched;
 use pizzaro::common::brushless_motor::BrushlessMotor;

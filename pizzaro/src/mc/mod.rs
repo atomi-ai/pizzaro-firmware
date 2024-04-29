@@ -1,4 +1,4 @@
-use crate::bsp::{McUartDirPinType, McUartType, McUiUartType};
+use crate::bsp::board_mc_release_sb::{McUartDirPinType, McUartType, McUiUartType};
 use crate::common::consts::UI_UART_MAX_RESPONSE_LENGTH;
 use crate::common::global_timer::Delay;
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};

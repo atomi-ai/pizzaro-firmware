@@ -8,7 +8,7 @@ use alloc::boxed::Box;
 use cortex_m::peripheral::NVIC;
 use defmt::{debug, info, Debug2Format};
 use fugit::RateExtU32;
-use pizzaro::bsp::mc_ui_uart_irq;
+use pizzaro::bsp::board_mc_release_sb::mc_ui_uart_irq;
 use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};
 use pizzaro::{
     mc_cap_dout0, mc_cap_dout1, mc_cap_dout2, mc_cap_dout3, mc_cap_sck0, mc_cap_sck1, mc_cap_sck2,
