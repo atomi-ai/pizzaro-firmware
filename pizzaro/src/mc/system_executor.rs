@@ -4,9 +4,9 @@ use fugit::ExtU64;
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{
-    wrap_result_into_proto, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand,
-    LinearStepperCommand, McCommand, McSystemExecutorCmd, McSystemExecutorResponse, MmdCommand,
-    PeristalticPumpCommand, RotationStepperCommand,
+    wrap_result_into_proto, AtomiProto, DispenserCommand, HpdCommand, LinearBullCommand, McCommand,
+    McSystemExecutorCmd, McSystemExecutorResponse, MmdCommand, PeristalticPumpCommand,
+    RotationStepperCommand, StepperCommand,
 };
 use generic::mmd_status::MmdStatus;
 
@@ -120,9 +120,7 @@ impl<F: Forwarder> McSystemExecutor<F> {
     async fn wait_for_linear_stepper_available(&mut self) -> Result<(), AtomiError> {
         loop {
             let t = self
-                .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                    LinearStepperCommand::WaitIdle,
-                )))
+                .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(StepperCommand::WaitIdle)))
                 .await;
             match t {
                 Ok(AtomiProto::AtomiError(AtomiError::MmdUnavailable(MmdStatus::Unavailable))) => {
@@ -174,7 +172,7 @@ impl<F: Forwarder> McSystemExecutor<F> {
 
     async fn mmd_linear_stepper_home(&mut self) -> Result<(), AtomiError> {
         let res = self
-            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(LinearStepperCommand::Home)))
+            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(StepperCommand::Home)))
             .await?;
         expect_result(res, AtomiProto::Unknown)
     }
@@ -274,10 +272,11 @@ impl<F: Forwarder> McSystemExecutor<F> {
     }
 
     async fn mmd_move_to(&mut self, position: i32, speed: u32) -> Result<(), AtomiError> {
-        let res =
-            self.forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(
-                LinearStepperCommand::MoveTo { position, speed },
-            )))
+        let res = self
+            .forward(AtomiProto::Mmd(MmdCommand::MmdLinearStepper(StepperCommand::MoveTo {
+                position,
+                speed,
+            })))
             .await?;
         expect_result(res, AtomiProto::Unknown)
     }
