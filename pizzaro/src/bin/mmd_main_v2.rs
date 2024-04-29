@@ -16,7 +16,7 @@ use rp_pico::XOSC_CRYSTAL_FREQ;
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{
-    AtomiProto, LinearStepperCommand, LinearStepperResponse, MmdCommand, PeristalticPumpCommand,
+    AtomiProto, MmdCommand, PeristalticPumpCommand, StepperCommand, StepperResponse,
 };
 use generic::mmd_status::MmdStatus;
 use pizzaro::bsp::config::{
@@ -39,16 +39,15 @@ use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper}
 use pizzaro::common::once::Once;
 use pizzaro::common::pwm_stepper::PwmStepper;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
+use pizzaro::common::stepper_driver::StepperDriver;
 use pizzaro::mmd::brush_motor_processor::MmdPeristalicPumpProcessor;
 use pizzaro::mmd::brushless_motor_processor::DispenserMotorProcessor;
-use pizzaro::mmd::linear_stepper::LinearStepper;
-use pizzaro::mmd::linear_stepper_processor::{
-    linear_stepper_input_mq, linear_stepper_output_mq, process_mmd_linear_stepper_message,
-    LinearStepperProcessor,
-};
 use pizzaro::mmd::rotation_stepper_processor::RotationStepperProcessor;
 use pizzaro::mmd::stepper::Stepper;
-use pizzaro::mmd::GLOBAL_LINEAR_STEPPER_STOP;
+use pizzaro::mmd::stepper_processor::{
+    process_mmd_stepper_message, stepper_input_mq, stepper_output_mq, LinearStepperProcessor,
+};
+use pizzaro::mmd::GLOBAL_STEPPER_STOP;
 use pizzaro::{common::async_initialization, mmd_sys_rx, mmd_sys_tx};
 use pizzaro::{
     mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel, mmd_bl2_ctl_pwm_slice,
@@ -187,8 +186,8 @@ fn main() -> ! {
         let left_limit_pin = mmd_limit0!(pins).into_pull_down_input();
         let right_limit_pin = mmd_limit1!(pins).into_pull_down_input();
         let delay_creator = DelayCreator::new();
-        let processor = LinearStepperProcessor::new(LinearStepper::new(
-            Stepper::new(
+        let processor = LinearStepperProcessor::new(Stepper::new(
+            StepperDriver::new(
                 enable_pin,
                 dir_pin,
                 step_pin,
@@ -198,7 +197,7 @@ fn main() -> ! {
             left_limit_pin,
             right_limit_pin,
         ));
-        spawn_task(process_mmd_linear_stepper_message(processor));
+        spawn_task(process_mmd_stepper_message(processor));
     }
     {
         // 使用第二个通道连接驱动传送带旋转的电机
@@ -242,7 +241,7 @@ fn main() -> ! {
 
     // spawn_task(dump_executor_status());
     start_global_executor();
-    GLOBAL_LINEAR_STEPPER_STOP.store(false, Ordering::Relaxed);
+    GLOBAL_STEPPER_STOP.store(false, Ordering::Relaxed);
 
     loop {
         info!("in loop");
@@ -275,7 +274,7 @@ async fn mmd_process_messages() {
                 MmdCommand::MmdStop => {
                     if !mmd_linear_stepper_available {
                         // If linear_stepper is running, stop it directly.
-                        GLOBAL_LINEAR_STEPPER_STOP.store(true, Ordering::Relaxed);
+                        GLOBAL_STEPPER_STOP.store(true, Ordering::Relaxed);
                     }
 
                     // Stop other components.
@@ -288,23 +287,22 @@ async fn mmd_process_messages() {
                     if !mmd_linear_stepper_available {
                         // wait till the linear_stepper is stopped.
                         loop {
-                            if let Some(linear_stepper_resp) = linear_stepper_output_mq().dequeue()
-                            {
+                            if let Some(linear_stepper_resp) = stepper_output_mq().dequeue() {
                                 info!("linear_stepper_resp: {}", linear_stepper_resp);
                                 assert_eq!(
                                     linear_stepper_resp,
-                                    LinearStepperResponse::Error(AtomiError::MmdStopped)
+                                    StepperResponse::Error(AtomiError::MmdStopped)
                                 );
                                 break;
                             }
                         }
-                        GLOBAL_LINEAR_STEPPER_STOP.store(false, Ordering::Relaxed);
+                        GLOBAL_STEPPER_STOP.store(false, Ordering::Relaxed);
                         mmd_linear_stepper_available = true;
                     }
                     get_can_messenger().send_raw(resp_id, MmdCommand::MmdAck)
                 }
 
-                MmdCommand::MmdLinearStepper(LinearStepperCommand::WaitIdle) => {
+                MmdCommand::MmdLinearStepper(StepperCommand::WaitIdle) => {
                     // // 处理wait idle 不能受 mmd_linear_stepper_available限制，先用这个办法workaround掉
                     // let res = uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck));
                     // linear_stepper_input_mq().enqueue(LinearStepperCommand::WaitIdle);
@@ -322,7 +320,7 @@ async fn mmd_process_messages() {
                 MmdCommand::MmdLinearStepper(cmd) => {
                     if mmd_linear_stepper_available {
                         let res = get_can_messenger().send_raw(resp_id, MmdCommand::MmdAck);
-                        linear_stepper_input_mq().enqueue(cmd);
+                        stepper_input_mq().enqueue(cmd);
                         mmd_linear_stepper_available = false;
                         res
                     } else {
@@ -363,7 +361,7 @@ async fn mmd_process_messages() {
             }
         }
 
-        if let Some(linear_stepper_resp) = linear_stepper_output_mq().dequeue() {
+        if let Some(linear_stepper_resp) = stepper_output_mq().dequeue() {
             info!("[MMD] get response from linear stepper: {}", linear_stepper_resp);
             mmd_linear_stepper_available = true;
         }
