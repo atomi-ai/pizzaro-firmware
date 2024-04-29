@@ -1,4 +1,4 @@
-use crate::bsp::MmdPeristalicPumpMotorType;
+use crate::bsp::board_mmd_release_sb::MmdPeristalicPumpMotorType;
 
 pub struct MmdPeristalicPumpProcessor {
     peristaltic_pump_motor: MmdPeristalicPumpMotorType,

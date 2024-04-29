@@ -1,4 +1,4 @@
-use crate::bsp::{McUartDirPinType, McUartType, McUiUartType};
+use crate::bsp::board_mc_release_sb::{McUartDirPinType, McUartType, McUiUartType};
 
 pub mod system_executor;
 pub mod touch_screen;

@@ -16,8 +16,8 @@ use rp2040_hal::{clocks::init_clocks_and_plls, pac, sio::Sio, watchdog::Watchdog
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 use ws2812_pio::Ws2812Direct;
 
+use pizzaro::bsp::board_mmd_release_sb::MmdBrushMotorChannel;
 use pizzaro::bsp::config::MMD_PERISTALTIC_PUMP_PWM_TOP;
-use pizzaro::bsp::MmdBrushMotorChannel;
 use pizzaro::common::async_initialization;
 use pizzaro::common::brush_motor_patch::BrushMotorPatched;
 use pizzaro::common::executor::{spawn_task, start_global_executor};

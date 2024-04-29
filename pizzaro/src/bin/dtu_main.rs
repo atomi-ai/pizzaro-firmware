@@ -27,7 +27,7 @@ use rp_pico::XOSC_CRYSTAL_FREQ;
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::DtuCommand::{self};
 use generic::atomi_proto::{AtomiProto, StepperCommand, StepperResponse};
-use pizzaro::bsp::{dtu_uart_irq, DtuUartDirPinType, DtuUartType};
+use pizzaro::bsp::board_dtu_release_sb::{dtu_uart_irq, DtuUartDirPinType, DtuUartType};
 use pizzaro::common::async_initialization;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};

@@ -26,7 +26,7 @@ use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::mmd::rotation_stepper_processor::RotationStepperProcessor;
 use pizzaro::smart_led;
 use pizzaro::{
-    bsp::{MmdMotor42Step1Channel, MmdMotor57StepChannel},
+    bsp::board_mmd_release_sb::{MmdMotor42Step1Channel, MmdMotor57StepChannel},
     mmd_motor42_pwm_slice1, mmd_motor42_step1_channel, mmd_stepper42_dir1, mmd_stepper42_nEN1,
     mmd_stepper42_step1, mmd_stepper57_dir, mmd_stepper57_nEN, mmd_stepper57_pwm_slice,
     mmd_stepper57_step, mmd_stepper57_step_channel,

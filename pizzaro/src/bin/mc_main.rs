@@ -8,7 +8,7 @@ use alloc::boxed::Box;
 use cortex_m::peripheral::NVIC;
 use defmt::{debug, error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
-use pizzaro::bsp::{mc_ui_uart_irq, McUiUartType};
+use pizzaro::bsp::board_mc_release_sb::{mc_ui_uart_irq, McUiUartType};
 use pizzaro::common::uart::uart_read;
 use pizzaro::mc::touch_screen::TouchScreenEnum;
 use pizzaro::{mc_485_dir, mc_uart, mc_ui_uart, mc_ui_uart_rx, mc_ui_uart_tx};

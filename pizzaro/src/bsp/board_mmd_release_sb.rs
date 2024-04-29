@@ -1,49 +1,24 @@
-// BSP version: 1.5.4
-use rp2040_hal::gpio::bank0::{Gpio0, Gpio1};
-use rp2040_hal::{
-    gpio::{
-        bank0::{
-            Gpio11, Gpio12, Gpio13, Gpio18, Gpio21, Gpio22, Gpio26, Gpio27, Gpio4, Gpio5, Gpio8,
-            Gpio9,
-        },
-        DynPinId, FunctionSio, FunctionSioOutput, FunctionUart, Pin, PullDown, PullUp, SioInput,
-        SioOutput,
-    },
-    pac::{Interrupt, UART0, UART1},
-    pwm::{Pwm0, Pwm1, Pwm4, Pwm5, Pwm6},
-    uart::{Enabled, UartPeripheral},
+/// BSP version: Spring_Begins
+///
+/// TODO(zephyr): Add schematic pdf below.
+///
+/// MMD Schematic: [[url]]
+use crate::common::brush_motor_patch::BrushMotorPatched;
+use crate::common::brushless_motor::BrushlessMotor;
+use crate::common::pwm_stepper::{PwmChannels, PwmStepper};
+use crate::define_pins;
+use rp2040_hal::gpio::bank0::{Gpio11, Gpio18, Gpio21, Gpio22, Gpio26, Gpio27, Gpio4, Gpio5};
+use rp2040_hal::gpio::{
+    DynPinId, FunctionSio, FunctionSioOutput, FunctionUart, Pin, PullDown, PullUp, SioInput,
+    SioOutput,
 };
-
-use crate::common::stepper_driver::StepperDriver;
-use crate::{
-    common::{
-        brush_motor_patch::BrushMotorPatched,
-        brushless_motor::BrushlessMotor,
-        global_timer::DelayCreator,
-        pwm_stepper::{PwmChannels, PwmStepper},
-    },
-    define_pins,
-    mmd::stepper::Stepper,
-};
-
-pub type HpdUartPins = (Pin<Gpio8, FunctionUart, PullDown>, Pin<Gpio9, FunctionUart, PullDown>);
-pub type HpdUartType = UartPeripheral<Enabled, UART1, HpdUartPins>;
-pub type HpdUartDirPinType = Pin<Gpio12, FunctionSioOutput, PullUp>;
+use rp2040_hal::pac::{Interrupt, UART1};
+use rp2040_hal::pwm::{Pwm0, Pwm1, Pwm4, Pwm5, Pwm6};
+use rp2040_hal::uart::{Enabled, UartPeripheral};
 
 pub type MmdUartPins = (Pin<Gpio4, FunctionUart, PullDown>, Pin<Gpio5, FunctionUart, PullDown>);
 pub type MmdUartType = UartPeripheral<Enabled, UART1, MmdUartPins>;
 pub type MmdUartDirPinType = Pin<Gpio21, FunctionSioOutput, PullUp>;
-
-pub type DtuUartPins = (Pin<Gpio0, FunctionUart, PullDown>, Pin<Gpio1, FunctionUart, PullDown>);
-pub type DtuUartType = UartPeripheral<Enabled, UART0, DtuUartPins>;
-pub type DtuUartDirPinType = Pin<Gpio18, FunctionSioOutput, PullUp>;
-
-pub type McUartPins = (Pin<Gpio12, FunctionUart, PullDown>, Pin<Gpio13, FunctionUart, PullDown>);
-pub type McUartType = UartPeripheral<Enabled, UART0, McUartPins>;
-pub type McUartDirPinType = Pin<Gpio11, FunctionSioOutput, PullUp>;
-
-pub type McUiScreenPins = (Pin<Gpio8, FunctionUart, PullDown>, Pin<Gpio9, FunctionUart, PullDown>);
-pub type McUiUartType = UartPeripheral<Enabled, UART1, McUiScreenPins>;
 
 /// 使用第二个通道连接驱动传送带旋转的电机
 // 42 motor1(and check pins defined in macros)
@@ -69,20 +44,6 @@ pub type MmdStepper42_0DirPinType = Pin<Gpio18, FunctionSio<SioOutput>, PullDown
 pub type MmdStepper42_0StepPinType = Pin<Gpio11, FunctionSio<SioOutput>, PullDown>;
 pub type MmdLimitSwitch0 = Pin<Gpio26, FunctionSio<SioInput>, PullDown>;
 pub type MmdLimitSwitch1 = Pin<Gpio27, FunctionSio<SioInput>, PullDown>;
-pub type ConveyorBeltLinearStepperType = StepperDriver<
-    MmdStepper42_0EnablePinType,
-    MmdStepper42_0DirPinType,
-    MmdStepper42_0StepPinType,
-    DelayCreator,
->;
-pub type ConveyorBeltLinearBullType = Stepper<
-    MmdLimitSwitch0,
-    MmdLimitSwitch1,
-    MmdStepper42_0EnablePinType,
-    MmdStepper42_0DirPinType,
-    MmdStepper42_0StepPinType,
-    DelayCreator,
->;
 
 // 57 motor(and check pins defined in macros)
 #[allow(non_upper_case_globals)]
@@ -97,33 +58,14 @@ pub type MmdPresserMotorEnablePinType = Pin<DynPinId, FunctionSio<SioOutput>, Pu
 pub type MmdPeristalicPumpMotorType = BrushMotorPatched<Pwm0, MmdPresserMotorEnablePinType>;
 
 define_pins! {
-    mc_uart, UART0,
-    mc_ui_uart, UART1,
-    mmd_uart, UART1,
-    hpd_uart, UART1,
-    dtu_uart, UART0
-}
-
-pub fn hpd_uart_irq() -> Interrupt {
-    Interrupt::UART1_IRQ
+    mmd_uart, UART1
 }
 
 pub fn mmd_uart_irq() -> Interrupt {
     Interrupt::UART1_IRQ
 }
 
-pub fn dtu_uart_irq() -> Interrupt {
-    Interrupt::UART0_IRQ
-}
-
-pub fn mc_ui_uart_irq() -> Interrupt {
-    Interrupt::UART1_IRQ
-}
-
 define_pins! {
-    // ws2812b led on mc/mmd/hpd
-    smart_led, gpio16,
-
     // rollback to HW version V1.5.1
     // MMD: MultiMotorDriver
     // brush motor
@@ -166,63 +108,7 @@ define_pins! {
     //mmd_proximity_sensor1, gpio19, // not exists
     // limit switchs
     mmd_limit0, gpio26,
-    mmd_limit1, gpio27,
-
-
-    // HPD: HighPowerMotorDriver
-    // 150w brush motor
-    hpd_br_pwm_a, gpio0,
-    hpd_br_pwm_b, gpio1,
-    hpd_br_nEN, gpio2,
-    // PWM fan
-    hpd_fan_en, gpio3,
-    hpd_fan_speed_sense, gpio4,
-    hpd_fan_speed_ctrl, gpio6,
-    // 485 interface
-    hpd_sys_tx, gpio8,
-    hpd_sys_rx, gpio9,
-    hpd_485_dir, gpio12,
-    // optical linear scale
-    hpd_opt_a, gpio10,
-    hpd_opt_b, gpio11,
-    // safety barrier
-    hpd_safety_barrier, gpio14,
-
-    // MC: MainController
-    mc_cap_sck0, gpio0,
-    mc_cap_dout0, gpio1,
-    mc_cap_sck1, gpio2,
-    mc_cap_dout1, gpio3,
-    mc_cap_sck2, gpio4,
-    mc_cap_dout2, gpio5,
-    mc_cap_sck3, gpio6,
-    mc_cap_dout3, gpio7,
-    mc_ui_uart_tx, gpio8,
-    mc_ui_uart_rx, gpio9,
-    mc_485_dir, gpio11,
-    mc_sys_tx, gpio12,
-    mc_sys_rx, gpio13,
-    mc_emstop, gpio14,
-    mc_emled, gpio15,
-
-    // DTU: Detacher Unit
-    dtu_sys_tx, gpio0,
-    dtu_sys_rx, gpio1,
-    dtu_485_dir, gpio18,
-    dtu_stepper_step, gpio2,
-    dtu_stepper_dir, gpio3,
-    dtu_stepper_nEN, gpio24,
-    dtu_stepper_diag, gpio19,
-    dtu_limit0, gpio26,
-    dtu_limit1, gpio27,
-    dtu_tmc_uart_tx, gpio8,
-    dtu_tmc_uart_rx, gpio9,
-
-    demo_pwm_a, gpio0,
-    demo_pwm_b, gpio1,
-    demo_pwm_en, gpio2,
-    demo_ols_a, gpio10,
-    demo_ols_b, gpio11
+    mmd_limit1, gpio27
 }
 
 #[macro_export]
@@ -241,10 +127,7 @@ define_pins! {
     mmd_bl2_ctl_pwm_slice, pwm5,
     mmd_bl1_sense_pwm_slice, pwm1,
     mmd_bl2_sense_pwm_slice, pwm3,
-    mmd_br0_pwm_slice, pwm0,
-    hpd_motor_pwm_slice, pwm0,
-
-    demo_pwm_slice, pwm0
+    mmd_br0_pwm_slice, pwm0
 }
 
 // define pwm channel
@@ -256,13 +139,7 @@ define_pins! {
     mmd_br_channel_a, channel_a,
     mmd_br_channel_b, channel_b,
 
-    hpd_motor_pwm_a_channel, channel_a,
-    hpd_motor_pwm_b_channel, channel_b,
-
     mmd_motor42_step0_channel, channel_b,
     mmd_motor42_step1_channel, channel_b,
-    mmd_stepper57_step_channel, channel_b,
-
-    demo_pwm_channel_a, channel_a,
-    demo_pwm_channel_b, channel_b
+    mmd_stepper57_step_channel, channel_b
 }

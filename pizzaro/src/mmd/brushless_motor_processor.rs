@@ -1,9 +1,8 @@
+use crate::bsp::board_mmd_release_sb::{MmdDisperser0MotorType, MmdDisperser1MotorType};
 use generic::{
     atomi_error::AtomiError,
     atomi_proto::{DispenserCommand, DispenserResponse},
 };
-
-use crate::bsp::{MmdDisperser0MotorType, MmdDisperser1MotorType};
 
 pub struct DispenserMotorProcessor {
     dispenser0_motor: MmdDisperser0MotorType,

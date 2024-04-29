@@ -27,10 +27,10 @@ use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{AtomiProto, HpdCommand, LinearBullCommand, LinearBullResponse};
+use pizzaro::bsp::board_hpd_release_sb::{hpd_uart_irq, HpdUartType};
 use pizzaro::bsp::config::{
     HPD_BR_DRIVER_N_EN, HPD_BR_THRESHOLD, HPD_MOTOR150_PWM_TOP, REVERT_HPD_BR_DIRECTION,
 };
-use pizzaro::bsp::{hpd_uart_irq, HpdUartType};
 use pizzaro::common::async_initialization;
 use pizzaro::common::brush_motor::BrushMotor;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
@@ -46,7 +46,9 @@ use pizzaro::hpd::linear_bull_processor::{
 };
 use pizzaro::hpd::linear_scale::{core1_task, read_and_update_linear_scale};
 use pizzaro::hpd::GLOBAL_LINEAR_BULL_STOP;
-use pizzaro::{bsp::HpdUartDirPinType, hpd_485_dir, hpd_sys_rx, hpd_sys_tx, hpd_uart};
+use pizzaro::{
+    bsp::board_hpd_release_sb::HpdUartDirPinType, hpd_485_dir, hpd_sys_rx, hpd_sys_tx, hpd_uart,
+};
 use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b};
 
 struct GlobalContainer {
