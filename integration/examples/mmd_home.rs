@@ -15,7 +15,6 @@ use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
 use ws2812_pio::Ws2812Direct;
 
 use pizzaro::bsp::config::REVERT_MMD_STEPPER42_0_DIRECTION;
-use pizzaro::bsp::ConveyorBeltLinearBullType;
 use pizzaro::common::async_initialization;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, AsyncDelay, DelayCreator};

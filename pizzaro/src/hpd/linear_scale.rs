@@ -1,10 +1,10 @@
-use defmt::{Debug2Format, info};
+use defmt::{debug, Debug2Format};
 use embedded_hal::digital::v2::InputPin;
 use fugit::ExtU64;
-use rp2040_hal::{pac, Sio};
 use rp2040_hal::pac::{PIO0, RESETS};
 use rp2040_hal::pio::{PIOExt, Rx, SM0};
 use rp2040_hal::sio::SioFifo;
+use rp2040_hal::{pac, Sio};
 use rp_pico::hal;
 
 use generic::atomi_error::AtomiError;
@@ -81,9 +81,17 @@ pub async fn read_linear_scale_with_pio(mut rx: Rx<(PIO0, SM0)>, linear_scale: &
 }
 
 // TODO(zephyr): Use PIOExt / SM instead of PIO0.
-pub fn init_quadrature_encoder<P: PIOExt>(encoder_pin0_id: u8, pio0: P, reset: &mut RESETS) -> Result<Rx<(P, SM0)>, AtomiError> {
+pub fn init_quadrature_encoder<P: PIOExt>(
+    encoder_pin0_id: u8,
+    pio0: P,
+    reset: &mut RESETS,
+) -> Result<Rx<(P, SM0)>, AtomiError> {
     let encoder_program = pio_proc::pio_file!("src/hpd/quadrature_encoder.pio");
-    info!("encoder_program = {:?}, encoder_pin0_id = {}", Debug2Format(&encoder_program.program), encoder_pin0_id);
+    debug!(
+        "encoder_program = {:?}, encoder_pin0_id = {}",
+        Debug2Format(&encoder_program.program),
+        encoder_pin0_id
+    );
 
     // Initialize and start PIO
     let (mut pio, sm0, _, _, _) = pio0.split(reset);
