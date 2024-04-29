@@ -1,9 +1,7 @@
-use crate::bsp::MmdPresserMotorType;
+use crate::bsp::board_mmd_release_sb::{ConveyorBeltRotationMotorType, MmdPresserMotorType};
 use defmt::info;
 use generic::atomi_proto::{AtomiProto, MmdCommand};
 use generic::{atomi_error::AtomiError, atomi_proto::RotationStepperCommand};
-
-use crate::bsp::ConveyorBeltRotationMotorType;
 
 pub struct RotationStepperProcessor {
     conveyor_rotation_stepper: ConveyorBeltRotationMotorType,

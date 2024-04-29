@@ -1,14 +1,13 @@
 mod board_helper;
 
-#[cfg(feature = "bsp_early_release")]
-pub mod board_early_release;
-#[cfg(feature = "bsp_early_release")]
-pub use board_early_release::*;
-
-// #[cfg(feature = "bsp_v1_5_4")]
-// mod board_v1_5_4;
-// #[cfg(feature = "bsp_v1_5_4")]
-// pub use board_v1_5_4::*;
-
-// pub use self::board::*;
 pub mod config;
+
+/// BSP configs for version Spring_Begins.
+///
+/// TODO(zephyr): Please create schematic pdf, and add corresponding url in
+/// board_ files for development.
+pub mod board_dtu_release_sb;
+pub mod board_hpd_release_sb;
+pub mod board_mc_release_sb;
+pub mod board_mmd_release_sb;
+pub mod board_shared_release_sb;
