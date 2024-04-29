@@ -8,13 +8,13 @@ use alloc::boxed::Box;
 use cortex_m::asm::delay;
 use defmt::info;
 use fugit::ExtU64;
-use rp2040_hal::{entry, pac, Timer, Watchdog};
 use rp2040_hal::clocks::init_clocks_and_plls;
+use rp2040_hal::{entry, pac, Timer, Watchdog};
 use rp_pico::XOSC_CRYSTAL_FREQ;
 
 use pizzaro::common::async_initialization;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{Delay, init_global_timer};
+use pizzaro::common::global_timer::{init_global_timer, Delay};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::hpd::hpd_misc::LinearScale;
 use pizzaro::hpd::linear_scale::{init_quadrature_encoder, read_linear_scale_with_pio};
@@ -42,8 +42,8 @@ fn main() -> ! {
         &mut pac.RESETS,
         &mut watchdog,
     )
-        .ok()
-        .unwrap();
+    .ok()
+    .unwrap();
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
 
@@ -53,7 +53,8 @@ fn main() -> ! {
     let linear_scale_rc0 = unsafe { GLOBAL_CONTAINER.linear_scale.as_mut().unwrap() };
     let linear_scale_rc1 = unsafe { GLOBAL_CONTAINER.linear_scale.as_mut().unwrap() };
     {
-        let rx = init_quadrature_encoder(LINEAR_SCALE_PIN_A_ID, pac.PIO0, &mut pac.RESETS).expect("init pio error");
+        let rx = init_quadrature_encoder(LINEAR_SCALE_PIN_A_ID, pac.PIO0, &mut pac.RESETS)
+            .expect("init pio error");
         spawn_task(read_linear_scale_with_pio(rx, linear_scale_rc0));
     }
 
@@ -71,7 +72,10 @@ fn main() -> ! {
 
 pub async fn log_linear_scale(linear_scale: &LinearScale) {
     loop {
-        info!("Current relative position of the linear scale: {:?}", linear_scale.get_rel_position());
+        info!(
+            "Current relative position of the linear scale: {:?}",
+            linear_scale.get_rel_position()
+        );
         Delay::new(500.millis()).await;
     }
 }
