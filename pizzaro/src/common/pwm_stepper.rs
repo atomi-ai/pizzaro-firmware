@@ -1,6 +1,6 @@
+use cortex_m::prelude::_embedded_hal_PwmPin;
 use defmt::{debug, info, warn};
-use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
-use embedded_hal::PwmPin;
+use embedded_hal::digital::{OutputPin, StatefulOutputPin};
 use fugit::HertzU32;
 use generic::atomi_error::AtomiError;
 use rp2040_hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, SioOutput};

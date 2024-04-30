@@ -7,7 +7,7 @@ use alloc::boxed::Box;
 
 use cortex_m::asm::delay;
 use defmt::info;
-use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
+use embedded_hal::digital::{OutputPin, StatefulOutputPin};
 use rp2040_hal::clocks::init_clocks_and_plls;
 use rp2040_hal::fugit::ExtU64;
 use rp2040_hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, SioOutput};

@@ -27,7 +27,7 @@ use rp2040_hal::{
 use rp_pico::hal::pac::interrupt;
 use rp_pico::{entry, hal, XOSC_CRYSTAL_FREQ};
 use usb_device::bus::UsbBusAllocator;
-use usb_device::device::{UsbDevice, UsbDeviceBuilder, UsbVidPid};
+use usb_device::device::{StringDescriptors, UsbDevice, UsbDeviceBuilder, UsbVidPid};
 use usb_device::UsbError;
 use usbd_serial::SerialPort;
 
@@ -158,11 +158,13 @@ fn main() -> ! {
 
         // Create a USB device with a fake VID and PID
         let usb_dev = UsbDeviceBuilder::new(bus_ref, UsbVidPid(0x16c0, 0x27dd))
-            .manufacturer("Fake company")
-            .product("Serial port")
-            .serial_number("TEST")
-            .device_class(2) // from: https://www.usb.org/defined-class-codes
+            .strings(&[StringDescriptors::default()
+                .manufacturer("RIIR Task Force")
+                .product("Keyberon")
+                .serial_number(env!("CARGO_PKG_VERSION"))])
+            .expect("Failed to configure UsbDeviceBuilder")
             .build();
+
         unsafe {
             // Note (safety): This is safe as interrupts haven't been started yet
             USB_DEVICE = Some(usb_dev);

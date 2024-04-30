@@ -1,5 +1,5 @@
 use defmt::{debug, info};
-use embedded_hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin};
+use embedded_hal::digital::{InputPin, OutputPin, StatefulOutputPin};
 use fugit::ExtU64;
 
 use generic::atomi_error::AtomiError;

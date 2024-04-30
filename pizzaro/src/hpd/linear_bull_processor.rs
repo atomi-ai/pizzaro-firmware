@@ -1,6 +1,6 @@
 use core::sync::atomic::Ordering;
 use defmt::{debug, info, Debug2Format};
-use embedded_hal::digital::v2::StatefulOutputPin;
+use embedded_hal::digital::StatefulOutputPin;
 use fugit::ExtU64;
 
 use generic::atomi_error::AtomiError;

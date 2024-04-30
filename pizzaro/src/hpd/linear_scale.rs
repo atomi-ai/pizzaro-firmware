@@ -1,5 +1,5 @@
 use defmt::{debug, Debug2Format};
-use embedded_hal::digital::v2::InputPin;
+use embedded_hal::digital::InputPin;
 use fugit::ExtU64;
 use rp2040_hal::pac::{PIO0, RESETS};
 use rp2040_hal::pio::{PIOExt, Rx, SM0};
@@ -18,8 +18,8 @@ pub fn core1_task() -> ! {
     let mut sio = Sio::new(pac.SIO);
     let pins = hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
-    let gpio10 = pins.gpio10.into_floating_input();
-    let gpio11 = pins.gpio11.into_floating_input();
+    let mut gpio10 = pins.gpio10.into_floating_input();
+    let mut gpio11 = pins.gpio11.into_floating_input();
     let (mut x, mut y) = (true, false);
     let mut pos = 0i32;
     let mut count = 0;
@@ -95,7 +95,7 @@ pub fn init_quadrature_encoder<P: PIOExt>(
     // Initialize and start PIO
     let (mut pio, sm0, _, _, _) = pio0.split(reset);
     let installed = pio.install(&encoder_program.program).unwrap();
-    let (mut sm, rx, _) = rp2040_hal::pio::PIOBuilder::from_program(installed)
+    let (mut sm, rx, _) = rp2040_hal::pio::PIOBuilder::from_installed_program(installed)
         .in_shift_direction(hal::pio::ShiftDirection::Left)
         .out_shift_direction(hal::pio::ShiftDirection::Right)
         .jmp_pin(encoder_pin0_id)

@@ -9,7 +9,7 @@ use core::sync::atomic::Ordering;
 
 use cortex_m::asm::delay;
 use defmt::{debug, info, Debug2Format};
-use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::digital::OutputPin;
 use fugit::ExtU64;
 use rp2040_hal::{clocks::init_clocks_and_plls, entry, pac, sio::Sio, watchdog::Watchdog, Timer};
 use rp_pico::XOSC_CRYSTAL_FREQ;

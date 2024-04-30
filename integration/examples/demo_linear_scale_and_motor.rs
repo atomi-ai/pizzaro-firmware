@@ -6,9 +6,9 @@ extern crate alloc;
 use alloc::boxed::Box;
 
 use cortex_m::asm::delay;
+use cortex_m::prelude::_embedded_hal_PwmPin;
 use defmt::info;
-use embedded_hal::digital::v2::{InputPin, OutputPin};
-use embedded_hal::PwmPin;
+use embedded_hal::digital::{InputPin, OutputPin};
 use fugit::ExtU64;
 use hal::gpio::DynPinId;
 use rp2040_hal::clocks::init_clocks_and_plls;
@@ -32,8 +32,8 @@ fn core1_task() -> ! {
     let mut sio = Sio::new(pac.SIO);
     let pins = hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
-    let ols_a = pins.gpio10.into_floating_input();
-    let ols_b = pins.gpio11.into_floating_input();
+    let mut ols_a = pins.gpio10.into_floating_input();
+    let mut ols_b = pins.gpio11.into_floating_input();
     let (mut x, mut y) = (true, false);
     let mut pos = 0i32;
     let mut count = 0;
