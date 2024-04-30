@@ -24,7 +24,6 @@ use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
 use pizzaro::common::pwm_stepper::PwmStepper;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::mmd::rotation_stepper_processor::RotationStepperProcessor;
-use pizzaro::smart_led;
 use pizzaro::{
     bsp::board_mmd_release_sb::{MmdMotor42Step1Channel, MmdMotor57StepChannel},
     mmd_motor42_pwm_slice1, mmd_motor42_step1_channel, mmd_stepper42_dir1, mmd_stepper42_nEN1,
@@ -64,7 +63,7 @@ fn main() -> ! {
             (1, 1, 1).into(),
             (0, 0, 0).into(),
             Ws2812Direct::new(
-                smart_led!(pins).into_function().into_dyn_pin(),
+                pins.gpio16.into_function().into_dyn_pin(),
                 &mut pio,
                 sm0,
                 clocks.peripheral_clock.freq(),

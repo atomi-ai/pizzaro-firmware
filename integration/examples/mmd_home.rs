@@ -23,7 +23,7 @@ use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::stepper_driver::StepperDriver;
 use pizzaro::mmd::stepper::{Stepper, FAST_SPEED};
 use pizzaro::{
-    mmd_limit0, mmd_limit1, mmd_stepper42_dir0, mmd_stepper42_nEN0, mmd_stepper42_step0, smart_led,
+    mmd_limit0, mmd_limit1, mmd_stepper42_dir0, mmd_stepper42_nEN0, mmd_stepper42_step0,
 };
 
 #[entry]
@@ -78,7 +78,7 @@ fn main() -> ! {
             (1, 1, 1).into(),
             (0, 0, 0).into(),
             Ws2812Direct::new(
-                smart_led!(pins).into_function().into_dyn_pin(),
+                pins.gpio16.into_function().into_dyn_pin(),
                 &mut pio,
                 sm0,
                 clocks.peripheral_clock.freq(),

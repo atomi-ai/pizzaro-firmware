@@ -32,7 +32,7 @@ use pizzaro::mmd::brushless_motor_processor::DispenserMotorProcessor;
 use pizzaro::{
     mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel, mmd_bl2_ctl_pwm_slice,
     mmd_br0_pwm_slice, mmd_br_channel_a, mmd_br_nEN, mmd_br_pwm_a, mmd_br_pwm_b, mmd_dir_bl0,
-    mmd_dir_bl1, mmd_spd_ctrl_bl0, mmd_spd_ctrl_bl1, smart_led,
+    mmd_dir_bl1, mmd_spd_ctrl_bl0, mmd_spd_ctrl_bl1,
 };
 
 static mut BRUSHLESS_MOTOR_PROCESSOR: Option<DispenserMotorProcessor> = None;
@@ -70,7 +70,7 @@ fn main() -> ! {
             (1, 1, 1).into(),
             (0, 0, 0).into(),
             Ws2812Direct::new(
-                smart_led!(pins).into_function().into_dyn_pin(),
+                pins.gpio16.into_function().into_dyn_pin(),
                 &mut pio,
                 sm0,
                 clocks.peripheral_clock.freq(),
