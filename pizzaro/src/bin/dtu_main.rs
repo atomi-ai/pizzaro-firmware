@@ -11,7 +11,7 @@ use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
 use defmt::{debug, error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
-use rp2040_hal::gpio::{FunctionUart, PullUp};
+use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
     clocks::{init_clocks_and_plls, Clock},
@@ -35,14 +35,13 @@ use pizzaro::common::global_timer::{init_global_timer, now, Delay, DelayCreator}
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
+use pizzaro::common::stepper_driver::StepperDriver;
 use pizzaro::common::uart_comm::UartComm;
-use pizzaro::dtu::tmc_driver::TmcDriver;
-//use pizzaro::dtu::tmc_stepper_sensorless::TmcStepper;
-use pizzaro::dtu::tmc_stepper::TmcStepper;
-use pizzaro::dtu::tmc_stepper_processor::{
-    dtu_stepper_input_mq, dtu_stepper_output_mq, process_dtu_stepper_message, TmcStepperProcessor,
+use pizzaro::mmd::stepper::Stepper;
+use pizzaro::mmd::stepper_processor::{
+    process_mmd_stepper_message, stepper_input_mq, stepper_output_mq, LinearStepperProcessor,
 };
-use pizzaro::dtu::GLOBAL_DTU_STEPPER_STOP;
+use pizzaro::mmd::GLOBAL_STEPPER_STOP;
 use pizzaro::{
     dtu_485_dir, dtu_limit0, dtu_limit1, dtu_stepper_dir, dtu_stepper_nEN, dtu_stepper_step,
     dtu_sys_rx, dtu_sys_tx, dtu_uart,
@@ -102,61 +101,6 @@ fn main() -> ! {
         spawn_task(dtu_process_messages());
     }
     {
-        // init tmc pin
-        // TODO(zephyr): Please use bsp to replace the code below: DONT HARD-CODE!!!
-        // let mut tmc_uart_tx = dtu_tmc_uart_tx!(pins).into_pull_down_disabled().into_push_pull_output();
-        // let mut tmc_uart_rx = dtu_tmc_uart_rx!(pins).into_pull_down_disabled().into_floating_input();
-        // let tmc_2209_uart_pins = ( tmc_uart_tx, tmc_uart_rx );
-        let tmc_2209_uart_pins = (
-            // UART TX (characters sent from RP2040) on pin 1 (GPIO0)
-            pins.gpio8.reconfigure::<FunctionUart, PullUp>(),
-            // UART RX (characters received by RP2040) on pin 2 (GPIO1)
-            pins.gpio9.reconfigure::<FunctionUart, PullUp>(),
-        );
-        let tmc_2209_uart = UartPeripheral::new(pac.UART1, tmc_2209_uart_pins, &mut pac.RESETS)
-            .enable(
-                UartConfig::new(115200.Hz(), DataBits::Eight, None, StopBits::One),
-                clocks.peripheral_clock.freq(),
-            )
-            .unwrap();
-        let (tmc_rx, tmc_tx) = tmc_2209_uart.split();
-
-        // 初始化tmc驱动
-        // let mut gconf = tmc2209::reg::GCONF::default();
-        // //gconf.set_en_spread_cycle(false);
-        // gconf.set_en_spread_cycle(true);
-
-        // let mut clear_gstat = tmc2209::reg::GSTAT::default();
-        // clear_gstat.clear_uv_cp(true);
-        // clear_gstat.clear_reset(true);
-        // clear_gstat.clear_drv_err(true);
-        // let mut ihold_run = tmc2209::reg::IHOLD_IRUN::default();
-        // ihold_run.set_ihold(25); // 运行电流
-        // ihold_run.set_irun(5); // 待机电流
-        // ihold_run.set_ihold_delay(1);
-        // let sgthres = tmc2209::reg::SGTHRS(100);
-        // let mut tpwmthrs = tmc2209::reg::TPWMTHRS::default();
-        // let mut chopconf = tmc2209::reg::CHOPCONF::default();
-        // tpwmthrs.set(500);
-        // chopconf.set_toff(5);
-        // chopconf.set_hend(1);
-        // chopconf.set_hstrt(4);
-        // chopconf.set_tbl(2);
-        // chopconf.set_mres(0);
-
-        // let addr = 0;
-        // tmc2209::send_write_request(addr, gconf, &mut tmc_tx, &mut tmc_rx)
-        //     .expect("write gconf err");
-        // tmc2209::send_write_request(addr, clear_gstat, &mut tmc_tx, &mut tmc_rx)
-        //     .expect("write clear gstat err");
-        // tmc2209::send_write_request(addr, chopconf, &mut tmc_tx, &mut tmc_rx)
-        //     .expect("write chopconf err");
-        // tmc2209::send_write_request(addr, ihold_run, &mut tmc_tx, &mut tmc_rx)
-        //     .expect("write ihold_run err");
-        // tmc2209::send_write_request(addr, sgthres, &mut tmc_tx, &mut tmc_rx)
-        //     .expect("write sgthres err");
-
-        // tmc_uart_tx.set_low().unwrap();
         // 使用第一个通道连接驱动伸缩的电机
         let enable_pin = dtu_stepper_nEN!(pins).into_push_pull_output();
         let dir_pin = dtu_stepper_dir!(pins).into_push_pull_output();
@@ -165,17 +109,14 @@ fn main() -> ! {
         let left_limit_pin = dtu_limit0!(pins).into_pull_down_input();
         let right_limit_pin = dtu_limit1!(pins).into_pull_down_input();
 
-        let mut tmc_driver =
-            TmcDriver::new(enable_pin, dir_pin, step_pin, delay_creator, true, tmc_tx, tmc_rx, 0);
-        tmc_driver.init_tmc_parameters(25, 5, Some(100)).expect("init tmc error");
-
-        let stepper = TmcStepper::new(tmc_driver, left_limit_pin, right_limit_pin);
-        let processor = TmcStepperProcessor::new(stepper);
-        spawn_task(process_dtu_stepper_message(processor));
+        let driver = StepperDriver::new(enable_pin, dir_pin, step_pin, delay_creator, true);
+        let stepper = Stepper::new(driver, left_limit_pin, right_limit_pin);
+        let processor = LinearStepperProcessor::new(stepper);
+        spawn_task(process_mmd_stepper_message(processor));
     }
 
     start_global_executor();
-    GLOBAL_DTU_STEPPER_STOP.store(false, Ordering::Relaxed);
+    GLOBAL_STEPPER_STOP.store(false, Ordering::Relaxed);
 
     loop {
         info!("in loop");
@@ -216,7 +157,7 @@ async fn dtu_process_messages() {
                 AtomiProto::Dtu(DtuCommand::DtuLinear(cmd)) => {
                     if dtu_stepper_available {
                         let res = uart_comm.send(AtomiProto::Dtu(DtuCommand::DtuAck));
-                        dtu_stepper_input_mq().enqueue(cmd);
+                        stepper_input_mq().enqueue(cmd);
                         dtu_stepper_available = false;
                         res
                     } else {
@@ -228,13 +169,13 @@ async fn dtu_process_messages() {
                 AtomiProto::Dtu(DtuCommand::DtuStop) => {
                     if !dtu_stepper_available {
                         // If stepper is running, stop it directly.
-                        GLOBAL_DTU_STEPPER_STOP.store(true, Ordering::Relaxed);
+                        GLOBAL_STEPPER_STOP.store(true, Ordering::Relaxed);
                     }
 
                     if !dtu_stepper_available {
                         // wait till the stepper is stopped.
                         loop {
-                            if let Some(stepper_resp) = dtu_stepper_output_mq().dequeue() {
+                            if let Some(stepper_resp) = stepper_output_mq().dequeue() {
                                 info!("stepper_resp: {}", stepper_resp);
                                 assert_eq!(
                                     stepper_resp,
@@ -243,7 +184,7 @@ async fn dtu_process_messages() {
                                 break;
                             }
                         }
-                        GLOBAL_DTU_STEPPER_STOP.store(false, Ordering::Relaxed);
+                        GLOBAL_STEPPER_STOP.store(false, Ordering::Relaxed);
                         dtu_stepper_available = true;
                     }
                     uart_comm.send(AtomiProto::Dtu(DtuCommand::DtuAck))
@@ -258,7 +199,7 @@ async fn dtu_process_messages() {
             }
         }
 
-        if let Some(stepper_resp) = dtu_stepper_output_mq().dequeue() {
+        if let Some(stepper_resp) = stepper_output_mq().dequeue() {
             info!("[DTU] get response from linear stepper: {}", stepper_resp);
             dtu_stepper_available = true;
         }
