@@ -33,7 +33,8 @@ pub enum TouchScreenObjectId {
     SliderMainRotary = 13,
     SliderPresserPosition = 4,
 
-    // FIXME: TBD
+    // TODO(lv): What's this?
+    // TBD
     TextWeight1 = 14,
     TextWeight2 = 15,
     TextWeight3 = 16,

@@ -29,7 +29,6 @@ pub struct LinearStepperProcessor<
     OP3: OutputPin,
     D: AsyncDelay,
 > {
-    // TODO(zephyr): Should use template for other stepper usage.
     stepper: Stepper<IP1, IP2, OP1, OP2, OP3, D>,
 }
 

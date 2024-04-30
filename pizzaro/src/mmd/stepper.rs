@@ -15,6 +15,10 @@ pub const FAST_SPEED: u32 = 400; // steps / second
 const SLOW_SPEED: u32 = 50; // steps / second
 const SMALL_DISTANCE: i32 = 50; // steps
 
+// TODO(zephyr): 关于stepper，我打算改成这样：
+//   - 分成两类，以Trait区分：ClassicStepperDriver / SilentStepperDriver
+//   - 然后有两个具体struct实现的话，其实引入到不同的环境里也比较方便。
+// 这个事情要尽快做，因为后面用stepper的机会挺多的。
 pub struct Stepper<
     IP1: InputPin,
     IP2: InputPin,
