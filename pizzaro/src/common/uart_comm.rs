@@ -41,23 +41,12 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
     pub fn send<U: Format + Serialize>(&mut self, message: U) -> Result<(), AtomiError> {
         let out = postcard::to_allocvec::<U>(&message).map_err(|_| AtomiError::UartInvalidInput)?;
 
-        debug!("Send data: ({}, {}), original = {}", out.len(), Debug2Format(&out), message);
         // 发送长度和数据
-        // TODO(zephyr): 看看怎么wrap T::Error到PizzaroError里面去.
+        debug!("Send data: ({}, {}), original = {}", out.len(), Debug2Format(&out), message);
 
         if let Some(n_re) = self.dir_pin {
             n_re.set_high().map_err(|_| AtomiError::UartSetDirError).unwrap();
         }
-
-        // let bw_res0 = self
-        //     .bwrite_all(&[out.len() as u8])
-        //     .map_err(|_| AtomiError::UartWriteError);
-        // let bw_res = if bw_res0.is_ok() {
-        //     self.bwrite_all(&out)
-        //         .map_err(|_| AtomiError::UartWriteError)
-        // } else {
-        //     bw_res0
-        // };
 
         let res = (|| {
             self.bwrite_all(&[out.len() as u8]).map_err(|_| AtomiError::UartWriteError)?;
