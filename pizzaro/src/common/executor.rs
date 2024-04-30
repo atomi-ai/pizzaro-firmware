@@ -91,8 +91,7 @@ pub async fn dump_executor_status() {
     }
 }
 
-// TODO(zephyr): 暂时还不能支持随时随地spawn一个新task。我之前的调查发现，在运行时，
-// 我们spawn()的新task好像不会出现在running tasks里面。这个挺奇怪的，以后再调.
+// 目前的实现已经可以在spawned task里面再spawn task了。
 pub fn spawn_task(fut: impl Future<Output = ()> + Send + 'static) {
     unsafe {
         if GLOBAL_EXECUTOR.is_none() {

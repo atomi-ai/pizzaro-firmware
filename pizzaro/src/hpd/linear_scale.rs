@@ -80,7 +80,6 @@ pub async fn read_linear_scale_with_pio(mut rx: Rx<(PIO0, SM0)>, linear_scale: &
     }
 }
 
-// TODO(zephyr): Use PIOExt / SM instead of PIO0.
 pub fn init_quadrature_encoder<P: PIOExt>(
     encoder_pin0_id: u8,
     pio0: P,

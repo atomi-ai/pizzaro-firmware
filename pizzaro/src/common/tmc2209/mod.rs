@@ -281,7 +281,7 @@ impl WriteRequest {
     /// A dynamic alternative to `new`, for when the exact register begin written to is not known
     /// at compile time.
     ///
-    /// TODO: Return a `Result` where an `Err` is returned if a non-write-able register was
+    /// TODO(lv): Return a `Result` where an `Err` is returned if a non-write-able register was
     /// specified.
     pub fn from_state(slave_addr: u8, state: reg::State) -> Self {
         const WRITE: u8 = 0b10000000;
