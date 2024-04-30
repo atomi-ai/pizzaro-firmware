@@ -1,8 +1,6 @@
 /// BSP version: Spring_Begins
 ///
-/// TODO(zephyr): Add schematic pdf below.
-///
-/// HPD Schematic: [[url]]
+/// HPD Schematic: [[https://github.com/atomi-ai/pizzaro-v1.5/blob/master/hardware/HPD-v1_5_4.pdf]]
 use crate::define_pins;
 use rp2040_hal::gpio::bank0::{Gpio12, Gpio8, Gpio9};
 use rp2040_hal::gpio::{FunctionSioOutput, FunctionUart, Pin, PullDown, PullUp};
