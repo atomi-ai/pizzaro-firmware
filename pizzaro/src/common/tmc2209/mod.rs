@@ -5,8 +5,7 @@ pub mod reg;
 
 use core::convert::TryFrom;
 use defmt::{info, Format};
-use embedded_hal as hal;
-use hal::serial::{Read, Write};
+use embedded_hal_nb::serial::{Read, Write};
 use nb::block;
 
 #[doc(inline)]
@@ -398,7 +397,7 @@ where
 /// method directly to avoid blocking or apply your own timeout logic.
 pub fn await_read_response<U>(uart_rx: &mut U) -> ReadResponse
 where
-    U: hal::serial::Read<u8>,
+    U: Read<u8>,
 {
     let mut reader = Reader::default();
     loop {
@@ -427,7 +426,7 @@ where
 pub fn await_read<R, U>(uart_rx: &mut U) -> Result<R, reg::UnknownAddress>
 where
     R: ReadableRegister,
-    U: hal::serial::Read<u8>,
+    U: Read<u8>,
 {
     let res = await_read_response(uart_rx);
     res.register::<R>()

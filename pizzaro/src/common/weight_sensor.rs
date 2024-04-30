@@ -1,6 +1,6 @@
 use crate::common::global_timer::Delay;
 use bsp::hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, PullUp, SioInput, SioOutput};
-use embedded_hal::digital::v2::{InputPin, OutputPin};
+use embedded_hal::digital::{InputPin, OutputPin};
 use fugit::ExtU64;
 use rp_pico as bsp;
 

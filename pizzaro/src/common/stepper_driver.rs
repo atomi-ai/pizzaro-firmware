@@ -1,4 +1,4 @@
-use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
+use embedded_hal::digital::{OutputPin, StatefulOutputPin};
 use fugit::ExtU64;
 
 use generic::atomi_error::AtomiError;

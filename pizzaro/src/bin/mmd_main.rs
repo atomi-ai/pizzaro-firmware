@@ -10,7 +10,7 @@ use core::sync::atomic::Ordering;
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
 use defmt::{debug, error, info, Debug2Format};
-use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::digital::OutputPin;
 use fugit::{ExtU64, RateExtU32};
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};

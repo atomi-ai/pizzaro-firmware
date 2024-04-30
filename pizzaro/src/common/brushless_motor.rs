@@ -1,6 +1,6 @@
+use cortex_m::prelude::_embedded_hal_PwmPin;
 use defmt::debug;
-use embedded_hal::digital::v2::OutputPin;
-use embedded_hal::PwmPin;
+use embedded_hal::digital::OutputPin;
 use generic::atomi_error::AtomiError;
 use rp2040_hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, SioOutput};
 use rp2040_hal::pwm::{FreeRunning, Slice, SliceId};

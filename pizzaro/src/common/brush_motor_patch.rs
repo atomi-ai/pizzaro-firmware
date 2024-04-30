@@ -1,6 +1,6 @@
+use cortex_m::prelude::_embedded_hal_PwmPin;
 use defmt::{debug, info};
-use embedded_hal::digital::v2::StatefulOutputPin;
-use embedded_hal::PwmPin;
+use embedded_hal::digital::StatefulOutputPin;
 use generic::atomi_error::AtomiError;
 use rp2040_hal::pwm::{FreeRunning, Slice, SliceId};
 

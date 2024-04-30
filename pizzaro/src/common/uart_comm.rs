@@ -1,8 +1,8 @@
 use alloc::vec;
 
 use defmt::{debug, error, Debug2Format, Format};
-use embedded_hal::digital::v2::OutputPin;
-use embedded_hal::serial::{Read, Write};
+use embedded_hal::digital::OutputPin;
+use embedded_hal_nb::serial::{Read, Write};
 use futures::future::{select, Either};
 use futures::pin_mut;
 use serde::{Deserialize, Serialize};
