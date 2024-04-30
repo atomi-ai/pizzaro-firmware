@@ -1,8 +1,6 @@
 /// BSP version: Spring_Begins
 ///
-/// TODO(zephyr): Add schematic pdf below.
-///
-/// MMD Schematic: [[url]]
+/// MMD Schematic: [[https://github.com/atomi-ai/pizzaro-v1.5/blob/master/hardware/MMD-v1_5_4.pdf]]
 use crate::common::brush_motor_patch::BrushMotorPatched;
 use crate::common::brushless_motor::BrushlessMotor;
 use crate::common::pwm_stepper::{PwmChannels, PwmStepper};

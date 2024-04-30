@@ -1,8 +1,8 @@
 /// BSP version: Spring_Begins
 ///
-/// TODO(zephyr): Add schematic pdf below.
+/// TODO(lv): Please check the correctness.
 ///
-/// MC Schematic: [[url]]
+/// MC Schematic: [[https://github.com/atomi-ai/pizzaro-v1.5/blob/master/hardware/MC-v1_5_4.pdf]]
 use crate::define_pins;
 use rp2040_hal::gpio::bank0::{Gpio11, Gpio12, Gpio13, Gpio8, Gpio9};
 use rp2040_hal::gpio::{FunctionSioOutput, FunctionUart, Pin, PullDown, PullUp};

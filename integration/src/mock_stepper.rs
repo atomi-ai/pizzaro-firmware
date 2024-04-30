@@ -1,5 +1,3 @@
-// TODO(zephyr): Move the file to ../testing?
-
 use core::fmt::Debug;
 
 use defmt::info;
