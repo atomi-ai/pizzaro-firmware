@@ -26,14 +26,14 @@ pub struct TmcDriver<
     tmc_addr: u8,
 }
 
-impl<
-        OP1: StatefulOutputPin,
-        OP2: OutputPin,
-        OP3: OutputPin,
-        D: AsyncDelay,
-        U: Write<u8>,
-        X: Read<u8>,
-    > TmcDriver<OP1, OP2, OP3, D, U, X>
+impl<OP1, OP2, OP3, D, U, X> TmcDriver<OP1, OP2, OP3, D, U, X>
+where
+    OP1: StatefulOutputPin,
+    OP2: OutputPin,
+    OP3: OutputPin,
+    D: AsyncDelay,
+    U: Write<u8>,
+    X: Read<u8>,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
