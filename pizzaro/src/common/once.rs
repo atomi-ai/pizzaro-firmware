@@ -27,21 +27,12 @@ impl<T> Once<T> {
         }
     }
 
-    // TODO(zephyr): Assume we don't need the function below.
-    fn get_or_init<F>(&mut self, f: F) -> &mut T
-    where
-        F: FnOnce() -> T,
-    {
-        self.init_once_with_function(f);
-        unsafe { (*self.value.get()).as_mut().unwrap() }
-    }
-
-    // TODO(zephyr): 将下面两个函数合并，不要在get_mut()里面初始化变量。
     pub fn get_mut(&mut self) -> &mut T
     where
         T: Default,
     {
-        self.get_or_init(T::default)
+        self.init_once_with_function(T::default);
+        unsafe { (*self.value.get()).as_mut().unwrap() }
     }
 
     pub fn get_mut_or_fail(&mut self) -> &mut T {
