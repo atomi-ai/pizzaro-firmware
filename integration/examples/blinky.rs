@@ -6,7 +6,6 @@ use defmt_rtt as _;
 use embedded_hal::digital::v2::OutputPin;
 use panic_probe as _;
 use pizzaro::common::led_controller::MyLED;
-use pizzaro::smart_led;
 use rp2040_hal::pio::PIOExt;
 use rp2040_hal::{
     clocks::{init_clocks_and_plls, Clock},
@@ -51,7 +50,7 @@ fn main() -> ! {
         (5, 5, 5).into(),
         (0, 0, 0).into(),
         Ws2812Direct::new(
-            smart_led!(pins).into_function().into_dyn_pin(),
+            pins.gpio16.into_function().into_dyn_pin(),
             &mut pio,
             sm0,
             clocks.peripheral_clock.freq(),

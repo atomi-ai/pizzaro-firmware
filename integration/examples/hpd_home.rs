@@ -30,7 +30,7 @@ use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::hpd::hpd_misc::LinearScale;
 use pizzaro::hpd::linear_bull_processor::LinearBullProcessor;
 use pizzaro::hpd::linear_scale::{core1_task, read_and_update_linear_scale};
-use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b, smart_led};
+use pizzaro::{hpd_br_nEN, hpd_br_pwm_a, hpd_br_pwm_b};
 
 struct GlobalContainer {
     linear_scale: Option<LinearScale>,
@@ -112,7 +112,7 @@ fn main() -> ! {
             (1, 1, 1).into(),
             (0, 0, 0).into(),
             Ws2812Direct::new(
-                smart_led!(pins).into_function().into_dyn_pin(),
+                pins.gpio16.into_function().into_dyn_pin(),
                 &mut pio,
                 sm0,
                 clocks.peripheral_clock.freq(),

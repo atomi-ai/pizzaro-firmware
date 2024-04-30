@@ -11,10 +11,6 @@ use embedded_hal::digital::v2::{InputPin, OutputPin};
 use embedded_hal::PwmPin;
 use fugit::ExtU64;
 use hal::gpio::DynPinId;
-use pizzaro::{
-    demo_ols_a, demo_ols_b, demo_pwm_a, demo_pwm_b, demo_pwm_channel_a, demo_pwm_channel_b,
-    demo_pwm_en, demo_pwm_slice,
-};
 use rp2040_hal::clocks::init_clocks_and_plls;
 use rp2040_hal::gpio::{FunctionSio, Pin, PullDown, SioOutput};
 use rp2040_hal::multicore::{Multicore, Stack};
@@ -36,8 +32,8 @@ fn core1_task() -> ! {
     let mut sio = Sio::new(pac.SIO);
     let pins = hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
-    let ols_a = demo_ols_a!(pins).into_floating_input();
-    let ols_b = demo_ols_b!(pins).into_floating_input();
+    let ols_a = pins.gpio10.into_floating_input();
+    let ols_b = pins.gpio11.into_floating_input();
     let (mut x, mut y) = (true, false);
     let mut pos = 0i32;
     let mut count = 0;
@@ -107,15 +103,15 @@ fn main() -> ! {
     {
         // Start motor150
         let pwm_slices = rp2040_hal::pwm::Slices::new(pac.PWM, &mut pac.RESETS);
-        let mut pwm = demo_pwm_slice!(pwm_slices);
+        let mut pwm = pwm_slices.pwm0;
         pwm.set_ph_correct();
         pwm.set_top(MOTOR150_PWM_TOP);
         pwm.enable();
-        demo_pwm_channel_a!(pwm).output_to(demo_pwm_a!(pins));
-        demo_pwm_channel_b!(pwm).output_to(demo_pwm_b!(pins));
-        demo_pwm_channel_b!(pwm).set_inverted();
+        pwm.channel_a.output_to(pins.gpio0);
+        pwm.channel_b.output_to(pins.gpio1);
+        pwm.channel_b.set_inverted();
         spawn_task(run_motor_with_different_speed(
-            demo_pwm_en!(pins).into_push_pull_output().into_dyn_pin(),
+            pins.gpio2.into_push_pull_output().into_dyn_pin(),
             pwm,
         ));
     }

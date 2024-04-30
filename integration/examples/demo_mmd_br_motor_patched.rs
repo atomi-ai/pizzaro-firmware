@@ -26,9 +26,7 @@ use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::mmd::brush_motor_processor::MmdPeristalicPumpProcessor;
 // use pizzaro::mmd::brushless_motor_processor::DispenserMotorProcessor;
-use pizzaro::{
-    mmd_br0_pwm_slice, mmd_br_channel_a, mmd_br_nEN, mmd_br_pwm_a, mmd_br_pwm_b, smart_led,
-};
+use pizzaro::{mmd_br0_pwm_slice, mmd_br_channel_a, mmd_br_nEN, mmd_br_pwm_a, mmd_br_pwm_b};
 
 // static mut BRUSHLESS_MOTOR_PROCESSOR: Option<DispenserMotorProcessor> = None;
 static mut BRUSH_MOTOR_PROCESSOR: Option<MmdPeristalicPumpProcessor> = None;
@@ -65,7 +63,7 @@ fn main() -> ! {
             (1, 1, 1).into(),
             (0, 0, 0).into(),
             Ws2812Direct::new(
-                smart_led!(pins).into_function().into_dyn_pin(),
+                pins.gpio16.into_function().into_dyn_pin(),
                 &mut pio,
                 sm0,
                 clocks.peripheral_clock.freq(),
