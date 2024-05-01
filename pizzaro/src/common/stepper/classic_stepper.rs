@@ -2,39 +2,42 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use defmt::{debug, info};
 use embedded_hal::digital::{InputPin, OutputPin, StatefulOutputPin};
-use embedded_hal_nb::serial::{Read, Write};
 
 use generic::atomi_error::AtomiError;
 
 use crate::common::global_timer::AsyncDelay;
 use crate::common::state::{LinearMotionState, MotionState};
-use crate::dtu::tmc_driver::TmcDriver;
-use crate::dtu::GLOBAL_DTU_STEPPER_STOP;
+use crate::common::stepper::classic_stepper_driver::StepperDriver;
+use crate::common::stepper::GLOBAL_STEPPER_STOP;
 
 //const FAST_SPEED: u32 = 400; // steps / second
-pub const FAST_SPEED: u32 = 2000; // steps / second
-                                  // const SLOW_SPEED: u32 = 50; // steps / second
-                                  // const SMALL_DISTANCE: i32 = 50; // steps
+pub const FAST_SPEED: u32 = 400; // steps / second
+const SLOW_SPEED: u32 = 50; // steps / second
+const SMALL_DISTANCE: i32 = 50; // steps
 
-pub struct TmcStepper<
+// TODO(zephyr): 关于stepper，我打算改成这样：
+//   - 分成两类，以Trait区分：ClassicStepperDriver / SilentStepperDriver
+//   - 然后有两个具体struct实现的话，其实引入到不同的环境里也比较方便。
+// 这个事情要尽快做，因为后面用stepper的机会挺多的。
+pub struct Stepper<
     IP1: InputPin,
     IP2: InputPin,
     OP1: StatefulOutputPin,
     OP2: OutputPin,
     OP3: OutputPin,
     D: AsyncDelay,
-    U: Write<u8>,
-    X: Read<u8>,
 > {
-    stepper: TmcDriver<OP1, OP2, OP3, D, U, X>,
+    stepper: StepperDriver<OP1, OP2, OP3, D>,
+    limit_left: IP1,
+    // limit switch on the forward direction
+    limit_right: IP2, // limit switch on the backward direction
+
     is_home: AtomicBool,
     current_position: i32,
     state: MotionState,
-    limit_left: IP1,
-    limit_right: IP2,
 }
 
-impl<IP1, IP2, OP1, OP2, OP3, D, U, X> TmcStepper<IP1, IP2, OP1, OP2, OP3, D, U, X>
+impl<IP1, IP2, OP1, OP2, OP3, D> Stepper<IP1, IP2, OP1, OP2, OP3, D>
 where
     IP1: InputPin,
     IP2: InputPin,
@@ -42,30 +45,26 @@ where
     OP2: OutputPin,
     OP3: OutputPin,
     D: AsyncDelay,
-    U: Write<u8>,
-    X: Read<u8>,
 {
     pub fn new(
-        mut stepper: TmcDriver<OP1, OP2, OP3, D, U, X>,
+        mut stepper: StepperDriver<OP1, OP2, OP3, D>,
         limit_left: IP1,
         limit_right: IP2,
     ) -> Self {
         // TODO(zephyr): 问问Lv步进电机一直使能会不会有问题。
         // 这里会有问题，首次上电会乱跑，此外一直使能，电流也会比较大，电机和驱动都会发烫。先禁用使能直到需要使用的时候再打开。
-        // 对于tmc驱动可以一直使能，它对于静止状态会自动用更小的电流去维持。
-
         // stepper
         //     .enable()
-        //     .expect("[DTU] Errors in enable the stepper on linear actuator");
-        stepper.disable().expect("[DTU] Errors in disable the stepper on linear actuator");
+        //     .expect("[MMD] Errors in enable the stepper on linear actuator");
+        stepper.disable().expect("[MMD] Errors in disable the stepper on linear actuator");
 
-        TmcStepper {
+        Stepper {
             stepper,
+            limit_left,
+            limit_right,
             is_home: AtomicBool::new(false),
             current_position: 0,
             state: MotionState::new(),
-            limit_left,
-            limit_right,
         }
     }
 
@@ -86,36 +85,31 @@ where
         self.state.push(LinearMotionState::HOMING)?;
         debug!("homing start, state: {}", self.state);
         // 第一步：快速向前直到触发限位开关
-        debug!("[DTU] Home 1: move to max with fast speed till reach the limit");
-        let steps = self
-            .move_to_relative_internal(
-                FAST_SPEED, //-i32::MAX
-                -1000,
-            )
-            .await
-            .map_err(|e| {
+        debug!("[MMD] Home 1: move to max with fast speed till reach the limit");
+        let mut steps =
+            self.move_to_relative_internal(FAST_SPEED, -i32::MAX).await.map_err(|e| {
                 self.state.pop();
                 e
             })?;
 
-        // // 第二步：快速向后退移动一小段距离
-        // debug!("[DTU] Home 2: last move {} steps, now move small distance back", steps);
-        // steps = self.move_to_relative_internal(FAST_SPEED, SMALL_DISTANCE).await.map_err(|e| {
-        //     self.state.pop();
-        //     e
-        // })?;
+        // 第二步：快速向后退移动一小段距离
+        debug!("[MMD] Home 2: last move {} steps, now move small distance back", steps);
+        steps = self.move_to_relative_internal(FAST_SPEED, SMALL_DISTANCE).await.map_err(|e| {
+            self.state.pop();
+            e
+        })?;
 
-        // debug!(
-        //     "[DTU] Home 3: last move {} steps, now move to the limit again with slow speed",
-        //     steps
-        // );
-        // // 第三步：慢速向前进直到再次触发限位开关
-        // steps = self.move_to_relative_internal(SLOW_SPEED, -i32::MAX).await.map_err(|e| {
-        //     self.state.pop();
-        //     e
-        // })?;
+        debug!(
+            "[MMD] Home 3: last move {} steps, now move to the limit again with slow speed",
+            steps
+        );
+        // 第三步：慢速向前进直到再次触发限位开关
+        steps = self.move_to_relative_internal(SLOW_SPEED, -i32::MAX).await.map_err(|e| {
+            self.state.pop();
+            e
+        })?;
 
-        info!("[DTU] Done for home, last move {} steps", steps);
+        info!("[MMD] Done for home, last move {} steps", steps);
         // 将当前位置设置为 0
         self.current_position = 0;
         self.is_home.store(true, Ordering::Relaxed);
@@ -127,7 +121,7 @@ where
 
     fn check_homed(&self) -> Result<(), AtomiError> {
         if !self.is_home.load(Ordering::Relaxed) {
-            return Err(AtomiError::DtuStepperNeedToHome);
+            return Err(AtomiError::MmdStepperNeedToHome);
         }
         Ok(())
     }
@@ -147,11 +141,11 @@ where
 
     pub async fn move_to(&mut self, position: i32, speed: u32) -> Result<i32, AtomiError> {
         if position < 0 {
-            return Err(AtomiError::DtuNotAcceptedPosition);
+            return Err(AtomiError::MmdNotAcceptedPosition);
         }
         self.check_homed()?;
         info!(
-            "[DTU] current pos = {}, to pos: {}, relative: {}",
+            "[MMD] current pos = {}, to pos: {}, relative: {}",
             self.current_position,
             position,
             position - self.current_position
@@ -161,7 +155,7 @@ where
 
     fn update_position_and_return(&mut self, delta: i32) -> Result<i32, AtomiError> {
         debug!(
-            "[DTU] current pos: {}, new pos: {}",
+            "[MMD] current pos: {}, new pos: {}",
             self.current_position,
             self.current_position + delta
         );
@@ -192,13 +186,13 @@ where
             e
         })?;
         for i in 0..steps.abs() {
-            if GLOBAL_DTU_STEPPER_STOP.load(Ordering::Relaxed) {
-                return Err(AtomiError::DtuStopped);
+            if GLOBAL_STEPPER_STOP.load(Ordering::Relaxed) {
+                return Err(AtomiError::MmdStopped);
             }
             let l = self.limit_left.is_high().unwrap_or(false);
             let r = self.limit_right.is_high().unwrap_or(false);
             // info!(
-            //     "[DTU: Debug] moving_right = {}, limit_left = {}, limit_right = {}",
+            //     "[MMD: Debug] moving_right = {}, limit_left = {}, limit_right = {}",
             //     moving_right, l, r
             // );
             // 在每一步之前检查限位开关

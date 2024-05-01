@@ -7,18 +7,22 @@ use generic::atomi_proto::{StepperCommand, StepperResponse, TriggerStatusRespons
 
 use crate::common::global_timer::{AsyncDelay, Delay};
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
-use crate::common::once::Once;
-use crate::mmd::stepper::Stepper;
+use crate::common::stepper::classic_stepper::Stepper;
 
-static mut STEPPER_INPUT_MQ_ONCE: Once<MessageQueueWrapper<StepperCommand>> = Once::new();
-static mut STEPPER_OUTPUT_MQ_ONCE: Once<MessageQueueWrapper<StepperResponse>> = Once::new();
-
-pub fn stepper_input_mq() -> &'static mut MessageQueueWrapper<StepperCommand> {
-    unsafe { STEPPER_INPUT_MQ_ONCE.get_mut() }
+#[derive(Default)]
+pub struct DualQueue {
+    in_queue: MessageQueueWrapper<StepperCommand>,
+    out_queue: MessageQueueWrapper<StepperResponse>,
 }
 
-pub fn stepper_output_mq() -> &'static mut MessageQueueWrapper<StepperResponse> {
-    unsafe { STEPPER_OUTPUT_MQ_ONCE.get_mut() }
+impl DualQueue {
+    pub fn push_request(&mut self, cmd: StepperCommand) {
+        self.in_queue.enqueue(cmd)
+    }
+
+    pub fn pop_response(&mut self) -> Option<StepperResponse> {
+        self.out_queue.dequeue()
+    }
 }
 
 pub struct LinearStepperProcessor<
@@ -84,7 +88,7 @@ where
     }
 }
 
-pub async fn process_mmd_stepper_message<
+pub async fn process_classic_stepper_message<
     IP1: InputPin,
     IP2: InputPin,
     OP1: StatefulOutputPin,
@@ -93,26 +97,24 @@ pub async fn process_mmd_stepper_message<
     D: AsyncDelay,
 >(
     mut processor: LinearStepperProcessor<IP1, IP2, OP1, OP2, OP3, D>,
+    dual_queue: &mut DualQueue,
 ) {
     debug!("process_mmd_stepper_message() 0");
-    let mq_in = stepper_input_mq();
-    let mq_out = stepper_output_mq();
     loop {
-        if let Some(msg) = mq_in.dequeue() {
+        if let Some(msg) = dual_queue.in_queue.dequeue() {
             debug!("process_mmd_stepper_message() 3.1: process msg {}", msg);
             if msg == StepperCommand::GetTriggerStatus {
                 let (l, r) = processor.stepper.get_limit_status();
-                mq_out.enqueue(StepperResponse::TriggerStatus(TriggerStatusResponse {
-                    left: l,
-                    right: r,
-                }));
+                dual_queue.out_queue.enqueue(StepperResponse::TriggerStatus(
+                    TriggerStatusResponse { left: l, right: r },
+                ));
             }
             let res = match processor.process_stepper_request(msg).await {
                 Ok(_) => StepperResponse::Done,
                 Err(err) => StepperResponse::Error(err),
             };
             debug!("process_mmd_stepper_message() 3.3: done");
-            mq_out.enqueue(res);
+            dual_queue.out_queue.enqueue(res);
         }
         Delay::new(1.millis()).await;
     }

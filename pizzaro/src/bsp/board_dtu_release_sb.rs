@@ -28,7 +28,7 @@ define_pins! {
     dtu_485_dir, gpio18,
     dtu_stepper_step, gpio2,
     dtu_stepper_dir, gpio3,
-    dtu_stepper_nEN, gpio24,
+    dtu_stepper_n_en, gpio24,
     dtu_stepper_diag, gpio19,
     dtu_limit0, gpio26,
     dtu_limit1, gpio27,

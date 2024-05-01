@@ -19,8 +19,7 @@ pub mod once;
 pub mod pwm_stepper;
 pub mod rp2040_timer;
 pub mod state;
-#[allow(async_fn_in_trait)]
-pub mod stepper_driver;
+pub mod stepper;
 #[allow(
     clippy::get_first,
     clippy::from_over_into,

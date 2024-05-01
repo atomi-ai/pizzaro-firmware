@@ -20,8 +20,8 @@ use pizzaro::common::executor::{spawn_task, start_global_executor};
 use pizzaro::common::global_timer::{init_global_timer, AsyncDelay, DelayCreator};
 use pizzaro::common::led_controller::{blinky_smart_led, MyLED};
 use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::common::stepper_driver::StepperDriver;
-use pizzaro::mmd::stepper::{Stepper, FAST_SPEED};
+use pizzaro::common::stepper::classic_stepper::{Stepper, FAST_SPEED};
+use pizzaro::common::stepper::classic_stepper_driver::StepperDriver;
 use pizzaro::{
     mmd_limit0, mmd_limit1, mmd_stepper42_dir0, mmd_stepper42_nEN0, mmd_stepper42_step0,
 };
