@@ -52,16 +52,16 @@ use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper}
 use pizzaro::common::once::Once;
 use pizzaro::common::pwm_stepper::PwmStepper;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::common::stepper_driver::StepperDriver;
+use pizzaro::common::stepper::classic_stepper::Stepper;
+use pizzaro::common::stepper::classic_stepper_driver::StepperDriver;
+use pizzaro::common::stepper::classic_stepper_processor::{
+    process_classic_stepper_message, DualQueue, LinearStepperProcessor,
+};
+use pizzaro::common::stepper::GLOBAL_STEPPER_STOP;
 use pizzaro::common::uart_comm::UartComm;
 use pizzaro::mmd::brush_motor_processor::MmdPeristalicPumpProcessor;
 use pizzaro::mmd::brushless_motor_processor::DispenserMotorProcessor;
 use pizzaro::mmd::rotation_stepper_processor::RotationStepperProcessor;
-use pizzaro::mmd::stepper::Stepper;
-use pizzaro::mmd::stepper_processor::{
-    process_mmd_stepper_message, stepper_input_mq, stepper_output_mq, LinearStepperProcessor,
-};
-use pizzaro::mmd::GLOBAL_STEPPER_STOP;
 use pizzaro::{common::async_initialization, mmd_sys_rx, mmd_sys_tx};
 use pizzaro::{
     mmd_485_dir, mmd_bl1_ctl_channel, mmd_bl1_ctl_pwm_slice, mmd_bl2_ctl_channel,
@@ -79,9 +79,14 @@ static mut DISPENSER_MOTOR_PROCESSOR: Option<DispenserMotorProcessor> = None;
 static mut PERISTALIC_PUMP_PROCESSOR: Option<MmdPeristalicPumpProcessor> = None;
 static mut ROTATION_STEPPER_PROCESSOR: Option<RotationStepperProcessor> = None;
 
-static mut MESSAGE_QUEUE_ONCE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
-fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
-    unsafe { MESSAGE_QUEUE_ONCE.get_mut() }
+static mut MMD_MESSAGE_QUEUE_ONCE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
+fn get_mmd_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
+    unsafe { MMD_MESSAGE_QUEUE_ONCE.get_mut() }
+}
+
+static mut MMD_DUAL_QUEUE_ONCE: Once<DualQueue> = Once::new();
+fn get_mmd_dual_queue() -> &'static mut DualQueue {
+    unsafe { MMD_DUAL_QUEUE_ONCE.get_mut() }
 }
 
 #[entry]
@@ -217,7 +222,7 @@ fn main() -> ! {
             left_limit_pin,
             right_limit_pin,
         ));
-        spawn_task(process_mmd_stepper_message(processor));
+        spawn_task(process_classic_stepper_message(processor, get_mmd_dual_queue()));
     }
     {
         // 使用第二个通道连接驱动传送带旋转的电机
@@ -278,7 +283,7 @@ async fn mmd_process_messages() {
     let peristalic_pump_processor = unsafe { PERISTALIC_PUMP_PROCESSOR.as_mut().unwrap() };
     let rotation_stepper_processor = unsafe { ROTATION_STEPPER_PROCESSOR.as_mut().unwrap() };
     loop {
-        if let Some(message) = get_mq().dequeue() {
+        if let Some(message) = get_mmd_mq().dequeue() {
             info!("[MMD] process_messages() 1.1 | dequeued message: {}", message);
 
             // 处理消息
@@ -303,7 +308,7 @@ async fn mmd_process_messages() {
                     if !mmd_stepper_available {
                         // wait till the stepper is stopped.
                         loop {
-                            if let Some(stepper_resp) = stepper_output_mq().dequeue() {
+                            if let Some(stepper_resp) = get_mmd_dual_queue().pop_response() {
                                 info!("stepper_resp: {}", stepper_resp);
                                 assert_eq!(
                                     stepper_resp,
@@ -337,7 +342,7 @@ async fn mmd_process_messages() {
                 AtomiProto::Mmd(MmdCommand::MmdLinearStepper(cmd)) => {
                     if mmd_stepper_available {
                         let res = uart_comm.send(AtomiProto::Mmd(MmdCommand::MmdAck));
-                        stepper_input_mq().enqueue(cmd);
+                        get_mmd_dual_queue().push_request(cmd);
                         mmd_stepper_available = false;
                         res
                     } else {
@@ -378,7 +383,7 @@ async fn mmd_process_messages() {
             }
         }
 
-        if let Some(stepper_resp) = stepper_output_mq().dequeue() {
+        if let Some(stepper_resp) = get_mmd_dual_queue().pop_response() {
             info!("[MMD] get response from linear stepper: {}", stepper_resp);
             mmd_stepper_available = true;
         }
@@ -449,5 +454,5 @@ fn process_message_in_irq(
     }
 
     // 正常处理流程
-    get_mq().enqueue(msg);
+    get_mmd_mq().enqueue(msg);
 }

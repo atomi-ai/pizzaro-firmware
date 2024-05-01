@@ -11,7 +11,7 @@ use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
 use defmt::{debug, error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
-use rp2040_hal::gpio::FunctionUart;
+use rp2040_hal::gpio::{FunctionUart, PullUp};
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
     clocks::{init_clocks_and_plls, Clock},
@@ -35,24 +35,29 @@ use pizzaro::common::global_timer::{init_global_timer, now, Delay, DelayCreator}
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::common::stepper_driver::StepperDriver;
-use pizzaro::common::uart_comm::UartComm;
-use pizzaro::mmd::stepper::Stepper;
-use pizzaro::mmd::stepper_processor::{
-    process_mmd_stepper_message, stepper_input_mq, stepper_output_mq, LinearStepperProcessor,
+use pizzaro::common::stepper::classic_stepper::Stepper;
+use pizzaro::common::stepper::classic_stepper_driver::StepperDriver;
+use pizzaro::common::stepper::classic_stepper_processor::{
+    process_classic_stepper_message, DualQueue, LinearStepperProcessor,
 };
-use pizzaro::mmd::GLOBAL_STEPPER_STOP;
+use pizzaro::common::stepper::{init_tmc_parameters, GLOBAL_STEPPER_STOP};
+use pizzaro::common::uart_comm::UartComm;
 use pizzaro::{
-    dtu_485_dir, dtu_limit0, dtu_limit1, dtu_stepper_dir, dtu_stepper_nEN, dtu_stepper_step,
-    dtu_sys_rx, dtu_sys_tx, dtu_uart,
+    dtu_485_dir, dtu_limit0, dtu_limit1, dtu_stepper_dir, dtu_stepper_n_en, dtu_stepper_step,
+    dtu_sys_rx, dtu_sys_tx, dtu_tmc_uart_rx, dtu_tmc_uart_tx, dtu_uart,
 };
 
 // TODO(zephyr): Move these global static into a GlobalStatic struct.
 static mut UART: Option<(DtuUartType, Option<DtuUartDirPinType>)> = None;
 
 static mut MESSAGE_QUEUE_ONCE: Once<MessageQueueWrapper<AtomiProto>> = Once::new();
-fn get_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
+fn get_dtu_mq() -> &'static mut MessageQueueWrapper<AtomiProto> {
     unsafe { MESSAGE_QUEUE_ONCE.get_mut() }
+}
+
+static mut DTU_DUAL_QUEUE_ONCE: Once<DualQueue> = Once::new();
+fn get_dtu_dual_queue() -> &'static mut DualQueue {
+    unsafe { DTU_DUAL_QUEUE_ONCE.get_mut() }
 }
 
 #[entry]
@@ -101,8 +106,21 @@ fn main() -> ! {
         spawn_task(dtu_process_messages());
     }
     {
+        let tmc_2209_uart_pins = (
+            dtu_tmc_uart_tx!(pins).reconfigure::<FunctionUart, PullUp>(),
+            dtu_tmc_uart_rx!(pins).reconfigure::<FunctionUart, PullUp>(),
+        );
+        let tmc_2209_uart = UartPeripheral::new(pac.UART1, tmc_2209_uart_pins, &mut pac.RESETS)
+            .enable(
+                UartConfig::new(115200.Hz(), DataBits::Eight, None, StopBits::One),
+                clocks.peripheral_clock.freq(),
+            )
+            .unwrap();
+        let (tmc_rx, tmc_tx) = tmc_2209_uart.split();
+        init_tmc_parameters(25, 5, Some(100), 0, tmc_rx, tmc_tx).expect("init tmc error");
+
         // 使用第一个通道连接驱动伸缩的电机
-        let enable_pin = dtu_stepper_nEN!(pins).into_push_pull_output();
+        let enable_pin = dtu_stepper_n_en!(pins).into_push_pull_output();
         let dir_pin = dtu_stepper_dir!(pins).into_push_pull_output();
         let step_pin = dtu_stepper_step!(pins).into_push_pull_output();
         let delay_creator = DelayCreator::new();
@@ -112,7 +130,7 @@ fn main() -> ! {
         let driver = StepperDriver::new(enable_pin, dir_pin, step_pin, delay_creator, true);
         let stepper = Stepper::new(driver, left_limit_pin, right_limit_pin);
         let processor = LinearStepperProcessor::new(stepper);
-        spawn_task(process_mmd_stepper_message(processor));
+        spawn_task(process_classic_stepper_message(processor, get_dtu_dual_queue()));
     }
 
     start_global_executor();
@@ -131,7 +149,7 @@ async fn dtu_process_messages() {
     let mut uart_comm = UartComm::new(uart, uart_dir, UART_EXPECTED_RESPONSE_LENGTH);
     let mut dtu_stepper_available = true;
     loop {
-        if let Some(message) = get_mq().dequeue() {
+        if let Some(message) = get_dtu_mq().dequeue() {
             info!("[DTU] process_messages() 1.1 | dequeued message: {}", message);
 
             // 处理消息
@@ -157,7 +175,7 @@ async fn dtu_process_messages() {
                 AtomiProto::Dtu(DtuCommand::DtuLinear(cmd)) => {
                     if dtu_stepper_available {
                         let res = uart_comm.send(AtomiProto::Dtu(DtuCommand::DtuAck));
-                        stepper_input_mq().enqueue(cmd);
+                        get_dtu_dual_queue().push_request(cmd);
                         dtu_stepper_available = false;
                         res
                     } else {
@@ -175,7 +193,7 @@ async fn dtu_process_messages() {
                     if !dtu_stepper_available {
                         // wait till the stepper is stopped.
                         loop {
-                            if let Some(stepper_resp) = stepper_output_mq().dequeue() {
+                            if let Some(stepper_resp) = get_dtu_dual_queue().pop_response() {
                                 info!("stepper_resp: {}", stepper_resp);
                                 assert_eq!(
                                     stepper_resp,
@@ -199,7 +217,7 @@ async fn dtu_process_messages() {
             }
         }
 
-        if let Some(stepper_resp) = stepper_output_mq().dequeue() {
+        if let Some(stepper_resp) = get_dtu_dual_queue().pop_response() {
             info!("[DTU] get response from linear stepper: {}", stepper_resp);
             dtu_stepper_available = true;
         }
@@ -239,77 +257,9 @@ unsafe fn UART0_IRQ() {
         match postcard::from_bytes::<AtomiProto>(&message_buffer) {
             Ok(msg) => {
                 debug!("Received message: {:?}", msg);
-                get_mq().enqueue(msg);
+                get_dtu_mq().enqueue(msg);
             }
             Err(_) => info!("Failed to parse message"),
         }
     }
 }
-
-// type UartPinsType = (Pin<Gpio8, FunctionUart, PullUp>, Pin<Gpio9, FunctionUart, PullUp>);
-
-// fn read_reg<R: ReadableRegister>(
-//     tx: &mut Writer<UART1, UartPinsType>,
-//     rx: &mut Reader<UART1, UartPinsType>,
-//     tmc_reader: &mut tmc2209::Reader,
-// ) -> Option<R> {
-//     let mut buffer = [0u8; 32];
-//     tmc2209::send_read_request::<R, _, _>(0, tx, rx).unwrap();
-
-//     let mut timeout = 50000u64;
-//     loop {
-//         match rx.read_raw(&mut buffer) {
-//             Ok(bytes) => {
-//                 // info!("bytes:{}, buffer:{}", bytes, buffer);
-//                 timeout = 50000u64;
-//                 let (_processed_bytes, tmc_response) = tmc_reader.read_response(&buffer[..bytes]);
-//                 // info!(
-//                 //     "processed bytes: {}, recv bytes: {}",
-//                 //     processed_bytes, bytes
-//                 // );
-//                 let res = if let Some(response) = tmc_response {
-//                     if !response.crc_is_valid() {
-//                         error!("Received invalid response!");
-//                         return None;
-//                     }
-//                     // info!("Received valid response: {}", Debug2Format(&response));
-//                     match response.reg_addr() {
-//                         Ok(addr) => {
-//                             // info!("xfguo: addr = {}, R::ADDR = {}", Debug2Format(&addr), Debug2Format(&R::ADDRESS));
-//                             if addr == R::ADDRESS {
-//                                 let reg = response.register::<R>().unwrap();
-//                                 // info!("xfguo: {}: {}", Debug2Format(&R::ADDRESS), Debug2Format(&reg));
-//                                 Some(reg)
-//                             } else {
-//                                 None
-//                             }
-//                         }
-//                         _ => None,
-//                     }
-//                 } else {
-//                     None
-//                 };
-//                 if res.is_none() {
-//                     continue;
-//                 }
-//                 return res;
-//             }
-//             Err(nb::Error::WouldBlock) => {
-//                 if timeout > 0 {
-//                     timeout -= 1;
-//                     delay(10);
-//                     continue;
-//                 } else {
-//                     error!("timeout in reading");
-//                     return None;
-//                 }
-//             }
-//             Err(_) => {
-//                 error!("Errors in read data");
-//                 return None;
-//             }
-//         }
-//     }
-// }
-
-//type UartPinsType = (Pin<Gpio8, FunctionUart, PullUp>, Pin<Gpio9, FunctionUart, PullUp>);
