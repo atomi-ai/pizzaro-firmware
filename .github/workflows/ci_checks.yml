@@ -21,7 +21,7 @@ jobs:
           # Check compilation works on common OSes
           # (i.e. no path issues)
           - ubuntu-latest
-    runs-on: ${{ matrix.os }}
+    runs-on: ['self-hosted', 'Linux', 'X64']
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@master
