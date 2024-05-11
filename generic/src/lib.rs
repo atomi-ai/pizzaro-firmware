@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
 
 pub mod atomi_error;
 pub mod atomi_proto;
