@@ -5,6 +5,12 @@ pub struct Once<T> {
     value: UnsafeCell<Option<T>>,
 }
 
+impl<T> Default for Once<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> Once<T> {
     pub const fn new() -> Once<T> {
         Once { initialized: false, value: UnsafeCell::new(None) }

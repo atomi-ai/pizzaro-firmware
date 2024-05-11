@@ -40,7 +40,6 @@ pub struct UnexpectedAddress;
 
 bitfield! {
     #[derive(Clone, Copy, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct GCONF(u32);
@@ -60,7 +59,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct GSTAT(u32);
@@ -72,14 +70,12 @@ bitfield! {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
 pub struct IFCNT(pub u32);
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct SLAVECONF(u32);
@@ -90,7 +86,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct OTP_PROG(u32);
@@ -103,7 +98,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct OTP_READ(u32);
@@ -126,7 +120,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct IOIN(u32);
@@ -146,7 +139,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct FACTORY_CONF(u32);
@@ -158,7 +150,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct IHOLD_IRUN(u32);
@@ -170,14 +161,12 @@ bitfield! {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
 pub struct TPOWERDOWN(pub u32);
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct TSTEP(u32);
@@ -188,7 +177,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct TPWMTHRS(u32);
@@ -199,7 +187,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct VACTUAL(u32);
@@ -210,7 +197,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct TCOOLTHRS(u32);
@@ -220,14 +206,12 @@ bitfield! {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
 pub struct SGTHRS(pub u32);
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct SG_RESULT(u32);
@@ -238,7 +222,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct COOLCONF(u32);
@@ -253,7 +236,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct MSCNT(u32);
@@ -264,7 +246,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct MSCURACT(u32);
@@ -276,7 +257,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct CHOPCONF(u32);
@@ -296,7 +276,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct DRV_STATUS(u32);
@@ -321,7 +300,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct PWMCONF(u32);
@@ -339,7 +317,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct PWM_SCALE(u32);
@@ -352,7 +329,6 @@ bitfield! {
 
 bitfield! {
     #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
-    #[cfg_attr(feature = "hash", derive(hash32_derive::Hash32))]
     #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
     #[cfg_attr(feature = "ufmt", derive(ufmt::derive::uDebug))]
     pub struct PWM_AUTO(u32);
@@ -642,27 +618,6 @@ macro_rules! impl_registers {
             type Target = MapArray;
             fn deref(&self) -> &Self::Target {
                 &self.arr
-            }
-        }
-
-        #[cfg(feature = "hash")]
-        impl hash32::Hash for Address {
-            fn hash<H>(&self, state: &mut H)
-            where
-                H: hash32::Hasher,
-            {
-                (*self as u8).hash(state)
-            }
-        }
-
-        #[cfg(feature = "hash")]
-        impl hash32::Hash for State {
-            fn hash<H>(&self, state: &mut H)
-            where
-                H: hash32::Hasher,
-            {
-                let u: u32 = (*self).into();
-                u.hash(state)
             }
         }
 
