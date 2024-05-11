@@ -35,7 +35,7 @@ jobs:
       - run: cargo build --examples --release
   linting:
     name: Linting
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'Linux', 'X64']
     steps:
       - uses: actions/checkout@v3
         with:
@@ -47,7 +47,7 @@ jobs:
       - run: cargo clippy --all-features -- --deny=warnings
   formatting:
     name: Formatting
-    runs-on: ubuntu-latest
+    runs-on: ['self-hosted', 'Linux', 'X64']
     steps:
       - uses: actions/checkout@v3
         with:
