@@ -1,6 +1,6 @@
 /// BSP version: Spring_Begins
 ///
-/// MMD Schematic: [[https://github.com/atomi-ai/pizzaro-v1.5/blob/master/hardware/MMD-v1_5_4.pdf]]
+/// MMD Schematic: [[https://github.com/atomi-ai/pizzaro-v1.5/blob/master/hardware/pdf-exports/v1.5.1/MMD.pdf]]
 use crate::common::brush_motor_patch::BrushMotorPatched;
 use crate::common::brushless_motor::BrushlessMotor;
 use crate::common::pwm_stepper::{PwmChannels, PwmStepper};
