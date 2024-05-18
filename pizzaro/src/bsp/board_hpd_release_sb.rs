@@ -1,6 +1,7 @@
 /// BSP version: Spring_Begins
 ///
 /// HPD Schematic: [[https://github.com/atomi-ai/pizzaro-v1.5/blob/master/hardware/pdf-exports/v1.5.4/HPD.pdf]]
+/// HPD Layout: [[https://github.com/atomi-ai/pizzaro-v1.5/blob/v1.5.4/hardware/pizzaro_v1.5.kicad_pcb]]
 use crate::define_pins;
 use rp2040_hal::gpio::bank0::{Gpio12, Gpio8, Gpio9};
 use rp2040_hal::gpio::{FunctionSioOutput, FunctionUart, Pin, PullDown, PullUp};
