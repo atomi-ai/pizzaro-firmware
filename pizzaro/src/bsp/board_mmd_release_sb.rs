@@ -1,6 +1,8 @@
 /// BSP version: Spring_Begins
 ///
 /// MMD Schematic: [[https://github.com/atomi-ai/pizzaro-v1.5/blob/master/hardware/pdf-exports/v1.5.1/MMD.pdf]]
+/// MMD Layout: [[https://github.com/atomi-ai/pizzaro-v1.5/blob/v1.5.1/hardware/pizzaro_v1.5.kicad_pcb]]
+/// NOTE: 这一版的PCB有很多飞线改线，设计图仅供参考。
 use crate::common::brush_motor_patch::BrushMotorPatched;
 use crate::common::brushless_motor::BrushlessMotor;
 use crate::common::pwm_stepper::{PwmChannels, PwmStepper};
@@ -67,8 +69,11 @@ define_pins! {
     // rollback to HW version V1.5.1
     // MMD: MultiMotorDriver
     // brush motor
+    // pwm_a as pwm input
     mmd_br_pwm_a, gpio0,
+    // pwm_b as dir input
     mmd_br_pwm_b, gpio1,
+    // nEN as nSLEEP (enable => HIGH!!!)
     mmd_br_nEN, gpio3,
     // 485 interface
     mmd_sys_tx, gpio4,
