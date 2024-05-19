@@ -50,13 +50,7 @@ fn main() -> ! {
     let mut my_led = MyLED::new(
         (5, 5, 5).into(),
         (0, 0, 0).into(),
-        Ws2812::new(
-            //Ws2812Direct::new(
-            blinky_led!(pins).into_function().into_dyn_pin(),
-            // &mut pio,
-            // sm0,
-            // clocks.peripheral_clock.freq(),
-        ),
+        Ws2812::new(blinky_led!(pins).into_function().into_dyn_pin()),
     );
 
     loop {
