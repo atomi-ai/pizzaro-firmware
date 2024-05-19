@@ -4,6 +4,8 @@ use embedded_hal::digital::StatefulOutputPin;
 use generic::atomi_error::AtomiError;
 use rp2040_hal::pwm::{FreeRunning, Slice, SliceId};
 
+use crate::common::brush_motor::spd_mapping;
+
 use super::pwm_stepper::PwmChannels;
 const ENABLE_LOGIC_HIGH: bool = true;
 
@@ -79,27 +81,22 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotorPatched<S, E> {
         }
     }
 
-    pub(crate) fn apply_speed(&mut self, speed: f32) {
+    pub fn apply_speed(&mut self, speed: f32) {
         // speed范围-1.0~1.0
         // 这里duty需要注意，静止为0.5，但最小最大值不能到0-1.0，必须限制在大致0.03~0.97的范围内。
         // 此外，因为阻力的缘故，启动速度也要加一个偏置，比如0.54才开始转。
         // 此外还需要注意，正向偏置和负向偏置还未必一致，所以最终实际的速度按照占空比来算大致是（0.03~0.45, 0.55~0.97这样的
 
-        let (s1, s2, s3, s4) = self.thres_speed;
         let spd = if self.revert_dir { -speed.clamp(-1.0, 1.0) } else { speed.clamp(-1.0, 1.0) };
 
-        info!("spd:{}", spd);
-        let spd_mapped = if spd > 0.0 {
-            self.ensure_enable().expect("Failed to enable motor");
-            spd * (s4 - s3) * 2.0
-        } else if spd < 0.0 {
-            self.ensure_enable().expect("Failed to enable motor");
-            (-spd) * (s2 - s1) * 2.0
-        } else {
-            info!("disable pwm");
+        let spd_mapped = spd_mapping(spd, self.thres_speed);
+        info!("spd:{}, spd_mapped:{}", spd, spd_mapped);
+
+        if spd_mapped == 0.0 {
             self.disable().expect("Failed to disable motor");
-            0.0
-        };
+        } else {
+            self.ensure_enable().expect("Failed to enable motor");
+        }
 
         //let t = ((if self.revert_dir { -speed } else { speed }) * 33.0) as i32;
         let duty_scaled = ((self.pwm_top as f32) * spd_mapped) as u32;

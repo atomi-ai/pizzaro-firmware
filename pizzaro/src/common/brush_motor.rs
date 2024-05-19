@@ -82,31 +82,45 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
         // 此外，因为阻力的缘故，启动速度也要加一个偏置，比如0.54才开始转。
         // 此外还需要注意，正向偏置和负向偏置还未必一致，所以最终实际的速度按照占空比来算大致是（0.03~0.45, 0.55~0.97这样的
 
-        let (s1, s2, s3, s4) = self.thres_speed;
         let spd = if self.revert_dir { -speed.clamp(-1.0, 1.0) } else { speed.clamp(-1.0, 1.0) };
 
-        debug!("spd:{}", spd);
-        let spd_mapped = if spd > 0.0 {
-            self.ensure_enable().expect("Failed to enable motor");
-            spd * (s4 - s3) + s3
-        } else if spd < 0.0 {
-            self.ensure_enable().expect("Failed to enable motor");
-            (spd + 1.0) * (s2 - s1) + s1
-        } else {
+        let spd_mapped = spd_mapping(spd, self.thres_speed);
+        debug!("spd:{}, spd_mapped:{}", spd, spd_mapped);
+
+        if spd_mapped == 0.0 {
             debug!("disable pwm");
             if freerun {
                 self.disable().expect("Failed to disable motor");
             }
-            0.5
-        };
+        } else {
+            self.ensure_enable().expect("Failed to enable motor");
+            //let t = ((if self.revert_dir { -speed } else { speed }) * 33.0) as i32;
+            let duty_scaled = ((self.pwm_top as f32) * spd_mapped) as u32;
+            debug!(
+                "speed = {}, spd_mapped = {}, duty_scaled = {}, revert_dir={}",
+                speed, spd_mapped, duty_scaled, self.revert_dir,
+            );
+            self.pwm.channel_a.set_duty(duty_scaled as u16);
+            self.pwm.channel_b.set_duty((duty_scaled) as u16);
+        }
+    }
+}
 
-        //let t = ((if self.revert_dir { -speed } else { speed }) * 33.0) as i32;
-        let duty_scaled = ((self.pwm_top as f32) * spd_mapped) as u32;
-        debug!(
-            "speed = {}, spd_mapped = {}, duty_scaled = {}, revert_dir={}",
-            speed, spd_mapped, duty_scaled, self.revert_dir,
-        );
-        self.pwm.channel_a.set_duty(duty_scaled as u16);
-        self.pwm.channel_b.set_duty((duty_scaled) as u16);
+// 把输入范围-1.0~1.0的速度，按照(s1,s2,s3,s4)四段进行线性映射
+pub(crate) fn spd_mapping(spd: f32, thres_spd: (f32, f32, f32, f32)) -> f32 {
+    let (s1, s2, s3, s4) = thres_spd;
+    // 负轴映射到s2r~s1r
+    let s1r = 1.0 - s1 * 2.0;
+    let s2r = (0.5 - s2) * 2.0;
+    // 正轴映射到s3r~s4r
+    let s3r = (s3 - 0.5) * 2.0;
+    let s4r = 1.0 - (1.0 - s4) * 2.0;
+
+    if spd > 0.0 {
+        s3r + (s4r - s3r) * spd
+    } else if spd < 0.0 {
+        s2r + (s1r - s2r) * (-spd)
+    } else {
+        0.0
     }
 }
