@@ -12,3 +12,8 @@ macro_rules! define_pins {
         )*
     };
 }
+
+// all rp2040 board shares this common design:
+define_pins! {
+    blinky_led, gpio16
+}

@@ -1,12 +1,13 @@
+use embedded_hal::digital::OutputPin;
 use fugit::ExtU64;
-use rp2040_hal::gpio::AnyPin;
-use rp2040_hal::pio::StateMachineIndex;
-use rp_pico::hal::pio::PIOExt;
+// use rp2040_hal::gpio::AnyPin;
+// use rp2040_hal::pio::StateMachineIndex;
+// use rp2040_hal::pio::PIOExt;
 use smart_leds::RGB8;
 use smart_leds_trait::SmartLedsWrite;
-use ws2812_pio::Ws2812Direct;
-
+//use ws2812_pio::Ws2812Direct;
 use super::global_timer::Delay;
+use crate::common::ws2812_bitbang::Ws2812;
 
 enum LedState {
     On,
@@ -17,11 +18,14 @@ pub trait LedController {
     fn set_color(&mut self, color: RGB8);
 }
 
-impl<P, SM, I> LedController for Ws2812Direct<P, SM, I>
+// impl<P, SM, I> LedController for Ws2812Direct<P, SM, I>
+// where
+//     I: AnyPin<Function = P::PinFunction>,
+//     P: PIOExt,
+//     SM: StateMachineIndex,
+impl<I> LedController for Ws2812<I>
 where
-    I: AnyPin<Function = P::PinFunction>,
-    P: PIOExt,
-    SM: StateMachineIndex,
+    I: OutputPin,
 {
     fn set_color(&mut self, color: RGB8) {
         // SmartLedsWrite::write(&mut self, [color].iter().copied()).unwrap();

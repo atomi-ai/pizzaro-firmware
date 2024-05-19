@@ -3,25 +3,24 @@
 
 use defmt::*;
 use defmt_rtt as _;
-use embedded_hal::digital::OutputPin;
+use embedded_hal::digital::{InputPin, OutputPin};
 use panic_probe as _;
-use pizzaro::blinky_led;
-use pizzaro::common::led_controller::MyLED;
-use pizzaro::common::ws2812_bitbang::Ws2812;
-// use rp2040_hal::pio::PIOExt;
+use pizzaro::{blinky_led, mmd_limit0, mmd_limit1};
 use rp2040_hal::{
     clocks::{init_clocks_and_plls, Clock},
+    entry, pac,
     sio::Sio,
     watchdog::Watchdog,
 };
-use rp2040_hal::{entry, pac, Timer};
+
+/// The maximum PWM value (i.e. LED brightness) we want
+// const HIGH: u16 = 60000;
 
 #[entry]
 fn main() -> ! {
     info!("Program start");
     let mut pac = pac::Peripherals::take().unwrap();
     let core = pac::CorePeripherals::take().unwrap();
-    // let (mut pio, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
     let sio = Sio::new(pac.SIO);
 
@@ -38,34 +37,29 @@ fn main() -> ! {
     .ok()
     .unwrap();
 
-    // let mut FC0_DELAY = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
-    let mut _timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
 
     let pins =
         rp2040_hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
-    let mut test_gpio_pin = pins.gpio13.into_push_pull_output();
-
     let mut my_led = MyLED::new(
         (5, 5, 5).into(),
         (0, 0, 0).into(),
-        Ws2812::new(
-            //Ws2812Direct::new(
+        Ws2812Direct::new(
             blinky_led!(pins).into_function().into_dyn_pin(),
-            // &mut pio,
-            // sm0,
-            // clocks.peripheral_clock.freq(),
+            &mut pio,
+            sm0,
+            clocks.peripheral_clock.freq(),
         ),
     );
-
+    let mut limit_left_pin = mmd_limit0!(pins).into_floating_input();
+    let mut limit_right_pin = mmd_limit1!(pins).into_floating_input();
     loop {
         my_led.ledon();
-        test_gpio_pin.set_high().unwrap();
-        delay.delay_ms(200);
+        delay.delay_ms(500);
 
         my_led.ledoff();
-        test_gpio_pin.set_low().unwrap();
-        delay.delay_ms(200);
+        delay.delay_ms(500);
+        info!("left: {}   right:{}", limit_left_pin.is_high(), limit_right_pin.is_high());
     }
 }

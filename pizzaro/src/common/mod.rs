@@ -20,6 +20,7 @@ pub mod pwm_stepper;
 pub mod rp2040_timer;
 pub mod state;
 pub mod stepper;
+pub mod ws2812_bitbang;
 #[allow(
     clippy::get_first,
     clippy::from_over_into,
