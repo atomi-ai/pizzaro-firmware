@@ -3,9 +3,14 @@
 
 use defmt::*;
 use defmt_rtt as _;
-use embedded_hal::digital::{InputPin, OutputPin};
+use embedded_hal::digital::InputPin;
 use panic_probe as _;
-use pizzaro::{blinky_led, mmd_limit0, mmd_limit1};
+use pizzaro::{
+    blinky_led,
+    bsp::board_mmd_release_sb::MmdLimitSwitch0,
+    common::{led_controller::MyLED, ws2812_bitbang::Ws2812},
+    mmd_limit0, mmd_limit1,
+};
 use rp2040_hal::{
     clocks::{init_clocks_and_plls, Clock},
     entry, pac,
@@ -45,21 +50,24 @@ fn main() -> ! {
     let mut my_led = MyLED::new(
         (5, 5, 5).into(),
         (0, 0, 0).into(),
-        Ws2812Direct::new(
-            blinky_led!(pins).into_function().into_dyn_pin(),
-            &mut pio,
-            sm0,
-            clocks.peripheral_clock.freq(),
-        ),
+        Ws2812::new(blinky_led!(pins).into_function().into_dyn_pin()),
     );
     let mut limit_left_pin = mmd_limit0!(pins).into_floating_input();
     let mut limit_right_pin = mmd_limit1!(pins).into_floating_input();
+    let mut delay_interval: u32 = 500;
     loop {
         my_led.ledon();
-        delay.delay_ms(500);
+        delay.delay_ms(delay_interval);
 
         my_led.ledoff();
-        delay.delay_ms(500);
+        delay.delay_ms(delay_interval);
+        let (left_on, right_on) =
+            (!limit_left_pin.is_high().unwrap(), !limit_right_pin.is_high().unwrap());
+        if left_on || right_on {
+            delay_interval = 100;
+        } else {
+            delay_interval = 500;
+        }
         info!("left: {}   right:{}", limit_left_pin.is_high(), limit_right_pin.is_high());
     }
 }
