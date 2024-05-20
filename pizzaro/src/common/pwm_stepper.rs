@@ -1,12 +1,10 @@
-use cortex_m::prelude::_embedded_hal_PwmPin;
 use defmt::{debug, info, warn};
 use embedded_hal::digital::{OutputPin, StatefulOutputPin};
+use embedded_hal::pwm::SetDutyCycle;
 use fugit::HertzU32;
 use generic::atomi_error::AtomiError;
 use rp2040_hal::gpio::{DynPinId, FunctionSio, Pin, PullDown, SioOutput};
 use rp2040_hal::pwm::{FreeRunning, Slice, SliceId};
-
-// pub const MMD_PWM_TOP: u16 = 5000;
 
 #[allow(non_camel_case_types)]
 pub enum PwmChannels {
@@ -52,41 +50,6 @@ impl<S: SliceId, E: StatefulOutputPin> PwmStepper<S, E> {
         }
         Ok(())
     }
-
-    // fn set_pwm_freq(&mut self, freq: u32) -> u16 {
-    //     const TOP_MAX: u32 = 65534;
-    //     let source_hz = self.sys_clock.to_Hz();
-    //     let mut div16: u32;
-    //     let mut top: u32;
-
-    //     if (source_hz + freq / 2) / freq < TOP_MAX {
-    //         div16 = 16;
-    //         top = (source_hz + freq / 2) / freq - 1;
-    //     } else {
-    //         div16 = get_slice_hz_ceil(self.sys_clock, TOP_MAX * freq);
-    //         top = get_slice_hz_round(self.sys_clock, div16 * freq) - 1;
-    //     }
-
-    //     if div16 < 16 {
-    //         warn!("Requested frequency too large, clamping to maximum");
-    //         div16 = 16;
-    //         top = TOP_MAX;
-    //     } else if div16 >= 256 * 16 {
-    //         warn!("Requested frequency too small, clamping to minimum");
-    //         div16 = 256 * 16 - 1;
-    //         top = get_slice_hz_round(self.sys_clock, div16 * freq) - 1;
-    //     }
-
-    //     let div_int = (div16 / 16) as u8;
-    //     let div_frac = ((div16 % 16) * 16) as u8;
-    //     info!("div_int:{}, div_frac:{},  top:{}", div_int, div_frac, top);
-    //     self.pwm.set_div_int(div_int);
-    //     self.pwm.set_div_frac(div_frac);
-    //     self.pwm.set_top(top as u16);
-    //     self.pwm.set_counter(0);
-    //     self.pwm.enable();
-    //     top as u16
-    // }
 
     fn set_pwm_freq(&mut self, freq_u32: u32) -> u16 {
         const TOP_MAX: u32 = 65534;
@@ -139,11 +102,11 @@ impl<S: SliceId, E: StatefulOutputPin> PwmStepper<S, E> {
         top as u16
     }
 
-    pub(crate) fn stop(&mut self) {
+    pub fn stop(&mut self) {
         self.pwm.disable();
     }
 
-    pub(crate) fn set_speed(&mut self, speed_rpm: i32) {
+    pub fn set_speed(&mut self, speed_rpm: i32) {
         info!("set speed:{}", speed_rpm);
         if speed_rpm == 0 {
             self.stop();
@@ -162,10 +125,10 @@ impl<S: SliceId, E: StatefulOutputPin> PwmStepper<S, E> {
         let freq_top = self.set_pwm_freq(freq);
         match self.step_channel {
             PwmChannels::channel_a => {
-                self.pwm.channel_a.set_duty(freq_top / 2);
+                self.pwm.channel_a.set_duty_cycle(freq_top / 2).unwrap();
             }
             PwmChannels::channel_b => {
-                self.pwm.channel_b.set_duty(freq_top / 2);
+                self.pwm.channel_b.set_duty_cycle(freq_top / 2).unwrap();
             }
         }
 
