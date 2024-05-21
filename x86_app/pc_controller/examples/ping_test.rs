@@ -3,7 +3,8 @@ use std::time::Duration;
 
 use clap::Parser;
 use generic::atomi_proto::{AtomiProto, HpdCommand, McCommand, MmdCommand};
-use serialport::{available_ports, SerialPort, SerialPortType};
+use serialport::SerialPort;
+
 use pc_controller::find_serial_device;
 
 #[derive(Parser, Debug)]

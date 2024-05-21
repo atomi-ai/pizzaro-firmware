@@ -1,5 +1,5 @@
 use std::borrow::Cow::{self, Borrowed, Owned};
-use std::io::Read;
+use std::io::{Read, Write};
 use std::time::Duration;
 
 use clap::Parser;
@@ -63,6 +63,9 @@ struct Cli {
     #[arg(long)]
     #[arg(required_unless_present("port"))]
     probe: Option<String>,
+
+    #[arg(long, default_value_t = false)]
+    with_len: bool,
 }
 
 // To debug rustyline:
@@ -118,13 +121,27 @@ fn main() -> rustyline::Result<()> {
                     continue;
                 }
                 let data = postcard::to_vec::<AtomiProto, 8>(&msg).unwrap();
+
+                if cli.with_len {
+                    let l = data.len() as u8;
+                    println!("Send data len: {}", l);
+                    port.write(&[l]).expect("Errors in sending data len");
+                }
                 println!("Line: {}, protocol: {:?}, data = {:?}", line, msg, data);
                 port.write(&data).expect(&format!("errors in sending request '{:?}'", data));
+
                 let mut buf: Vec<u8> = vec![0u8; 64];
                 let len = port.read(buf.as_mut_slice()).expect("errors in recving response");
-                let resp = postcard::from_bytes::<AtomiProto>(&buf[..len]);
+                println!("Got response data: {:?}, len: {}", &buf[..len], len);
+                let resp_data = if cli.with_len {
+                    assert_eq!((len - 1) as u8, buf[0].into());
+                    &buf[1..len]
+                } else {
+                    &buf[..len]
+                };
+                let resp = postcard::from_bytes::<AtomiProto>(resp_data);
                 println!("Got response: ({len}) {:?}, msg: {:?}", &buf[..len], resp);
-                // port.clear(ClearBuffer::All).expect("Errors in clearing buffer for serial port");
+                port.flush().expect("Errors in flushing buffer for serial port");
             }
             Err(ReadlineError::Interrupted) => {
                 println!("Interrupted");

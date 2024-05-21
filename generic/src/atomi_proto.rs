@@ -156,6 +156,7 @@ pub enum HpdCommand {
     HpdPing,
     HpdPong,
     HpdAck,
+    HpdEcho(u8),
 
     HpdStop,
     HpdLinearBull(LinearBullCommand),

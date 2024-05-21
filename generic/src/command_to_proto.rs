@@ -227,6 +227,13 @@ where
         Some("pong") => AtomiProto::Hpd(HpdCommand::HpdPong),
         Some("home") => AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::Home)),
         Some("stop") => AtomiProto::Hpd(HpdCommand::HpdStop),
+        Some("echo") => {
+            if let Ok(idx) = parse_int(tokens.next()) {
+                AtomiProto::Hpd(HpdCommand::HpdEcho(idx as u8))
+            } else {
+                AtomiProto::Unknown
+            }
+        }
 
         Some("move_rel") => {
             if let Ok(distance) = parse_int(tokens.next()) {
