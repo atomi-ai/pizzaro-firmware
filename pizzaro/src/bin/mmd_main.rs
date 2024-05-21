@@ -12,7 +12,6 @@ use cortex_m::peripheral::NVIC;
 use defmt::{debug, error, info, Debug2Format};
 use embedded_hal::digital::OutputPin;
 use fugit::{ExtU64, RateExtU32};
-use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
     clocks::{init_clocks_and_plls, Clock},
@@ -112,8 +111,8 @@ fn main() -> ! {
     let pins =
         rp2040_hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
     let uart_pins = (
-        mmd_sys_tx!(pins).into_function::<FunctionUart>(), // TX, not used in this program
-        mmd_sys_rx!(pins).into_function::<FunctionUart>(), // RX
+        mmd_sys_tx!(pins).reconfigure(), // TX, not used in this program
+        mmd_sys_rx!(pins).reconfigure(), // RX
     );
     let uart_dir = mmd_485_dir!(pins).reconfigure();
 
