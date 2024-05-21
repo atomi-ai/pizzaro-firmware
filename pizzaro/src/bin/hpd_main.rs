@@ -171,6 +171,9 @@ async fn hpd_process_messages() {
                 AtomiProto::Hpd(HpdCommand::HpdPing) => {
                     uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdPong))
                 }
+                AtomiProto::Hpd(HpdCommand::HpdEcho(idx)) => {
+                    uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdEcho(idx)))
+                }
 
                 AtomiProto::Hpd(HpdCommand::HpdStop) => {
                     //info!("pre stop1, linear_bull_available:{}", linear_bull_available);
