@@ -16,7 +16,7 @@ use rp2040_hal::pac::{Interrupt, UART1};
 use rp2040_hal::pwm::{Pwm0, Pwm1, Pwm4, Pwm5, Pwm6};
 use rp2040_hal::uart::{Enabled, UartPeripheral};
 
-pub type MmdUartPins = (Pin<Gpio4, FunctionUart, PullDown>, Pin<Gpio5, FunctionUart, PullDown>);
+pub type MmdUartPins = (Pin<Gpio4, FunctionUart, PullUp>, Pin<Gpio5, FunctionUart, PullUp>);
 pub type MmdUartType = UartPeripheral<Enabled, UART1, MmdUartPins>;
 pub type MmdUartDirPinType = Pin<Gpio21, FunctionSioOutput, PullUp>;
 
