@@ -6,19 +6,10 @@ use defmt::*;
 use defmt_rtt as _;
 use embedded_hal::digital::OutputPin;
 use fugit::RateExtU32;
-use futures::TryFutureExt;
-use generic::{
-    atomi_error::AtomiError,
-    atomi_proto::{AtomiProto, MmdCommand},
-    mmd_status::MmdStatus,
-};
 use panic_probe as _;
 use pizzaro::{
     blinky_led,
-    common::{
-        executor_inplace::executor_inplace, global_timer::AtomiDuration, led_controller::MyLED,
-        uart_comm::UartComm, ws2812_bitbang::Ws2812,
-    },
+    common::{led_controller::MyLED, ws2812_bitbang::Ws2812},
     mmd_485_dir, mmd_sys_rx, mmd_sys_tx, mmd_uart,
 };
 
@@ -66,32 +57,26 @@ fn main() -> ! {
         // UART RX (characters received by RP2040) on pin 2 (GPIO1)
         mmd_sys_rx!(pins).into_function::<FunctionUart>(),
     );
-    let mut uart = UartPeripheral::new(mmd_uart!(pac), uart_pins, &mut pac.RESETS)
+    let uart = UartPeripheral::new(mmd_uart!(pac), uart_pins, &mut pac.RESETS)
         .enable(
             UartConfig::new(115200.Hz(), DataBits::Eight, None, StopBits::One),
             clocks.peripheral_clock.freq(),
         )
         .unwrap();
     let mut uart_dir = mmd_485_dir!(pins).into_push_pull_output().into_dyn_pin();
-    uart_dir.set_low();
+    uart_dir.set_low().unwrap();
     // let mut comm = UartComm::new(&mut uart, &mut uart_dir, 128);
     let mut led_on_stat = false;
     loop {
         let mut buffer: [u8; 32] = [0; 32];
-        uart.read_raw(&mut buffer);
-        info!("buffer:{}", buffer);
-        // let mmd_resp: Result<AtomiProto, AtomiError> = executor_inplace(
-        //     comm.recv_timeout(AtomiDuration::millis(200))
-        //         .map_err(|_| AtomiError::MmdUnavailable(MmdStatus::Unavailable)),
-        // );
-        // info!("MMD recv:{}", mmd_resp);
-        // match mmd_resp {
-        //     Ok(AtomiProto::Mmd(MmdCommand::MmdPing)) => {
-        //         info!("MMD send pong");
-        //         comm.send(AtomiProto::Mmd(generic::atomi_proto::MmdCommand::MmdPong)).unwrap();
-        //     }
-        //     _ => (),
-        // }
+        match nb::block!(uart.read_raw(&mut buffer)) {
+            Ok(_) => {
+                info!("buffer:{}", buffer);
+            }
+            Err(_) => {
+                error!("recv error");
+            }
+        }
 
         led_on_stat = !led_on_stat;
         if led_on_stat {
