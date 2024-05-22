@@ -57,6 +57,8 @@ pub enum McSystemExecutorCmd {
     InitSystem,
     MakePizza,
 
+    KetchUpTest,
+
     StopSystem,
 }
 

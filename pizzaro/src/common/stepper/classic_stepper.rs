@@ -163,12 +163,6 @@ where
         Ok(delta)
     }
 
-    pub fn get_limit_status(&mut self) -> (bool, bool) {
-        let l = self.limit_left.is_high().unwrap_or(false);
-        let r = self.limit_right.is_high().unwrap_or(false);
-        (l, r)
-    }
-
     async fn move_to_relative_internal(
         &mut self,
         speed: u32,
@@ -177,7 +171,7 @@ where
         self.stepper.ensure_enable()?;
 
         self.state.push(LinearMotionState::MOVING)?;
-        debug!("moving start, state: {}", self.state);
+        debug!("move_to_relative_internal() 1: moving start, state: {}", self.state);
 
         let moving_right = steps > 0;
         self.stepper.set_speed(speed);
@@ -185,16 +179,18 @@ where
             self.state.pop();
             e
         })?;
+        debug!("move_to_relative_internal() 2, steps: {}", steps);
         for i in 0..steps.abs() {
             if GLOBAL_STEPPER_STOP.load(Ordering::Relaxed) {
                 return Err(AtomiError::MmdStopped);
             }
+            // let l = false;
             let l = self.limit_left.is_high().unwrap_or(false);
             let r = self.limit_right.is_high().unwrap_or(false);
-            // info!(
-            //     "[MMD: Debug] moving_right = {}, limit_left = {}, limit_right = {}",
-            //     moving_right, l, r
-            // );
+            debug!(
+                "move_to_relative_internal() 2.5: moving_right = {}, limit_left = {}, limit_right = {}",
+                moving_right, l, r
+            );
             // 在每一步之前检查限位开关
             if moving_right && r {
                 self.state.pop();
@@ -208,9 +204,16 @@ where
                 e
             })?;
         }
+        debug!("move_to_relative_internal() 3");
         let result = self.update_position_and_return(steps);
         self.state.pop();
         debug!("moving done, state: {}", self.state);
         result
+    }
+
+    pub fn get_limit_status(&mut self) -> (bool, bool) {
+        let l = self.limit_left.is_high().unwrap_or(false);
+        let r = self.limit_right.is_high().unwrap_or(false);
+        (l, r)
     }
 }

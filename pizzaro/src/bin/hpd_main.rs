@@ -255,7 +255,7 @@ unsafe fn UART1_IRQ() {
         }
 
         // Parse the message
-        debug!("UART1_IRQ() 5, len = {}, data: {}", message_length, Debug2Format(&message_buffer));
+        info!("UART1_IRQ() 5, len = {}, data: {}", message_length, Debug2Format(&message_buffer));
         match postcard::from_bytes::<AtomiProto>(&message_buffer) {
             Ok(message) => {
                 info!("Received message: {:?}", message);

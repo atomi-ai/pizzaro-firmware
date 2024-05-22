@@ -89,7 +89,7 @@ impl<S: SliceId, E: StatefulOutputPin> PwmStepper<S, E> {
     // }
 
     fn set_pwm_freq(&mut self, freq_u32: u32) -> u16 {
-        const TOP_MAX: u32 = 65534;
+        const TOP_MAX: u32 = 65535;
         const DIV_MIN: u32 = 0x01 << 4; // 0x10
         const DIV_MAX: u32 = (0xFF << 4) + 0xF; // 0xFFF
         let clock: u32 = 125_000_000; // 假设系统时钟为 125 MHz

@@ -43,6 +43,7 @@ where
         Some("weight") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::GetWeight)),
         Some("init") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::InitSystem)),
         Some("make") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::MakePizza)),
+        Some("ketch_up_test") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::KetchUpTest)),
         Some("stop") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::StopSystem)),
         // Some("autostop") => AtomiProto::Autorun(AtomiAutorun::Stop),
         _ => AtomiProto::Mc(McCommand::McError),
@@ -129,7 +130,7 @@ where
         Some("pr_spd") => {
             if let Ok(speed) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-                    RotationStepperCommand::SetPresserRotation { speed },
+                    RotationStepperCommand::SetPresserRotation { speed: speed },
                 ))
             } else {
                 AtomiProto::Unknown
@@ -227,13 +228,6 @@ where
         Some("pong") => AtomiProto::Hpd(HpdCommand::HpdPong),
         Some("home") => AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::Home)),
         Some("stop") => AtomiProto::Hpd(HpdCommand::HpdStop),
-        Some("echo") => {
-            if let Ok(idx) = parse_int(tokens.next()) {
-                AtomiProto::Hpd(HpdCommand::HpdEcho(idx as u8))
-            } else {
-                AtomiProto::Unknown
-            }
-        }
 
         Some("move_rel") => {
             if let Ok(distance) = parse_int(tokens.next()) {
