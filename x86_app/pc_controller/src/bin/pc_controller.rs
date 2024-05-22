@@ -1,10 +1,7 @@
 use std::borrow::Cow::{self, Borrowed, Owned};
-use std::io::{Read, Write};
 use std::time::Duration;
 
 use clap::Parser;
-use generic::atomi_proto::AtomiProto;
-use generic::command_to_proto::parse_protocol;
 use rustyline::{Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
 use rustyline::completion::FilenameCompleter;
 use rustyline::error::ReadlineError;
@@ -12,7 +9,8 @@ use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::HistoryHinter;
 use rustyline::validate::MatchingBracketValidator;
 use rustyline_derive::{Completer, Helper, Hinter, Validator};
-use pc_controller::find_serial_device;
+
+use pc_controller::{find_serial_device, send_command};
 
 #[derive(Helper, Completer, Hinter, Validator)]
 struct MyHelper {
@@ -115,33 +113,8 @@ fn main() -> rustyline::Result<()> {
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str())?;
-                let msg = parse_protocol(&line);
-                if matches!(msg, AtomiProto::Unknown) {
-                    println!("Unknown command '{}', ignore", line);
-                    continue;
-                }
-                let data = postcard::to_vec::<AtomiProto, 8>(&msg).unwrap();
-
-                if cli.with_len {
-                    let l = data.len() as u8;
-                    println!("Send data len: {}", l);
-                    port.write(&[l]).expect("Errors in sending data len");
-                }
-                println!("Line: {}, protocol: {:?}, data = {:?}", line, msg, data);
-                port.write(&data).expect(&format!("errors in sending request '{:?}'", data));
-
-                let mut buf: Vec<u8> = vec![0u8; 64];
-                let len = port.read(buf.as_mut_slice()).expect("errors in recving response");
-                println!("Got response data: {:?}, len: {}", &buf[..len], len);
-                let resp_data = if cli.with_len {
-                    assert_eq!((len - 1) as u8, buf[0].into());
-                    &buf[1..len]
-                } else {
-                    &buf[..len]
-                };
-                let resp = postcard::from_bytes::<AtomiProto>(resp_data);
-                println!("Got response: ({len}) {:?}, msg: {:?}", &buf[..len], resp);
-                port.flush().expect("Errors in flushing buffer for serial port");
+                let res = send_command(&line, cli.with_len, &mut port);
+                println!("Result: {:?}", res);
             }
             Err(ReadlineError::Interrupted) => {
                 println!("Interrupted");

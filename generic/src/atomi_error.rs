@@ -62,6 +62,17 @@ pub enum AtomiError {
     // Used by AtomiProto parsing
     NotIntStr,
 
+    // Gateway Errors
+    GWEmptyRequest,
+    GWReadSocket,
+    GWParseRequest,
+    GWIncorrectRequest,
+    GWSendingDataLen,
+    GWSendingData,
+    GWRecvResponse,
+    GWParseResponse,
+    GWFlushPort,
+
     // Used by state
     StateOverflow,
 }
