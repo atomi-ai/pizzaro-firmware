@@ -187,10 +187,10 @@ where
             // let l = false;
             let l = self.limit_left.is_high().unwrap_or(false);
             let r = self.limit_right.is_high().unwrap_or(false);
-            debug!(
-                "move_to_relative_internal() 2.5: moving_right = {}, limit_left = {}, limit_right = {}",
-                moving_right, l, r
-            );
+            // debug!(
+            //     "move_to_relative_internal() 2.5: moving_right = {}, limit_left = {}, limit_right = {}",
+            //     moving_right, l, r
+            // );
             // 在每一步之前检查限位开关
             if moving_right && r {
                 self.state.pop();
