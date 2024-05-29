@@ -124,7 +124,7 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
     }
 
     async fn move_with_speed(&mut self, speed: f32, repeat_times: i32) -> Result<i32, AtomiError> {
-        debug!("xfguo: speed = {}, repeat_times = {}", speed, repeat_times);
+        debug!("LinearBullProcessor::move_with_speed(): speed = {}, repeat_times = {}", speed, repeat_times);
         self.linear_scale.reset_stationary();
         for _ in 0..repeat_times {
             Delay::new(1.millis()).await;
@@ -146,12 +146,15 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
     /// Arguments:
     ///   - distance: unit in 0.01mm
     pub async fn move_to_relative(&mut self, distance: i32) -> Result<i32, AtomiError> {
+        info!("xfguo: move_to_relative() 0, distance: {}", distance);
         let target = self.linear_scale.get_rel_position()? + distance;
         info!("xfguo: move_to_relative() 1, target: {}", target);
         let mut pid = PIDController::new(LINEAR_BULL.0, LINEAR_BULL.1, LINEAR_BULL.2, target);
         let dt = 0.01;
+        self.linear_scale.reset_stationary();
 
         self.state.push(LinearMotionState::MOVING)?;
+        let mut stationary_counter = 0u8;
         loop {
             Delay::new(1.millis()).await;
             if GLOBAL_LINEAR_BULL_STOP.load(Ordering::Relaxed) {
@@ -166,12 +169,16 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
             if pid.reach_target(pos, now()) {
                 break;
             }
-            // if self.linear_scale.is_stationary() {
-            //     break;
-            // }
+            stationary_counter = stationary_counter.wrapping_add(1);
+            if stationary_counter & 0x7 == 1 {
+                if self.linear_scale.is_stationary_2() {
+                    break;
+                }
+            }
+
             // Only trigger PID when the position is changed.
             let speed = pid.calculate(pos, dt);
-            // info!("Current pos: {}, speed = {}, target = {}", pos, speed, target);
+            info!("Current pos: {}, speed = {}, target = {}", pos, speed, target);
             self.pwm_motor.apply_speed_freerun(speed, false);
         }
         self.pwm_motor.apply_speed(0.0);
@@ -180,7 +187,9 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
     }
 
     pub async fn move_to(&mut self, target_position: i32) -> Result<i32, AtomiError> {
+        debug!("LinearBullProcessor::move_to() 0: target_position: {}", target_position);
         self.check_homed()?;
+        debug!("LinearBullProcessor::move_to() 1: target_position: {}", target_position);
         self.move_to_relative(self.linear_scale.get_distance(target_position)?).await
     }
 }

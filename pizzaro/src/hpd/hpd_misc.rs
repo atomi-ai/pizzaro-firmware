@@ -1,8 +1,9 @@
 use crate::bsp::config::REVERT_HPD_LINEARSCALE_DIRECTION;
 use crate::common::global_timer::{now, AtomiDuration, AtomiInstant};
 use core::sync::atomic::{AtomicI32, Ordering};
-use defmt::{info, Format};
+use defmt::{info, Format, debug, Debug2Format};
 use generic::atomi_error::AtomiError;
+use crate::hpd::stationary_detector::StationaryDetector;
 
 // pub const MOTOR150_PWM_TOP: u16 = 5000;
 // const LITTLE_DISTANCE: i32 = 1000;  // 10mm
@@ -10,7 +11,7 @@ use generic::atomi_error::AtomiError;
 const MAX_POSITION: i32 = 10_000_000;
 const MIN_POSITION: i32 = -MAX_POSITION;
 const STATIONARY_POSITION_THRESHOLD: i32 = 10;
-const STATIONARY_TIME_THRESHOLD: AtomiDuration = AtomiDuration::millis(200);
+const STATIONARY_TIME_THRESHOLD: AtomiDuration = AtomiDuration::millis(1000);
 
 #[derive(Copy, Clone, Debug, Format)]
 pub enum LinearBullDirection {
@@ -34,6 +35,8 @@ impl LinearBullDirection {
     }
 }
 
+const WINDOW_SIZE: usize = 8;
+
 #[derive(Debug)]
 pub struct LinearScale {
     last_position: i32,
@@ -41,6 +44,7 @@ pub struct LinearScale {
     position: AtomicI32,
     home_position: Option<i32>,
     revert_linearscale_dir: bool,
+    stationary_detector: StationaryDetector<WINDOW_SIZE>,
 }
 
 impl Default for LinearScale {
@@ -57,6 +61,7 @@ impl LinearScale {
             position: AtomicI32::new(0),
             home_position: None,
             revert_linearscale_dir: REVERT_HPD_LINEARSCALE_DIRECTION,
+            stationary_detector: StationaryDetector::new(10_000, 20.0),
         }
     }
 
@@ -121,11 +126,18 @@ impl LinearScale {
         false
     }
 
-    pub(crate) fn is_stationary(&self) -> bool {
+    pub(crate) fn is_stationary(&mut self) -> bool {
         self.is_stationary_internal(STATIONARY_TIME_THRESHOLD, STATIONARY_POSITION_THRESHOLD)
+    }
+
+    pub(crate) fn is_stationary_2(&mut self) -> bool {
+        let ts = now().ticks() as i64;
+        let pos = self.position.load(Ordering::Relaxed) as f64;
+        self.stationary_detector.is_stationary(ts, pos)
     }
 
     pub(crate) fn reset_stationary(&mut self) {
         self.last_ts = now();
+        self.stationary_detector.reset_stationary();
     }
 }

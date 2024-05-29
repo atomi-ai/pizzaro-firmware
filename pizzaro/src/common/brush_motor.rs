@@ -85,7 +85,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
         let (s1, s2, s3, s4) = self.thres_speed;
         let spd = if self.revert_dir { -speed.clamp(-1.0, 1.0) } else { speed.clamp(-1.0, 1.0) };
 
-        debug!("spd:{}", spd);
+        debug!("BrushMotor::apply_speed_freerun(): spd:{}", spd);
         let spd_mapped = if spd > 0.0 {
             self.ensure_enable().expect("Failed to enable motor");
             spd * (s4 - s3) + s3
@@ -103,7 +103,7 @@ impl<S: SliceId, E: StatefulOutputPin> BrushMotor<S, E> {
         //let t = ((if self.revert_dir { -speed } else { speed }) * 33.0) as i32;
         let duty_scaled = ((self.pwm_top as f32) * spd_mapped) as u32;
         debug!(
-            "speed = {}, spd_mapped = {}, duty_scaled = {}, revert_dir={}",
+            "BrushMotor::apply_speed_freerun(): speed = {}, spd_mapped = {}, duty_scaled = {}, revert_dir={}",
             speed, spd_mapped, duty_scaled, self.revert_dir,
         );
         self.pwm.channel_a.set_duty(duty_scaled as u16);

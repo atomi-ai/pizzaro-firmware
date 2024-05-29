@@ -15,3 +15,4 @@ pub mod hpd_misc;
 pub mod linear_bull_processor;
 pub mod linear_scale;
 pub mod pid;
+pub(crate) mod stationary_detector;
