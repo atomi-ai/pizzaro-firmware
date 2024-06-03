@@ -21,6 +21,7 @@ pub enum AtomiProto {
     Mmd(MmdCommand),
     Hpd(HpdCommand),
     Dtu(DtuCommand),
+    Asd(AsdCommand),
 
     AtomiError(AtomiError),
 }
@@ -103,6 +104,17 @@ pub enum DtuCommand {
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+pub enum AsdCommand {
+    AsdPing,
+    AsdPong,
+    AsdAck,
+    AsdStop,
+    AsdStepper(StepperDriverCommand),
+
+    AsdBusy,
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub struct TriggerStatusResponse {
     pub left: bool,
     pub right: bool,
@@ -137,6 +149,19 @@ pub enum DispenserResponse {
 pub enum RotationStepperCommand {
     SetConveyorBeltRotation { speed: i32 }, // -1000 ~ +1000 => 100.0%(left) ~ 0 ~ 100.0%(right)
     SetPresserRotation { speed: i32 },      // -1000 ~ +1000 => 100.0%(left) ~ 0 ~ 100.0%(right)
+}
+
+// TODO(zephyr): Renamed stepper_driver => stepper, and stepper => linear_stepper.
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+pub enum StepperDriverCommand {
+    MoveToRelative { steps: i32, speed: u32 },
+    CheckStatus,
+}
+
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+pub enum StepperDriverResponse {
+    Error(AtomiError),
+    Done,
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]

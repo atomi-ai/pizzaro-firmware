@@ -1,7 +1,7 @@
 use crate::bsp::config::REVERT_HPD_LINEARSCALE_DIRECTION;
 use crate::common::global_timer::{now, AtomiDuration, AtomiInstant};
 use core::sync::atomic::{AtomicI32, Ordering};
-use defmt::{info, Format, debug, Debug2Format};
+use defmt::{info, Format};
 use generic::atomi_error::AtomiError;
 use crate::hpd::stationary_detector::StationaryDetector;
 

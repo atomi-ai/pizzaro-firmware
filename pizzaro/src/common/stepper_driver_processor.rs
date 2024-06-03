@@ -1,0 +1,81 @@
+use defmt::debug;
+use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
+use fugit::ExtU64;
+use generic::atomi_error::AtomiError;
+use generic::atomi_proto::{StepperDriverCommand, StepperDriverResponse};
+use crate::common::global_timer::{AsyncDelay, Delay};
+use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
+use crate::common::once::Once;
+use crate::common::stepper_driver::StepperDriver;
+
+static mut STEPPER_DRIVER_INPUT_MQ_ONCE: Once<MessageQueueWrapper<StepperDriverCommand>> = Once::new();
+static mut STEPPER_DRIVER_OUTPUT_MQ_ONCE: Once<MessageQueueWrapper<StepperDriverResponse>> = Once::new();
+
+pub fn stepper_driver_input_mq() -> &'static mut MessageQueueWrapper<StepperDriverCommand> {
+    unsafe { STEPPER_DRIVER_INPUT_MQ_ONCE.get_mut() }
+}
+
+pub fn stepper_driver_output_mq() -> &'static mut MessageQueueWrapper<StepperDriverResponse> {
+    unsafe { STEPPER_DRIVER_OUTPUT_MQ_ONCE.get_mut() }
+}
+
+pub struct StepperDriverProcessor<
+    OP1: StatefulOutputPin,
+    OP2: OutputPin,
+    OP3: OutputPin,
+    D: AsyncDelay,
+> {
+    stepper_driver: StepperDriver<OP1, OP2, OP3, D>,
+}
+
+impl<OP1, OP2, OP3, D> StepperDriverProcessor<OP1, OP2, OP3, D>
+    where
+        OP1: StatefulOutputPin,
+        OP2: OutputPin,
+        OP3: OutputPin,
+        D: AsyncDelay,
+{
+    pub fn new(stepper_driver: StepperDriver<OP1, OP2, OP3, D>) -> Self {
+        Self {
+            stepper_driver,
+        }
+    }
+
+    pub async fn process_stepper_driver_request<'a>(&mut self, msg: StepperDriverCommand) -> Result<(), AtomiError> {
+        match msg {
+            StepperDriverCommand::MoveToRelative { steps, speed } => {
+                self.stepper_driver.ensure_enable()?;
+                self.stepper_driver.set_speed(speed);
+                self.stepper_driver.set_direction(steps >= 0)?;
+                for _ in 0..steps.abs() {
+                    self.stepper_driver.step().await?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
+pub async fn process_stepper_driver_message<
+    OP1: StatefulOutputPin,
+    OP2: OutputPin,
+    OP3: OutputPin,
+    D: AsyncDelay,
+>(mut processor: StepperDriverProcessor<OP1, OP2, OP3, D>) {
+    debug!("process_stepper_driver_message() 0");
+    let mq_in = stepper_driver_input_mq();
+    let mq_out = stepper_driver_output_mq();
+    loop {
+        if let Some(msg) = mq_in.dequeue() {
+            debug!("process_stepper_driver_message() 3.1: process msg {}", msg);
+            let resp = match processor.process_stepper_driver_request(msg).await {
+                Ok(_) => StepperDriverResponse::Done,
+                Err(err) => StepperDriverResponse::Error(err),
+            };
+            debug!("process_stepper_driver_message() 3.3: done, resp: {}", resp);
+            mq_out.enqueue(resp);
+        }
+        Delay::new(1.millis()).await;
+    }
+}

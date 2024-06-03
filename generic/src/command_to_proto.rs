@@ -1,9 +1,5 @@
 use crate::atomi_error::AtomiError;
-use crate::atomi_proto::{
-    AtomiProto, DispenserCommand, DtuCommand, HpdCommand, LinearBullCommand, McCommand,
-    McSystemExecutorCmd, MmdCommand, PeristalticPumpCommand, RotationStepperCommand,
-    StepperCommand,
-};
+use crate::atomi_proto::{AsdCommand, AtomiProto, DispenserCommand, DtuCommand, HpdCommand, LinearBullCommand, McCommand, McSystemExecutorCmd, MmdCommand, PeristalticPumpCommand, RotationStepperCommand, StepperCommand, StepperDriverCommand};
 
 const FAST_SPEED: u32 = 100; // steps / second
 
@@ -21,6 +17,7 @@ where
         Some("mmd") => parse_mmd_command(tokens),
         Some("hpd") => parse_hpd_command(tokens),
         Some("dtu") => parse_dtu_command(tokens),
+        Some("asd") => parse_asd_command(tokens),
         _ => AtomiProto::Unknown,
     }
 }
@@ -322,6 +319,28 @@ where
                 AtomiProto::Unknown
             }
         }
+        _ => AtomiProto::Unknown,
+    }
+}
+
+fn parse_asd_command<'a, I>(tokens: &mut I) -> AtomiProto
+    where
+        I: Iterator<Item = &'a str>,
+{
+    match tokens.next() {
+        Some("ping") => AtomiProto::Asd(AsdCommand::AsdPing),
+        Some("stop") => AtomiProto::Asd(AsdCommand::AsdStop),
+        Some("move_rel") => {
+            (|| {
+                let steps = parse_int(tokens.next())?;
+                let speed = parse_int(tokens.next())?;
+                Ok(AtomiProto::Asd(AsdCommand::AsdStepper(StepperDriverCommand::MoveToRelative {
+                    steps,
+                    speed: speed as u32,
+                })))
+            })().unwrap_or_else(|_: AtomiError| AtomiProto::Unknown)
+        }
+        Some("check_status") => AtomiProto::Asd(AsdCommand::AsdStepper(StepperDriverCommand::CheckStatus)),
         _ => AtomiProto::Unknown,
     }
 }

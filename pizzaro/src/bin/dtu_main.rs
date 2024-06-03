@@ -1,5 +1,7 @@
 // Detach Unit => DTU
 // 不沾铲，解决面饼吸附在顶层的问题
+// TODO(zephyr): Remove DTU, it isn't used in SB release.
+
 #![no_std]
 #![no_main]
 extern crate alloc;

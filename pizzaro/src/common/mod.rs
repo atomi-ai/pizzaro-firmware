@@ -32,6 +32,7 @@ pub mod tmc2209;
 pub mod uart;
 pub mod uart_comm;
 pub mod weight_sensor;
+pub mod stepper_driver_processor;
 
 pub fn async_initialization() {
     init_allocator();

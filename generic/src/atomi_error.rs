@@ -59,6 +59,8 @@ pub enum AtomiError {
     DtuUnavailable,
     DtuTMCWriteRequestError,
 
+    AsdUnavailable,
+
     // Used by AtomiProto parsing
     NotIntStr,
 

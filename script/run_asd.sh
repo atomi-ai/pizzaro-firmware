@@ -1,0 +1,1 @@
+DEFMT_LOG=pizzaro=debug,can2040=debug,info cargo run --bin asd_main --release -- --probe 2e8a:000c:4150335631373519
