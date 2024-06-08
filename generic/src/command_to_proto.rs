@@ -102,12 +102,13 @@ where
 
         // belt rotating
         Some("belt_on") => AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-            RotationStepperCommand::SetConveyorBeltRotation { speed: 290 },
+            RotationStepperCommand::SetConveyorBeltRotation { speed: 100 },
         )),
         Some("belt_off") => AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
             RotationStepperCommand::SetConveyorBeltRotation { speed: 0 },
         )),
         Some("belt_spd") => {
+            // belt speed: -290..290
             if let Ok(speed) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
                     RotationStepperCommand::SetConveyorBeltRotation { speed },
@@ -225,6 +226,7 @@ where
         Some("pong") => AtomiProto::Hpd(HpdCommand::HpdPong),
         Some("home") => AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::Home)),
         Some("stop") => AtomiProto::Hpd(HpdCommand::HpdStop),
+        Some("get_pos") => AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::GetPosition)),
         Some("echo") => {
             if let Ok(idx) = parse_int(tokens.next()) {
                 AtomiProto::Hpd(HpdCommand::HpdEcho(idx as u8))

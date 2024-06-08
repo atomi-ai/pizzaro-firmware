@@ -42,12 +42,20 @@ impl<OP1, OP2, OP3, D> StepperDriverProcessor<OP1, OP2, OP3, D>
     }
 
     pub async fn process_stepper_driver_request<'a>(&mut self, msg: StepperDriverCommand) -> Result<(), AtomiError> {
+        const STEPS_TO_ADJUST_SPEED: i32 = 1000;
         match msg {
             StepperDriverCommand::MoveToRelative { steps, speed } => {
                 self.stepper_driver.ensure_enable()?;
-                self.stepper_driver.set_speed(speed);
+                // self.stepper_driver.set_speed(speed);
                 self.stepper_driver.set_direction(steps >= 0)?;
-                for _ in 0..steps.abs() {
+                for i in 0..steps.abs() {
+                    if i % STEPS_TO_ADJUST_SPEED == 0 {
+                        let cur_spd = (i / STEPS_TO_ADJUST_SPEED + 1) as u32 * 1000;
+                        if cur_spd <= speed {
+                            debug!("process_stepper_driver_request() 3.3: adjust speed: {}, i = {}", cur_spd, i);
+                            self.stepper_driver.set_speed(cur_spd);
+                        }
+                    }
                     self.stepper_driver.step().await?;
                 }
             }

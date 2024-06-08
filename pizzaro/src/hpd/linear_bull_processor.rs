@@ -35,12 +35,10 @@ pub async fn process_linear_bull_message<S: SliceId, E: StatefulOutputPin>(
     loop {
         if let Some(msg) = mq_in.dequeue() {
             info!("process_linear_bull_message() 3.1: process msg {}", msg);
-            let res = match processor.process_linear_bull_message(msg).await {
-                Ok(_) => LinearBullResponse::Done,
-                Err(err) => LinearBullResponse::Error(err),
-            };
-            info!("process_linear_bull_message() 3.3: done");
-            mq_out.enqueue(res);
+            let resp = processor.process_linear_bull_message(msg).await
+                .unwrap_or_else(|err| LinearBullResponse::Error(err));
+            info!("process_linear_bull_message() 3.3: done, resp = {}", resp);
+            mq_out.enqueue(resp);
         }
         Delay::new(1.millis()).await;
     }
@@ -64,20 +62,29 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
     pub async fn process_linear_bull_message<'a>(
         &mut self,
         msg: LinearBullCommand,
-    ) -> Result<i32, AtomiError> {
+    ) -> Result<LinearBullResponse, AtomiError> {
+        info!("process_linear_bull_message() 0: msg: {}", msg);
         match msg {
-            LinearBullCommand::Home => self.home().await,
-            LinearBullCommand::MoveTo { position } => self.move_to(position).await,
-            LinearBullCommand::MoveToRelative { distance } => self.move_to_relative(distance).await,
+            LinearBullCommand::Home =>
+                Ok(LinearBullResponse::Position { position: self.home().await? }),
+            LinearBullCommand::MoveTo { position } =>
+                Ok(LinearBullResponse::Position { position: self.move_to(position).await? }),
+            LinearBullCommand::MoveToRelative { distance } =>
+                Ok(LinearBullResponse::Position {position: self.move_to_relative(distance).await? }),
             LinearBullCommand::WaitIdle => {
                 while !self.is_idle() {
                     let _ = Delay::new(10.millis()).await;
                 }
-                Ok(0)
+                Ok(LinearBullResponse::Done)
             }
             LinearBullCommand::DummyWait { seconds } => {
                 let _ = Delay::new((seconds as u64).secs()).await;
-                Ok(0)
+                Ok(LinearBullResponse::Done)
+            }
+            LinearBullCommand::GetPosition => {
+                let position = self.linear_scale.get_abs_position()?;
+                info!("xfguo: process_linear_bull_message() 3.5, pos = {}", position);
+                Ok(LinearBullResponse::Position { position })
             }
         }
     }
@@ -170,7 +177,7 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
                 break;
             }
             stationary_counter = stationary_counter.wrapping_add(1);
-            if stationary_counter & 0x7 == 1 {
+            if stationary_counter & 0xf == 1 {
                 if self.linear_scale.is_stationary_2() {
                     break;
                 }

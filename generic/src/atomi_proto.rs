@@ -199,6 +199,7 @@ pub enum HpdCommand {
 
     HpdStop,
     HpdLinearBull(LinearBullCommand),
+    HpdLinearBullResp(LinearBullResponse),
 
     // Return status
     HpdBusy,
@@ -211,11 +212,13 @@ pub enum LinearBullCommand {
     MoveToRelative { distance: i32 }, // wait
     WaitIdle,
     DummyWait { seconds: i32 },
+    GetPosition,
 }
 
 #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
 pub enum LinearBullResponse {
     Error(AtomiError),
+    Position { position: i32 },
     Done,
 }
 

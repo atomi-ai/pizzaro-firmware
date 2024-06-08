@@ -24,8 +24,8 @@ use rp2040_hal::{
 };
 use rp_pico::pac::interrupt;
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
-
 use generic::atomi_error::AtomiError;
+
 use generic::atomi_proto::{AtomiProto, HpdCommand, LinearBullCommand, LinearBullResponse};
 use pizzaro::bsp::board_hpd_release_sb::{hpd_uart_irq, HpdUartType};
 use pizzaro::bsp::config::{
@@ -195,6 +195,25 @@ async fn hpd_process_messages() {
                     uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdAck))
                 }
 
+                AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::GetPosition)) => {
+                    info!("xfguo: GetPosition");
+                    if linear_bull_available {
+                        linear_bull_input_mq().enqueue(LinearBullCommand::GetPosition);
+                        let mut res = Err(AtomiError::HpdUnavailable);
+                        for _ in 0..300 {
+                            if let Some(resp) = linear_bull_output_mq().dequeue() {
+                                res = uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdLinearBullResp(resp)));
+                                break;
+                            }
+                            Delay::new(10.millis()).await;
+                        }
+                        res
+                    } else {
+                        let _ = uart_comm.send(AtomiProto::AtomiError(AtomiError::HpdUnavailable));
+                        Err(AtomiError::HpdUnavailable)
+                    }
+                }
+
                 AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::WaitIdle)) => {
                     if linear_bull_available {
                         uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdAck))
@@ -205,6 +224,7 @@ async fn hpd_process_messages() {
                 }
 
                 AtomiProto::Hpd(HpdCommand::HpdLinearBull(cmd)) => {
+                    info!("xfguo: linear_bull command: {}", cmd);
                     if linear_bull_available {
                         let res = uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdAck));
                         linear_bull_input_mq().enqueue(cmd);
