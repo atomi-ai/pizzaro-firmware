@@ -6,40 +6,46 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::vec;
-use core::sync::atomic::{AtomicBool};
+use core::sync::atomic::AtomicBool;
 
 use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
-use defmt::{debug, Debug2Format, error, info};
+use defmt::{debug, error, info, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
+use rp2040_hal::gpio::FunctionUart;
+use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp2040_hal::{
-    clocks::{Clock, init_clocks_and_plls},
+    clocks::{init_clocks_and_plls, Clock},
     entry, pac,
     pac::interrupt,
     sio::Sio,
-    Timer,
     uart::UartPeripheral,
     watchdog::Watchdog,
+    Timer,
 };
-use rp2040_hal::gpio::{FunctionUart};
-use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
 use rp_pico::XOSC_CRYSTAL_FREQ;
 
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{AsdCommand, AtomiProto, StepperDriverCommand};
-use pizzaro::{asd_485_dir, asd_stepper_dir, asd_stepper_n_en, asd_stepper_step, asd_sys_rx, asd_sys_tx, asd_uart};
 use pizzaro::bsp::board_asd::{asd_uart_irq, AsdUartDirPinType, AsdUartType};
 use pizzaro::bsp::config::REVERT_MMD_STEPPER42_0_DIRECTION;
 use pizzaro::common::async_initialization;
 use pizzaro::common::consts::UART_EXPECTED_RESPONSE_LENGTH;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{Delay, DelayCreator, init_global_timer, now};
+use pizzaro::common::global_timer::{init_global_timer, now, Delay, DelayCreator};
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::common::stepper_driver::StepperDriver;
-use pizzaro::common::stepper_driver_processor::{process_stepper_driver_message, stepper_driver_input_mq, stepper_driver_output_mq, StepperDriverProcessor};
+use pizzaro::common::stepper_driver_processor::{
+    process_stepper_driver_message, stepper_driver_input_mq, stepper_driver_output_mq,
+    StepperDriverProcessor,
+};
 use pizzaro::common::uart_comm::UartComm;
+use pizzaro::{
+    asd_485_dir, asd_stepper_dir, asd_stepper_n_en, asd_stepper_step, asd_sys_rx, asd_sys_tx,
+    asd_uart,
+};
 
 // TODO(zephyr): Move these global static into a GlobalStatic struct.
 // TODO(zephyr): Enable global stop.
@@ -67,8 +73,8 @@ fn main() -> ! {
         &mut pac.RESETS,
         &mut watchdog,
     )
-        .ok()
-        .unwrap();
+    .ok()
+    .unwrap();
     let timer = Timer::new(pac.TIMER, &mut pac.RESETS, &clocks);
     init_global_timer(Box::new(Rp2040Timer::new(timer)));
 
@@ -102,15 +108,13 @@ fn main() -> ! {
         let dir_pin = asd_stepper_dir!(pins).into_push_pull_output();
         let step_pin = asd_stepper_step!(pins).into_push_pull_output();
         let delay_creator = DelayCreator::new();
-        let processor = StepperDriverProcessor::new(
-            StepperDriver::new(
-                enable_pin,
-                dir_pin,
-                step_pin,
-                delay_creator,
-                REVERT_MMD_STEPPER42_0_DIRECTION,
-            ),
-        );
+        let processor = StepperDriverProcessor::new(StepperDriver::new(
+            enable_pin,
+            dir_pin,
+            step_pin,
+            delay_creator,
+            REVERT_MMD_STEPPER42_0_DIRECTION,
+        ));
         spawn_task(process_stepper_driver_message(processor));
     }
 

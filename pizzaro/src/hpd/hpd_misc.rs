@@ -1,9 +1,9 @@
 use crate::bsp::config::REVERT_HPD_LINEARSCALE_DIRECTION;
 use crate::common::global_timer::{now, AtomiDuration, AtomiInstant};
+use crate::hpd::stationary_detector::StationaryDetector;
 use core::sync::atomic::{AtomicI32, Ordering};
 use defmt::{info, Format};
 use generic::atomi_error::AtomiError;
-use crate::hpd::stationary_detector::StationaryDetector;
 
 // pub const MOTOR150_PWM_TOP: u16 = 5000;
 // const LITTLE_DISTANCE: i32 = 1000;  // 10mm

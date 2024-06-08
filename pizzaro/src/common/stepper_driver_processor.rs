@@ -1,15 +1,17 @@
+use crate::common::global_timer::{AsyncDelay, Delay};
+use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
+use crate::common::once::Once;
+use crate::common::stepper_driver::StepperDriver;
 use defmt::debug;
 use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
 use fugit::ExtU64;
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{StepperDriverCommand, StepperDriverResponse};
-use crate::common::global_timer::{AsyncDelay, Delay};
-use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
-use crate::common::once::Once;
-use crate::common::stepper_driver::StepperDriver;
 
-static mut STEPPER_DRIVER_INPUT_MQ_ONCE: Once<MessageQueueWrapper<StepperDriverCommand>> = Once::new();
-static mut STEPPER_DRIVER_OUTPUT_MQ_ONCE: Once<MessageQueueWrapper<StepperDriverResponse>> = Once::new();
+static mut STEPPER_DRIVER_INPUT_MQ_ONCE: Once<MessageQueueWrapper<StepperDriverCommand>> =
+    Once::new();
+static mut STEPPER_DRIVER_OUTPUT_MQ_ONCE: Once<MessageQueueWrapper<StepperDriverResponse>> =
+    Once::new();
 
 pub fn stepper_driver_input_mq() -> &'static mut MessageQueueWrapper<StepperDriverCommand> {
     unsafe { STEPPER_DRIVER_INPUT_MQ_ONCE.get_mut() }
@@ -29,38 +31,40 @@ pub struct StepperDriverProcessor<
 }
 
 impl<OP1, OP2, OP3, D> StepperDriverProcessor<OP1, OP2, OP3, D>
-    where
-        OP1: StatefulOutputPin,
-        OP2: OutputPin,
-        OP3: OutputPin,
-        D: AsyncDelay,
+where
+    OP1: StatefulOutputPin,
+    OP2: OutputPin,
+    OP3: OutputPin,
+    D: AsyncDelay,
 {
     pub fn new(stepper_driver: StepperDriver<OP1, OP2, OP3, D>) -> Self {
-        Self {
-            stepper_driver,
-        }
+        Self { stepper_driver }
     }
 
-    pub async fn process_stepper_driver_request<'a>(&mut self, msg: StepperDriverCommand) -> Result<(), AtomiError> {
+    pub async fn process_stepper_driver_request<'a>(
+        &mut self,
+        msg: StepperDriverCommand,
+    ) -> Result<(), AtomiError> {
         const STEPS_TO_ADJUST_SPEED: i32 = 1000;
-        match msg {
-            StepperDriverCommand::MoveToRelative { steps, speed } => {
-                self.stepper_driver.ensure_enable()?;
-                // self.stepper_driver.set_speed(speed);
-                self.stepper_driver.set_direction(steps >= 0)?;
-                for i in 0..steps.abs() {
-                    if i % STEPS_TO_ADJUST_SPEED == 0 {
-                        let cur_spd = (i / STEPS_TO_ADJUST_SPEED + 1) as u32 * 1000;
-                        if cur_spd <= speed {
-                            debug!("process_stepper_driver_request() 3.3: adjust speed: {}, i = {}", cur_spd, i);
-                            self.stepper_driver.set_speed(cur_spd);
-                        }
+        if let StepperDriverCommand::MoveToRelative { steps, speed } = msg {
+            self.stepper_driver.ensure_enable()?;
+            // self.stepper_driver.set_speed(speed);
+            self.stepper_driver.set_direction(steps >= 0)?;
+            for i in 0..steps.abs() {
+                if i % STEPS_TO_ADJUST_SPEED == 0 {
+                    let cur_spd = (i / STEPS_TO_ADJUST_SPEED + 1) as u32 * 1000;
+                    if cur_spd <= speed {
+                        debug!(
+                            "process_stepper_driver_request() 3.3: adjust speed: {}, i = {}",
+                            cur_spd, i
+                        );
+                        self.stepper_driver.set_speed(cur_spd);
                     }
-                    self.stepper_driver.step().await?;
                 }
+                self.stepper_driver.step().await?;
             }
-            _ => {}
         }
+
         Ok(())
     }
 }
@@ -70,7 +74,9 @@ pub async fn process_stepper_driver_message<
     OP2: OutputPin,
     OP3: OutputPin,
     D: AsyncDelay,
->(mut processor: StepperDriverProcessor<OP1, OP2, OP3, D>) {
+>(
+    mut processor: StepperDriverProcessor<OP1, OP2, OP3, D>,
+) {
     debug!("process_stepper_driver_message() 0");
     let mq_in = stepper_driver_input_mq();
     let mq_out = stepper_driver_output_mq();

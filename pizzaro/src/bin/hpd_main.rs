@@ -11,6 +11,7 @@ use cortex_m::asm::delay;
 use cortex_m::peripheral::NVIC;
 use defmt::{debug, error, info, warn, Debug2Format};
 use fugit::{ExtU64, RateExtU32};
+use generic::atomi_error::AtomiError;
 use rp2040_hal::gpio::FunctionUart;
 use rp2040_hal::multicore::{Multicore, Stack};
 use rp2040_hal::uart::{DataBits, StopBits, UartConfig};
@@ -24,7 +25,6 @@ use rp2040_hal::{
 };
 use rp_pico::pac::interrupt;
 use rp_pico::{entry, XOSC_CRYSTAL_FREQ};
-use generic::atomi_error::AtomiError;
 
 use generic::atomi_proto::{AtomiProto, HpdCommand, LinearBullCommand, LinearBullResponse};
 use pizzaro::bsp::board_hpd_release_sb::{hpd_uart_irq, HpdUartType};
@@ -202,7 +202,8 @@ async fn hpd_process_messages() {
                         let mut res = Err(AtomiError::HpdUnavailable);
                         for _ in 0..300 {
                             if let Some(resp) = linear_bull_output_mq().dequeue() {
-                                res = uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdLinearBullResp(resp)));
+                                res = uart_comm
+                                    .send(AtomiProto::Hpd(HpdCommand::HpdLinearBullResp(resp)));
                                 break;
                             }
                             Delay::new(10.millis()).await;

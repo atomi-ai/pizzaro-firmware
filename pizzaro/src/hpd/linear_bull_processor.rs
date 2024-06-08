@@ -35,8 +35,10 @@ pub async fn process_linear_bull_message<S: SliceId, E: StatefulOutputPin>(
     loop {
         if let Some(msg) = mq_in.dequeue() {
             info!("process_linear_bull_message() 3.1: process msg {}", msg);
-            let resp = processor.process_linear_bull_message(msg).await
-                .unwrap_or_else(|err| LinearBullResponse::Error(err));
+            let resp = processor
+                .process_linear_bull_message(msg)
+                .await
+                .unwrap_or_else(LinearBullResponse::Error);
             info!("process_linear_bull_message() 3.3: done, resp = {}", resp);
             mq_out.enqueue(resp);
         }
@@ -65,12 +67,15 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
     ) -> Result<LinearBullResponse, AtomiError> {
         info!("process_linear_bull_message() 0: msg: {}", msg);
         match msg {
-            LinearBullCommand::Home =>
-                Ok(LinearBullResponse::Position { position: self.home().await? }),
-            LinearBullCommand::MoveTo { position } =>
-                Ok(LinearBullResponse::Position { position: self.move_to(position).await? }),
-            LinearBullCommand::MoveToRelative { distance } =>
-                Ok(LinearBullResponse::Position {position: self.move_to_relative(distance).await? }),
+            LinearBullCommand::Home => {
+                Ok(LinearBullResponse::Position { position: self.home().await? })
+            }
+            LinearBullCommand::MoveTo { position } => {
+                Ok(LinearBullResponse::Position { position: self.move_to(position).await? })
+            }
+            LinearBullCommand::MoveToRelative { distance } => Ok(LinearBullResponse::Position {
+                position: self.move_to_relative(distance).await?,
+            }),
             LinearBullCommand::WaitIdle => {
                 while !self.is_idle() {
                     let _ = Delay::new(10.millis()).await;
@@ -131,7 +136,10 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
     }
 
     async fn move_with_speed(&mut self, speed: f32, repeat_times: i32) -> Result<i32, AtomiError> {
-        debug!("LinearBullProcessor::move_with_speed(): speed = {}, repeat_times = {}", speed, repeat_times);
+        debug!(
+            "LinearBullProcessor::move_with_speed(): speed = {}, repeat_times = {}",
+            speed, repeat_times
+        );
         self.linear_scale.reset_stationary();
         for _ in 0..repeat_times {
             Delay::new(1.millis()).await;
@@ -177,10 +185,8 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
                 break;
             }
             stationary_counter = stationary_counter.wrapping_add(1);
-            if stationary_counter & 0xf == 1 {
-                if self.linear_scale.is_stationary_2() {
-                    break;
-                }
+            if stationary_counter & 0xf == 1 && self.linear_scale.is_stationary_2() {
+                break;
             }
 
             // Only trigger PID when the position is changed.

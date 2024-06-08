@@ -1,5 +1,9 @@
 use crate::atomi_error::AtomiError;
-use crate::atomi_proto::{AsdCommand, AtomiProto, DispenserCommand, DtuCommand, HpdCommand, LinearBullCommand, McCommand, McSystemExecutorCmd, MmdCommand, PeristalticPumpCommand, RotationStepperCommand, StepperCommand, StepperDriverCommand};
+use crate::atomi_proto::{
+    AsdCommand, AtomiProto, DispenserCommand, DtuCommand, HpdCommand, LinearBullCommand, McCommand,
+    McSystemExecutorCmd, MmdCommand, PeristalticPumpCommand, RotationStepperCommand,
+    StepperCommand, StepperDriverCommand,
+};
 
 const FAST_SPEED: u32 = 100; // steps / second
 
@@ -40,7 +44,9 @@ where
         Some("weight") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::GetWeight)),
         Some("init") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::InitSystem)),
         Some("make") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::MakePizza)),
-        Some("ketch_up_test") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::KetchUpTest)),
+        Some("ketch_up_test") => {
+            AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::KetchUpTest))
+        }
         Some("stop") => AtomiProto::Mc(McCommand::SystemRun(McSystemExecutorCmd::StopSystem)),
         // Some("autostop") => AtomiProto::Autorun(AtomiAutorun::Stop),
         _ => AtomiProto::Mc(McCommand::McError),
@@ -128,7 +134,7 @@ where
         Some("pr_spd") => {
             if let Ok(speed) = parse_int(tokens.next()) {
                 AtomiProto::Mmd(MmdCommand::MmdRotationStepper(
-                    RotationStepperCommand::SetPresserRotation { speed: speed },
+                    RotationStepperCommand::SetPresserRotation { speed },
                 ))
             } else {
                 AtomiProto::Unknown
@@ -226,7 +232,9 @@ where
         Some("pong") => AtomiProto::Hpd(HpdCommand::HpdPong),
         Some("home") => AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::Home)),
         Some("stop") => AtomiProto::Hpd(HpdCommand::HpdStop),
-        Some("get_pos") => AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::GetPosition)),
+        Some("get_pos") => {
+            AtomiProto::Hpd(HpdCommand::HpdLinearBull(LinearBullCommand::GetPosition))
+        }
         Some("echo") => {
             if let Ok(idx) = parse_int(tokens.next()) {
                 AtomiProto::Hpd(HpdCommand::HpdEcho(idx as u8))
@@ -326,23 +334,23 @@ where
 }
 
 fn parse_asd_command<'a, I>(tokens: &mut I) -> AtomiProto
-    where
-        I: Iterator<Item = &'a str>,
+where
+    I: Iterator<Item = &'a str>,
 {
     match tokens.next() {
         Some("ping") => AtomiProto::Asd(AsdCommand::AsdPing),
         Some("stop") => AtomiProto::Asd(AsdCommand::AsdStop),
-        Some("move_rel") => {
-            (|| {
-                let steps = parse_int(tokens.next())?;
-                let speed = parse_int(tokens.next())?;
-                Ok(AtomiProto::Asd(AsdCommand::AsdStepper(StepperDriverCommand::MoveToRelative {
-                    steps,
-                    speed: speed as u32,
-                })))
-            })().unwrap_or_else(|_: AtomiError| AtomiProto::Unknown)
+        Some("move_rel") => (|| {
+            let steps = parse_int(tokens.next())?;
+            let speed = parse_int(tokens.next())?;
+            Ok::<AtomiProto, AtomiError>(AtomiProto::Asd(AsdCommand::AsdStepper(
+                StepperDriverCommand::MoveToRelative { steps, speed: speed as u32 },
+            )))
+        })()
+        .unwrap_or(AtomiProto::Unknown),
+        Some("check_status") => {
+            AtomiProto::Asd(AsdCommand::AsdStepper(StepperDriverCommand::CheckStatus))
         }
-        Some("check_status") => AtomiProto::Asd(AsdCommand::AsdStepper(StepperDriverCommand::CheckStatus)),
         _ => AtomiProto::Unknown,
     }
 }
