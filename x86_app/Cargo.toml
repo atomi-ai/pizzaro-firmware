@@ -1,4 +1,7 @@
 # This is a workspace for x86 tools
 [workspace]
-members = ["pc_controller"]
+members = [
+    "pc_controller",
+    "pyport"
+]
 resolver = "1"

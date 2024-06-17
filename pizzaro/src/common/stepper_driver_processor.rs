@@ -2,7 +2,7 @@ use crate::common::global_timer::{AsyncDelay, Delay};
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use crate::common::once::Once;
 use crate::common::stepper_driver::StepperDriver;
-use defmt::debug;
+use defmt::{debug, Debug2Format};
 use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
 use fugit::ExtU64;
 use generic::atomi_error::AtomiError;
@@ -82,12 +82,12 @@ pub async fn process_stepper_driver_message<
     let mq_out = stepper_driver_output_mq();
     loop {
         if let Some(msg) = mq_in.dequeue() {
-            debug!("process_stepper_driver_message() 3.1: process msg {}", msg);
+            debug!("process_stepper_driver_message() 3.1: process msg {}", Debug2Format(&msg));
             let resp = match processor.process_stepper_driver_request(msg).await {
                 Ok(_) => StepperDriverResponse::Done,
                 Err(err) => StepperDriverResponse::Error(err),
             };
-            debug!("process_stepper_driver_message() 3.3: done, resp: {}", resp);
+            debug!("process_stepper_driver_message() 3.3: done, resp: {}", Debug2Format(&resp));
             mq_out.enqueue(resp);
         }
         Delay::new(1.millis()).await;

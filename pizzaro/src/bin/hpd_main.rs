@@ -165,7 +165,7 @@ async fn hpd_process_messages() {
         Delay::new(1.millis()).await;
 
         if let Some(message) = get_mq().dequeue() {
-            info!("[HPD] process_messages() 1.1 | dequeued message: {}", message);
+            info!("[HPD] process_messages() 1.1 | dequeued message: {}", Debug2Format(&message));
             // 处理消息
             let res = match message {
                 AtomiProto::Hpd(HpdCommand::HpdPing) => {
@@ -225,7 +225,7 @@ async fn hpd_process_messages() {
                 }
 
                 AtomiProto::Hpd(HpdCommand::HpdLinearBull(cmd)) => {
-                    info!("xfguo: linear_bull command: {}", cmd);
+                    info!("xfguo: linear_bull command: {}", Debug2Format(&cmd));
                     if linear_bull_available {
                         let res = uart_comm.send(AtomiProto::Hpd(HpdCommand::HpdAck));
                         linear_bull_input_mq().enqueue(cmd);
@@ -237,17 +237,17 @@ async fn hpd_process_messages() {
                     }
                 }
                 unknown => {
-                    warn!("message ignored: {}", unknown);
+                    warn!("message ignored: {}", Debug2Format(&unknown));
                     Err(AtomiError::IgnoredMsg)
                 } // Ignore unrelated commands
             };
             if let Err(err) = res {
-                info!("[HPD] message processing error: {}", err);
+                info!("[HPD] message processing error: {}", Debug2Format(&err));
             }
         }
 
         if let Some(linear_bull_resp) = linear_bull_output_mq().dequeue() {
-            info!("[HPD] get response from linear bull: {}", linear_bull_resp);
+            info!("[HPD] get response from linear bull: {}", Debug2Format(&linear_bull_resp));
             linear_bull_available = true;
         }
     }
@@ -279,7 +279,7 @@ unsafe fn UART1_IRQ() {
         info!("UART1_IRQ() 5, len = {}, data: {}", message_length, Debug2Format(&message_buffer));
         match postcard::from_bytes::<AtomiProto>(&message_buffer) {
             Ok(message) => {
-                info!("Received message: {:?}", message);
+                info!("Received message: {:?}", Debug2Format(&message));
                 get_mq().enqueue(message);
             }
             Err(_) => info!("Failed to parse message"),

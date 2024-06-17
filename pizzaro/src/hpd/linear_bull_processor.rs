@@ -34,12 +34,12 @@ pub async fn process_linear_bull_message<S: SliceId, E: StatefulOutputPin>(
     let mq_out = linear_bull_output_mq();
     loop {
         if let Some(msg) = mq_in.dequeue() {
-            info!("process_linear_bull_message() 3.1: process msg {}", msg);
+            info!("process_linear_bull_message() 3.1: process msg {}", Debug2Format(&msg));
             let resp = processor
                 .process_linear_bull_message(msg)
                 .await
                 .unwrap_or_else(LinearBullResponse::Error);
-            info!("process_linear_bull_message() 3.3: done, resp = {}", resp);
+            info!("process_linear_bull_message() 3.3: done, resp = {}", Debug2Format(&resp));
             mq_out.enqueue(resp);
         }
         Delay::new(1.millis()).await;
@@ -65,7 +65,7 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
         &mut self,
         msg: LinearBullCommand,
     ) -> Result<LinearBullResponse, AtomiError> {
-        info!("process_linear_bull_message() 0: msg: {}", msg);
+        info!("process_linear_bull_message() 0: msg: {}", Debug2Format(&msg));
         match msg {
             LinearBullCommand::Home => {
                 Ok(LinearBullResponse::Position { position: self.home().await? })
@@ -105,7 +105,7 @@ impl<S: SliceId, E: StatefulOutputPin> LinearBullProcessor<S, E> {
         info!(
             "xfguo: Home to one direction, dir: {}, from: {}, to: {}",
             dir,
-            self.linear_scale.get_rel_position(),
+            Debug2Format(&self.linear_scale.get_rel_position()),
             dir.get_most_position()
         );
         self.home_on_direction(dir).await?;

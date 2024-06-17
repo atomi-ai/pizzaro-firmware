@@ -1,0 +1,35 @@
+[project]
+name = "pyport"
+version = "0.1.0"
+authors = [{ name = "Zephyr Guo", email = "zephyr@atomi.ai" }]
+description = "Example Python package with Rust extension"
+readme = "README.md"
+license = "MIT"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "absl-py>=2.1.0",
+    "pyserial>=3.5",
+    "pyserial-asyncio>=0.6",
+]
+
+# TODO(zephyr): Correct dependencies
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.3.1",
+    "pytest-asyncio>=0.23.7",
+]
+
+[build-system]
+requires = ["maturin>=0.12"]
+build-backend = "maturin"
+
+[tool.maturin]
+bindings = "pyo3"
+
+[project.scripts]
+controller = "controller.__main__:main"

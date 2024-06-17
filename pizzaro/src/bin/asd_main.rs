@@ -134,7 +134,7 @@ async fn asd_process_messages() {
     let mut asd_stepper_available = true;
     loop {
         if let Some(message) = get_mq().dequeue() {
-            info!("[DTU] process_messages() 1.1 | dequeued message: {}", message);
+            info!("[DTU] process_messages() 1.1 | dequeued message: {}", Debug2Format(&message));
 
             // 处理消息
             let res = match message {
@@ -167,13 +167,13 @@ async fn asd_process_messages() {
             };
 
             if let Err(err) = res {
-                info!("[DTU] message processing error: {}", err);
+                info!("[DTU] message processing error: {}", Debug2Format(&err));
                 continue;
             }
         }
 
         if let Some(stepper_resp) = stepper_driver_output_mq().dequeue() {
-            info!("[DTU] get response from linear stepper: {}", stepper_resp);
+            info!("[DTU] get response from linear stepper: {}", Debug2Format(&stepper_resp));
             asd_stepper_available = true;
         }
 
@@ -213,7 +213,7 @@ unsafe fn UART1_IRQ() {
         );
         match postcard::from_bytes::<AtomiProto>(&message_buffer) {
             Ok(msg) => {
-                debug!("Received message: {:?}", msg);
+                debug!("Received message: {:?}", Debug2Format(&msg));
                 get_mq().enqueue(msg);
             }
             Err(_) => info!("Failed to parse message"),

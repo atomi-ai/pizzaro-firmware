@@ -1,0 +1,15 @@
+[package]
+name = "pyport"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "rust_module"
+crate-type = ["cdylib"]
+
+[dependencies]
+generic = { version = "0.1", path = "../../generic" }
+pyo3 = {version = "0.21", features = ["extension-module"]}
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+postcard = { version = "1.0", features = ["alloc"] }
+log = "0.4.21"

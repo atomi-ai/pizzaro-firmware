@@ -1,5 +1,5 @@
 use crate::bsp::board_mmd_release_sb::{ConveyorBeltRotationMotorType, MmdPresserMotorType};
-use defmt::info;
+use defmt::{info, Debug2Format};
 use generic::atomi_proto::{AtomiProto, MmdCommand};
 use generic::{atomi_error::AtomiError, atomi_proto::RotationStepperCommand};
 
@@ -28,7 +28,7 @@ impl RotationStepperProcessor {
         &mut self,
         msg: RotationStepperCommand,
     ) -> Result<AtomiProto, AtomiError> {
-        info!("process_rotation_stepper_request: {}", msg);
+        info!("process_rotation_stepper_request: {}", Debug2Format(&msg));
         match msg {
             RotationStepperCommand::SetConveyorBeltRotation { speed } => {
                 info!("set conveyor belt rotation, spd:{}", speed);

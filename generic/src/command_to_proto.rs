@@ -12,7 +12,7 @@ pub fn parse_protocol(line: &str) -> AtomiProto {
     parse_command(&mut tokens)
 }
 
-fn parse_command<'a, I>(tokens: &mut I) -> AtomiProto
+pub fn parse_command<'a, I>(tokens: &mut I) -> AtomiProto
 where
     I: Iterator<Item = &'a str>,
 {
