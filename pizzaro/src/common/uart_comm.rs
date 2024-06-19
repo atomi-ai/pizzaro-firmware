@@ -1,6 +1,7 @@
 use alloc::vec;
+use core::fmt::Debug;
 
-use defmt::{debug, error, Debug2Format, Format};
+use defmt::{debug, error, Debug2Format};
 use embedded_hal::digital::OutputPin;
 use embedded_hal_nb::serial::{Read, Write};
 use futures::future::{select, Either};
@@ -38,11 +39,16 @@ impl<'a, D: OutputPin, T: Read<u8> + Write<u8>> UartComm<'a, D, T> {
         Ok(())
     }
 
-    pub fn send<U: Format + Serialize>(&mut self, message: U) -> Result<(), AtomiError> {
+    pub fn send<U: Debug + Serialize>(&mut self, message: U) -> Result<(), AtomiError> {
         let out = postcard::to_allocvec::<U>(&message).map_err(|_| AtomiError::UartInvalidInput)?;
 
         // 发送长度和数据
-        debug!("Send data: ({}, {}), original = {}", out.len(), Debug2Format(&out), message);
+        debug!(
+            "Send data: ({}, {}), original = {}",
+            out.len(),
+            Debug2Format(&out),
+            Debug2Format(&message)
+        );
 
         if let Some(n_re) = self.dir_pin {
             n_re.set_high().map_err(|_| AtomiError::UartSetDirError).unwrap();

@@ -7,17 +7,18 @@ use alloc::boxed::Box;
 
 use cortex_m::asm::delay;
 use defmt::info;
-use fugit::ExtU64;
 use rp2040_hal::clocks::init_clocks_and_plls;
 use rp2040_hal::{entry, pac, Timer, Watchdog};
 use rp_pico::XOSC_CRYSTAL_FREQ;
 
 use pizzaro::common::async_initialization;
 use pizzaro::common::executor::{spawn_task, start_global_executor};
-use pizzaro::common::global_timer::{init_global_timer, Delay};
+use pizzaro::common::global_timer::init_global_timer;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
 use pizzaro::hpd::hpd_misc::LinearScale;
-use pizzaro::hpd::linear_scale::{init_quadrature_encoder, read_linear_scale_with_pio};
+use pizzaro::hpd::linear_scale::{
+    init_quadrature_encoder, log_linear_scale, read_linear_scale_with_pio,
+};
 
 struct GlobalContainer {
     linear_scale: Option<LinearScale>,
@@ -67,15 +68,5 @@ fn main() -> ! {
     loop {
         info!("in loop");
         delay(120_000_000);
-    }
-}
-
-pub async fn log_linear_scale(linear_scale: &LinearScale) {
-    loop {
-        info!(
-            "Current relative position of the linear scale: {:?}",
-            linear_scale.get_rel_position()
-        );
-        Delay::new(500.millis()).await;
     }
 }

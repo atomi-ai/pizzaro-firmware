@@ -152,7 +152,7 @@ async fn dtu_process_messages() {
     let mut dtu_stepper_available = true;
     loop {
         if let Some(message) = get_dtu_mq().dequeue() {
-            info!("[DTU] process_messages() 1.1 | dequeued message: {}", message);
+            info!("[DTU] process_messages() 1.1 | dequeued message: {}", Debug2Format(&message));
 
             // 处理消息
             let res = match message {
@@ -196,7 +196,7 @@ async fn dtu_process_messages() {
                         // wait till the stepper is stopped.
                         loop {
                             if let Some(stepper_resp) = get_dtu_dual_queue().pop_response() {
-                                info!("stepper_resp: {}", stepper_resp);
+                                info!("stepper_resp: {}", Debug2Format(&stepper_resp));
                                 assert_eq!(
                                     stepper_resp,
                                     StepperResponse::Error(AtomiError::DtuStopped)
@@ -214,13 +214,13 @@ async fn dtu_process_messages() {
             };
 
             if let Err(err) = res {
-                info!("[DTU] message processing error: {}", err);
+                info!("[DTU] message processing error: {}", Debug2Format(&err));
                 continue;
             }
         }
 
         if let Some(stepper_resp) = get_dtu_dual_queue().pop_response() {
-            info!("[DTU] get response from linear stepper: {}", stepper_resp);
+            info!("[DTU] get response from linear stepper: {}", Debug2Format(&stepper_resp));
             dtu_stepper_available = true;
         }
 
@@ -258,7 +258,7 @@ unsafe fn UART0_IRQ() {
         );
         match postcard::from_bytes::<AtomiProto>(&message_buffer) {
             Ok(msg) => {
-                debug!("Received message: {:?}", msg);
+                debug!("Received message: {:?}", Debug2Format(&msg));
                 get_dtu_mq().enqueue(msg);
             }
             Err(_) => info!("Failed to parse message"),

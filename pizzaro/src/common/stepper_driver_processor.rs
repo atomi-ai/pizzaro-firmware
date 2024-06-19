@@ -1,9 +1,9 @@
 use crate::common::global_timer::{AsyncDelay, Delay};
 use crate::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use crate::common::once::Once;
-use crate::common::stepper_driver::StepperDriver;
+use crate::common::stepper::classic_stepper_driver::StepperDriver;
 use defmt::{debug, Debug2Format};
-use embedded_hal::digital::v2::{OutputPin, StatefulOutputPin};
+use embedded_hal::digital::{OutputPin, StatefulOutputPin};
 use fugit::ExtU64;
 use generic::atomi_error::AtomiError;
 use generic::atomi_proto::{StepperDriverCommand, StepperDriverResponse};

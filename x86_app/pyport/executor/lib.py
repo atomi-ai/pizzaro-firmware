@@ -8,8 +8,8 @@ from common.errors import CliError
 
 HPD_ACK_RESPONSE: bytes = b'\x04\x03'
 MMD_ACK_RESPONSE: bytes = b'\x03\x03'
-HPD_UNAVAILABLE_RESPONSE: bytes = b'\x07\x1c'
-MMD_UNAVAILABLE_RESPONSE: bytes = b'\x07\x11\x00'
+HPD_UNAVAILABLE_RESPONSE: bytes = b'\x07\x22'
+MMD_UNAVAILABLE_RESPONSE: bytes = b'\x07\x17\x00'
 START_POS = 90
 CENTER_POS = 570
 CLOSE_TO_CENTER_POS = 520
@@ -49,6 +49,15 @@ class PizzaMaker:
 
         if resp != ack:
             raise CliError(f'Unexpected response: {resp}(proto: {proto_binary_to_json(resp)}), expected ACK: {ack}')
+
+    async def system_reset(self):
+        await self.send_and_ack(f'mmd home')
+        await self.send_and_ack(f'mmd belt_off')
+        await self.send_and_ack(f'mmd pp_off')
+        await self.send_and_ack(f'mmd pr_off')
+        await self.send_and_ack(f'mmd dispenser0_off')
+        await self.send_and_ack(f'mmd dispenser1_off')
+        await self.wait_for_stepper_available()
 
     async def make_pie_base(self):
         await self.send_and_ack(f'hpd move_to 56800')

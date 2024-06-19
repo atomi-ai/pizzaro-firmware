@@ -81,15 +81,15 @@ impl LinearScale {
     }
 
     pub fn update_position(&mut self, new_position: i32) {
+        let to_store_pos = if self.revert_linearscale_dir { -new_position } else { new_position };
+
         let t = self.position.load(Ordering::Relaxed);
+        self.position.store(to_store_pos, Ordering::Relaxed);
+
         if t != self.last_position {
             self.last_position = t;
             self.last_ts = now();
         }
-        self.position.store(
-            if self.revert_linearscale_dir { -new_position } else { new_position },
-            Ordering::Relaxed,
-        );
     }
 
     pub(crate) fn check_homed(&self) -> Result<i32, AtomiError> {

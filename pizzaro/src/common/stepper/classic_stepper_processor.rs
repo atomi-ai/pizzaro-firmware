@@ -1,4 +1,4 @@
-use defmt::{debug, info};
+use defmt::{debug, info, Debug2Format};
 use embedded_hal::digital::{InputPin, OutputPin, StatefulOutputPin};
 use fugit::ExtU64;
 
@@ -102,7 +102,7 @@ pub async fn process_classic_stepper_message<
     debug!("process_mmd_stepper_message() 0");
     loop {
         if let Some(msg) = dual_queue.in_queue.dequeue() {
-            debug!("process_mmd_stepper_message() 3.1: process msg {}", msg);
+            debug!("process_mmd_stepper_message() 3.1: process msg {}", Debug2Format(&msg));
             if msg == StepperCommand::GetTriggerStatus {
                 let (l, r) = processor.stepper.get_limit_status();
                 dual_queue.out_queue.enqueue(StepperResponse::TriggerStatus(

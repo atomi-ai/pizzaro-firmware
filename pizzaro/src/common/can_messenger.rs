@@ -20,13 +20,14 @@
 /// 这里seq-no用了12-bit有点多。我们暂时没有其它需求，以后有需求的时候，可以考虑再分8-bit出去给别的需求，
 /// 感觉4~8 bits用于seq-no已经够了，要不系统里面将有大量请求在并发执行，也许就过于复杂了。
 use core::cell::RefCell;
+use core::fmt::Debug;
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
 use can2040::{Can2040, CanFrame};
 use critical_section::Mutex;
-use defmt::{debug, error, info, Debug2Format, Format};
+use defmt::{debug, error, info, Debug2Format};
 use embedded_can::Id::Extended;
 use embedded_can::{ExtendedId, Frame, Id};
 use fugit::ExtU64;
@@ -161,7 +162,7 @@ impl<'a, const N: usize> CanMessenger<'a, N> {
     }
 
     // TODO(zephyr): 想一想这里是不是需要critical section保护。
-    pub fn send_to<U: Serialize + Format>(&mut self, to: u8, msg: U) -> Result<u32, AtomiError> {
+    pub fn send_to<U: Debug + Serialize>(&mut self, to: u8, msg: U) -> Result<u32, AtomiError> {
         debug!("CanMessenger::send_to(), 0");
         self.seq_no = self.seq_no.wrapping_add(1);
         let id_raw = gen_id(1, to, self.can_id, self.seq_no);
@@ -171,12 +172,12 @@ impl<'a, const N: usize> CanMessenger<'a, N> {
         Ok(resp_id)
     }
 
-    pub fn send_raw<U: Serialize + Format>(
+    pub fn send_raw<U: Debug + Serialize>(
         &mut self,
         id_raw: u32,
         msg: U,
     ) -> Result<(), AtomiError> {
-        info!("CanMessenger::send_raw({:x}, {:?})", id_raw, msg);
+        info!("CanMessenger::send_raw({:x}, {:?})", id_raw, Debug2Format(&msg));
         let data = postcard::to_allocvec::<U>(&msg).map_err(|_| AtomiError::UartInvalidInput)?;
         let id = Extended(ExtendedId::new(id_raw).ok_or(AtomiError::CanExtendedIdError)?);
         let frame = CanFrame::new(id, data.as_slice()).ok_or(AtomiError::CanFrameError)?;

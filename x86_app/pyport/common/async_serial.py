@@ -62,14 +62,14 @@ class SerialController:
 
                 buf = await self.reader.read(64)
                 len_received = len(buf)
-                print(f"Got response data: {buf[:len_received]}, len: {len_received}")
+                print(f"Got response data: {buf[:len_received+1]}, len: {len_received}")
 
                 if self.with_len:
                     if len_received == 0 or len_received - 1 != buf[0]:
                         raise CliError("Incorrect response length")
-                    resp_data = buf[1:len_received]
+                    resp_data = buf[1:len_received+1]
                 else:
-                    resp_data = buf[:len_received]
+                    resp_data = buf[:len_received+1]
 
                 print(f'Got data: {resp_data}')
                 return resp_data

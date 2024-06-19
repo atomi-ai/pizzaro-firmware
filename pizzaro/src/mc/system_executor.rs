@@ -56,10 +56,10 @@ impl UartForwarder {
 
 impl Forwarder for UartForwarder {
     async fn forward(&mut self, msg: AtomiProto) -> Result<AtomiProto, AtomiError> {
-        info!("Forward msg: {}", msg);
+        info!("Forward msg: {}", Debug2Format(&msg));
         let mut uart_comm = self.get_uart_comm();
         if let Err(e) = uart_comm.send(msg) {
-            error!("Error in sending command, err: {:?}", e);
+            error!("Error in sending command, err: {:?}", Debug2Format(&e));
             return Err(AtomiError::UartWriteError);
         }
 

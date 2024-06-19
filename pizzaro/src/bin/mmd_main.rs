@@ -284,7 +284,7 @@ async fn mmd_process_messages() {
     let rotation_stepper_processor = unsafe { ROTATION_STEPPER_PROCESSOR.as_mut().unwrap() };
     loop {
         if let Some(message) = get_mmd_mq().dequeue() {
-            info!("[MMD] process_messages() 1.1 | dequeued message: {}", message);
+            info!("[MMD] process_messages() 1.1 | dequeued message: {}", Debug2Format(&message));
 
             // 处理消息
             let res = match message {
@@ -309,7 +309,7 @@ async fn mmd_process_messages() {
                         // wait till the stepper is stopped.
                         loop {
                             if let Some(stepper_resp) = get_mmd_dual_queue().pop_response() {
-                                info!("stepper_resp: {}", stepper_resp);
+                                info!("stepper_resp: {}", Debug2Format(&stepper_resp));
                                 assert_eq!(
                                     stepper_resp,
                                     StepperResponse::Error(AtomiError::MmdStopped)
@@ -378,13 +378,13 @@ async fn mmd_process_messages() {
             };
 
             if let Err(err) = res {
-                info!("[MMD] message processing error: {}", err);
+                info!("[MMD] message processing error: {}", Debug2Format(&err));
                 continue;
             }
         }
 
         if let Some(stepper_resp) = get_mmd_dual_queue().pop_response() {
-            info!("[MMD] get response from linear stepper: {}", stepper_resp);
+            info!("[MMD] get response from linear stepper: {}", Debug2Format(&stepper_resp));
             mmd_stepper_available = true;
         }
 
@@ -427,7 +427,7 @@ unsafe fn UART1_IRQ() {
         );
         match postcard::from_bytes::<AtomiProto>(&message_buffer) {
             Ok(msg) => {
-                debug!("Received message: {:?}", msg);
+                debug!("Received message: {:?}", Debug2Format(&msg));
                 process_message_in_irq(uart, uart_dir, msg);
             }
             Err(_) => info!("Failed to parse message"),
@@ -447,7 +447,10 @@ fn process_message_in_irq(
             // MMD必须要处理的消息，直接返回busy
             let mut uart_comm = UartComm::new(uart, uart_dir, UART_EXPECTED_RESPONSE_LENGTH);
             if let Err(err) = uart_comm.send(AtomiProto::Mmd(MmdBusy)) {
-                error!("[MMD] Errors in sending MMD BUSY response back to MC, err: {}", err);
+                error!(
+                    "[MMD] Errors in sending MMD BUSY response back to MC, err: {}",
+                    Debug2Format(&err)
+                );
             }
         }
         return;

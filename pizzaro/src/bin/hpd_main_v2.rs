@@ -161,7 +161,7 @@ async fn hpd_process_messages() {
                         GLOBAL_LINEAR_BULL_STOP.store(true, Ordering::Relaxed);
                         loop {
                             if let Some(resp) = linear_bull_output_mq().dequeue() {
-                                info!("linear bull resp: {}", resp);
+                                info!("linear bull resp: {}", Debug2Format(&resp));
                                 assert_eq!(resp, LinearBullResponse::Error(AtomiError::HpdStopped));
                                 break;
                             }
@@ -197,12 +197,12 @@ async fn hpd_process_messages() {
                 _ => Err(AtomiError::IgnoredMsg), // Ignore unrelated commands
             };
             if let Err(err) = process_res {
-                info!("[HPD] message processing error: {}", err);
+                info!("[HPD] message processing error: {}", Debug2Format(&err));
             }
         }
 
         if let Some(linear_bull_resp) = linear_bull_output_mq().dequeue() {
-            info!("[HPD] get response from linear bull: {}", linear_bull_resp);
+            info!("[HPD] get response from linear bull: {}", Debug2Format(&linear_bull_resp));
             linear_bull_available = true;
         }
     }

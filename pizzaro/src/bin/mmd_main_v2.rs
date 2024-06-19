@@ -293,7 +293,10 @@ async fn mmd_process_messages() {
                         // wait till the linear_stepper is stopped.
                         loop {
                             if let Some(linear_stepper_resp) = get_mmd_dual_queue().pop_response() {
-                                info!("linear_stepper_resp: {}", linear_stepper_resp);
+                                info!(
+                                    "linear_stepper_resp: {}",
+                                    Debug2Format(&linear_stepper_resp)
+                                );
                                 assert_eq!(
                                     linear_stepper_resp,
                                     StepperResponse::Error(AtomiError::MmdStopped)
@@ -361,13 +364,13 @@ async fn mmd_process_messages() {
             };
 
             if let Err(err) = process_res {
-                info!("[MMD] message processing error: {}", err);
+                info!("[MMD] message processing error: {}", Debug2Format(&err));
                 continue;
             }
         }
 
         if let Some(linear_stepper_resp) = get_mmd_dual_queue().pop_response() {
-            info!("[MMD] get response from linear stepper: {}", linear_stepper_resp);
+            info!("[MMD] get response from linear stepper: {}", Debug2Format(&linear_stepper_resp));
             mmd_linear_stepper_available = true;
         }
 

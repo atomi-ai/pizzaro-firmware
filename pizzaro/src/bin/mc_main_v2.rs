@@ -222,7 +222,11 @@ unsafe fn USBCTRL_IRQ() {
                 match postcard::from_bytes::<AtomiProto>(&buf[..count]) {
                     Ok(message) => {
                         get_mc_mq().enqueue(message);
-                        debug!("{} | Received message: {:?}, added to mq", now().ticks(), message);
+                        debug!(
+                            "{} | Received message: {:?}, added to mq",
+                            now().ticks(),
+                            Debug2Format(&message)
+                        );
                     }
                     Err(err) => info!(
                         "Failed to parse message: {}, err: {}",

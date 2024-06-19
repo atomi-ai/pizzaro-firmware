@@ -36,7 +36,7 @@ use pizzaro::common::global_timer::{init_global_timer, now, Delay, DelayCreator}
 use pizzaro::common::message_queue::{MessageQueueInterface, MessageQueueWrapper};
 use pizzaro::common::once::Once;
 use pizzaro::common::rp2040_timer::Rp2040Timer;
-use pizzaro::common::stepper_driver::StepperDriver;
+use pizzaro::common::stepper::classic_stepper_driver::StepperDriver;
 use pizzaro::common::stepper_driver_processor::{
     process_stepper_driver_message, stepper_driver_input_mq, stepper_driver_output_mq,
     StepperDriverProcessor,

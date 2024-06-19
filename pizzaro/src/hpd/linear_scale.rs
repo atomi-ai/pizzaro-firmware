@@ -1,4 +1,4 @@
-use defmt::{debug, Debug2Format};
+use defmt::{debug, info, Debug2Format};
 use embedded_hal::digital::InputPin;
 use fugit::ExtU64;
 use rp2040_hal::pac::{PIO0, RESETS};
@@ -18,11 +18,12 @@ pub fn core1_task() -> ! {
     let mut sio = Sio::new(pac.SIO);
     let pins = hal::gpio::Pins::new(pac.IO_BANK0, pac.PADS_BANK0, sio.gpio_bank0, &mut pac.RESETS);
 
-    let mut gpio10 = pins.gpio10.into_floating_input();
-    let mut gpio11 = pins.gpio11.into_floating_input();
     let (mut x, mut y) = (true, false);
     let mut pos = 0i32;
     let mut count = 0;
+    let mut gpio10 = pins.gpio10.into_floating_input();
+    let mut gpio11 = pins.gpio11.into_floating_input();
+
     loop {
         let new_x = gpio10.is_high().unwrap_or(false);
         let new_y = gpio11.is_high().unwrap_or(true);
@@ -45,24 +46,36 @@ pub fn core1_task() -> ! {
         }
         (x, y) = (new_x, new_y);
         count += 1;
-        if count % 500 == 13 {
-            sio.fifo.write(pos as u32);
+        if count % 50_000 == 13 {
+            // if count % 5_000_000 == 13 {
+            //     info!("CORE1: TO WRITE pos: {}, count = {}", pos, count);
+            //     count = count % 5_000_000;
+            // }
+            if sio.fifo.is_write_ready() {
+                sio.fifo.write(pos as u32);
+            }
         }
     }
 }
 
 pub async fn read_and_update_linear_scale(mut fifo: SioFifo, linear_scale: &mut LinearScale) {
+    let mut count = 0i32;
     loop {
         {
             let mut last_pos: Option<i32> = None;
-            // let mut count = 0;
             while let Some(pos) = fifo.read() {
-                // count += 1;
                 last_pos = Some(pos as i32);
             }
             if let Some(t) = last_pos {
-                // info!("count = {}, pos = {}", count, t);
                 linear_scale.update_position(t);
+            }
+            count += 1;
+            if count > 10000 {
+                count = 0;
+                info!(
+                    "xfguo: read_and_update_linear_scale(), current_pos = {}",
+                    Debug2Format(&linear_scale.get_rel_position())
+                );
             }
         }
         Delay::new(1.millis()).await;
@@ -112,4 +125,14 @@ pub fn init_quadrature_encoder<P: PIOExt>(
 
     sm.start();
     Ok(rx)
+}
+
+pub async fn log_linear_scale(linear_scale: &LinearScale) {
+    loop {
+        info!(
+            "Current relative position of the linear scale: {:?}",
+            Debug2Format(&linear_scale.get_rel_position())
+        );
+        Delay::new(2000.millis()).await;
+    }
 }

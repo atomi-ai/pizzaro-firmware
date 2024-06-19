@@ -96,10 +96,18 @@ fn main() -> ! {
             GLOBAL_CONTAINER.linear_scale.replace(LinearScale::new());
         }
         let linear_scale_rc0 = unsafe { GLOBAL_CONTAINER.linear_scale.as_mut().unwrap() };
-        let linear_scale_rc1 = unsafe { GLOBAL_CONTAINER.linear_scale.as_mut().unwrap() };
+        // let linear_scale_rc1 = unsafe { GLOBAL_CONTAINER.linear_scale.as_mut().unwrap() };
+        let linear_scale_rc2 = unsafe { GLOBAL_CONTAINER.linear_scale.as_mut().unwrap() };
         {
             // Start scale
             spawn_task(read_and_update_linear_scale(sio.fifo, linear_scale_rc0));
+            // info!("opt_pin_id: {}", opt_pin_id);
+            // let rx = init_quadrature_encoder(opt_pin_id, pac.PIO0, &mut pac.RESETS)
+            //     .expect("init pio error");
+            // spawn_task(read_linear_scale_with_pio(rx, linear_scale_rc0));
+            //
+            // // Spawn a task to log scale position periodically.
+            // spawn_task(log_linear_scale(linear_scale_rc1));
         }
         // Start motor150
         let pwm_slices = rp2040_hal::pwm::Slices::new(pac.PWM, &mut pac.RESETS);
@@ -114,7 +122,7 @@ fn main() -> ! {
         pwm.channel_b.set_inverted();
 
         let processor = LinearBullProcessor::new(
-            linear_scale_rc1,
+            linear_scale_rc2,
             BrushMotor::new(
                 hpd_br_nEN!(pins).into_push_pull_output().into_dyn_pin(),
                 pwm,

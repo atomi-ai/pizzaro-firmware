@@ -6,7 +6,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 
 use cortex_m::asm::delay;
-use defmt::info;
+use defmt::{info, Debug2Format};
 use embedded_hal::digital::{InputPin, OutputPin, StatefulOutputPin};
 use rp2040_hal::pio::PIOExt;
 use rp2040_hal::Clock;
@@ -107,10 +107,10 @@ async fn mmd_home<
     mut stepper: Stepper<IP1, IP2, OP1, OP2, OP3, D>,
 ) {
     let t = stepper.move_to_relative(100, FAST_SPEED).await;
-    info!("Result of move before homing: {}", t);
+    info!("Result of move before homing: {}", Debug2Format(&t));
 
     let t = stepper.home().await;
-    info!("Home done, t = {}", t);
+    info!("Home done, t = {}", Debug2Format(&t));
 
     let _t = stepper.move_to_relative(100, FAST_SPEED).await;
     let _t = stepper.move_to_relative(100, FAST_SPEED).await;

@@ -20,6 +20,7 @@ pub mod pwm_stepper;
 pub mod rp2040_timer;
 pub mod state;
 pub mod stepper;
+pub mod stepper_driver_processor;
 #[allow(
     clippy::get_first,
     clippy::from_over_into,
@@ -32,7 +33,6 @@ pub mod tmc2209;
 pub mod uart;
 pub mod uart_comm;
 pub mod weight_sensor;
-pub mod stepper_driver_processor;
 
 pub fn async_initialization() {
     init_allocator();

@@ -19,6 +19,7 @@ async def make_one_pizza():
     async with SerialController(port=FLAGS.port, probe=FLAGS.probe, with_len=True) as controller:
         pizza_maker = PizzaMaker(controller)
         info(f'pizza_maker: {pizza_maker}')
+        await pizza_maker.system_reset()
         await pizza_maker.make_pie_base()
         await pizza_maker.add_ketchup()
         await pizza_maker.add_cheese()

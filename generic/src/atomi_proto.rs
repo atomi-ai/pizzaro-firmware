@@ -1,7 +1,6 @@
 // (by Zephyr): added this file for not touching the complex
 // dependencies of PizzaroProtocol.
 use crate::atomi_error::AtomiError;
-use defmt::Format;
 use serde::{Deserialize, Serialize};
 
 // #[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, defmt::Format)]
@@ -12,7 +11,7 @@ use serde::{Deserialize, Serialize};
 //     Done,
 // }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum AtomiProto {
     Unknown,
     Status,
@@ -26,7 +25,7 @@ pub enum AtomiProto {
     AtomiError(AtomiError),
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct AtomiErrorWithCanId {
     error_can_id: u16,
     error: AtomiError,
@@ -38,7 +37,7 @@ impl AtomiErrorWithCanId {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum McCommand {
     McError,
     McPing,
@@ -49,7 +48,7 @@ pub enum McCommand {
     McAck,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum McSystemExecutorCmd {
     WeightSensorInit,
     GetWeight,
@@ -63,7 +62,7 @@ pub enum McSystemExecutorCmd {
     StopSystem,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum McSystemExecutorResponse {
     ForwardResponse(AtomiProto),
     FinishedOneFullRun,
@@ -72,7 +71,7 @@ pub enum McSystemExecutorResponse {
     Done,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum MmdCommand {
     MmdError(AtomiError),
     MmdPing,
@@ -91,7 +90,7 @@ pub enum MmdCommand {
     MmdBusy,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum DtuCommand {
     DtuPing,
     DtuPong,
@@ -103,7 +102,7 @@ pub enum DtuCommand {
     DtuBusy,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum AsdCommand {
     AsdPing,
     AsdPong,
@@ -114,57 +113,57 @@ pub enum AsdCommand {
     AsdBusy,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct TriggerStatusResponse {
     pub left: bool,
     pub right: bool,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum PeristalticPumpCommand {
     SetRotation { speed: i32 }, // 0-1000 => 0.0% - 100.0%
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum PeristalticPumpResponse {
     Error(AtomiError),
     Done,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum DispenserCommand {
     SetRotation { idx: usize, speed: i32 }, // 0-1000 => 0.0% - 100.0%
     ResetCounter { idx: usize },
     GetCounter { idx: usize },
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum DispenserResponse {
     Error { idx: usize, err: AtomiError },
     Done { idx: usize },
     Counter { idx: usize, value: i32 },
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum RotationStepperCommand {
     SetConveyorBeltRotation { speed: i32 }, // -1000 ~ +1000 => 100.0%(left) ~ 0 ~ 100.0%(right)
     SetPresserRotation { speed: i32 },      // -1000 ~ +1000 => 100.0%(left) ~ 0 ~ 100.0%(right)
 }
 
 // TODO(zephyr): Renamed stepper_driver => stepper, and stepper => linear_stepper.
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum StepperDriverCommand {
     MoveToRelative { steps: i32, speed: u32 },
     CheckStatus,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum StepperDriverResponse {
     Error(AtomiError),
     Done,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum StepperCommand {
     Home,                                           // wait
     MoveTo { position: i32, speed: u32 },           // wait
@@ -176,20 +175,20 @@ pub enum StepperCommand {
     DummyWait { seconds: i32 },
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum RotationStepperResponse {
     Error(AtomiError),
     Done,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum StepperResponse {
     TriggerStatus(TriggerStatusResponse),
     Error(AtomiError),
     Done,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum HpdCommand {
     HpdError(AtomiError),
     HpdPing,
@@ -205,7 +204,7 @@ pub enum HpdCommand {
     HpdBusy,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum LinearBullCommand {
     Home,                             // wait
     MoveTo { position: i32 },         // wait
@@ -215,7 +214,7 @@ pub enum LinearBullCommand {
     GetPosition,
 }
 
-#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug, Format)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub enum LinearBullResponse {
     Error(AtomiError),
     Position { position: i32 },

@@ -81,14 +81,14 @@ pub async fn process_messages() {
         Delay::new(1.millis()).await;
 
         if let Some(resp) = system_executor_output_mq().dequeue() {
-            info!("[MC] get response from system executor: {}", resp);
+            info!("[MC] get response from system executor: {}", Debug2Format(&resp));
             system_locked = false;
         }
 
         let t = get_mc_mq().dequeue();
         // TODO(zephyr): simplify the code below.
         if t.is_some() {
-            info!("[MC] get msg from queue: {}", t);
+            info!("[MC] get msg from queue: {}", Debug2Format(&t));
         }
         let msg = match t {
             None => continue, // no data, ignore
@@ -112,13 +112,17 @@ pub async fn process_messages() {
                 }
             }
         };
-        info!("Processed result: {}", msg);
+        info!("Processed result: {}", Debug2Format(&msg));
 
         let result = (|| -> Result<(), AtomiError> {
             let wrapped_msg = wrap_result_into_proto(msg);
             let binding =
                 postcard::to_allocvec(&wrapped_msg).map_err(|_| AtomiError::DataConvertError)?;
-            debug!("Data to send to PC: {}, wrapped_msg: {}", Debug2Format(&binding), wrapped_msg);
+            debug!(
+                "Data to send to PC: {}, wrapped_msg: {}",
+                Debug2Format(&binding),
+                Debug2Format(&wrapped_msg)
+            );
             let mut wr_ptr = binding.as_slice();
             while !wr_ptr.is_empty() {
                 match serial.write(wr_ptr) {
@@ -141,7 +145,7 @@ pub async fn process_messages() {
                 debug!("Successfully send data back through USBCTRL");
             }
             Err(err) => {
-                error!("Errors in sending data back through USBCTRL, {}", err)
+                error!("Errors in sending data back through USBCTRL, {}", Debug2Format(&err))
             }
         }
     }
@@ -156,7 +160,7 @@ pub fn error_or_done(
     res: Result<(), AtomiError>,
     mq_out: &mut MessageQueueWrapper<McSystemExecutorResponse>,
 ) {
-    info!("Got result: {}", res);
+    info!("Got result: {}", Debug2Format(&res));
     match res {
         Ok(_) => mq_out.enqueue(McSystemExecutorResponse::Done),
         Err(err) => mq_out.enqueue(McSystemExecutorResponse::Error(err)),
@@ -169,7 +173,7 @@ async fn wait_for_output_mq() -> Result<AtomiProto, AtomiError> {
         if let Some(McSystemExecutorResponse::ForwardResponse(resp)) =
             system_executor_output_mq().dequeue()
         {
-            info!("wait_for_forward_dequeue() 5: got response: {}", resp);
+            info!("wait_for_forward_dequeue() 5: got response: {}", Debug2Format(&resp));
             return Ok(resp);
         }
         Delay::new(1.millis()).await;
