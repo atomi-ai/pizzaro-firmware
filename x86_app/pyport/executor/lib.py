@@ -85,7 +85,7 @@ class PizzaMaker:
         await self.accelerate_pr(600)
 
         for y in range(START_POS, CLOSE_TO_CENTER_POS, 30):
-            x = - int(1.5 * (PP_ZERO_SPD + (PP_MAX_SPD - PP_ZERO_SPD) * (CENTER_POS - y) / (CENTER_POS - START_POS)))
+            x = - int(1 * (PP_ZERO_SPD + (PP_MAX_SPD - PP_ZERO_SPD) * (CENTER_POS - y) / (CENTER_POS - START_POS)))
             print(f"xfguo_ketchup() 5: x = {x}, y = {y}")
             await self.send_and_ack(f'mmd move_to {y}')
             await self.wait_for_stepper_available()
