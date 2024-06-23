@@ -52,12 +52,14 @@ class PizzaMaker:
 
     async def system_reset(self):
         await self.send_and_ack(f'mmd home')
+        await self.send_and_ack(f'hpd home')
         await self.send_and_ack(f'mmd belt_off')
         await self.send_and_ack(f'mmd pp_off')
         await self.send_and_ack(f'mmd pr_off')
         await self.send_and_ack(f'mmd dispenser0_off')
         await self.send_and_ack(f'mmd dispenser1_off')
         await self.wait_for_stepper_available()
+        await self.wait_for_linear_bull_available()
 
     async def make_pie_base(self):
         await self.send_and_ack(f'hpd move_to 56800')
@@ -91,10 +93,10 @@ class PizzaMaker:
             await self.wait_for_stepper_available()
             await self.send_and_ack(f'mmd pp_spd {x}')
             await asyncio.sleep(0.7)
-        await self.send_and_ack(f'mmd move_to 200')
+        # await self.send_and_ack(f'mmd move_to 200')
         await self.send_and_ack(f'mmd pr_off')
         await self.send_and_ack(f'mmd pp_off')
-        await self.wait_for_stepper_available()
+        # await self.wait_for_stepper_available()
         print("Done")
 
     async def dispenser0_future(self, speed, stop_notifier):
@@ -106,7 +108,6 @@ class PizzaMaker:
         await self.send_and_ack(f'mmd dispenser0_off')
 
     async def add_cheese(self):
-        await self.send_and_ack(f'mmd home')
         await self.send_and_ack(f'mmd belt_off')
         await self.send_and_ack(f'mmd pr_off')
         await self.wait_for_stepper_available()
@@ -115,36 +116,24 @@ class PizzaMaker:
         f_dispenser0 = asyncio.create_task(self.dispenser0_future(600, stop_dispenser0))
 
         d1_spd = -300
-        (onhold_secs, keep_secs) = (1, 4)
+        (onhold_secs, keep_secs, onhold_secs_2) = (1, 4, 2)
         print(d1_spd, onhold_secs, keep_secs)
-        await self.send_and_ack(f'mmd dispenser1_spd {d1_spd}')
-        for i in range(1):
-            await self.send_and_ack(f'mmd move_to 100')
-            await self.send_and_ack(f'mmd belt_spd 50')
-            await self.send_and_ack(f'mmd pr_spd 70')
-            await asyncio.sleep(onhold_secs)
 
-            await self.send_and_ack(f'mmd move_to 130')
-            await self.send_and_ack(f'mmd belt_spd 0')
-            await self.send_and_ack(f'mmd pr_spd 100')
-            await asyncio.sleep(0.2)
-            await self.send_and_ack(f'mmd pr_spd 200')
-            await asyncio.sleep(0.2)
-            await self.send_and_ack(f'mmd pr_spd 300')
-            await asyncio.sleep(0.2)
-            await self.send_and_ack(f'mmd pr_spd 400')
-            await asyncio.sleep(0.2)
-            await self.send_and_ack(f'mmd pr_spd 500')
-            await asyncio.sleep(0.2)
-            await self.send_and_ack(f'mmd pr_spd 600')
-            await asyncio.sleep(0.2)
-            await self.send_and_ack(f'mmd pr_spd 700')
-            await self.send_and_ack(f'mmd belt_spd 100')
-            await asyncio.sleep(2)
+        await self.send_and_ack(f'mmd dispenser1_spd {d1_spd}')
+
+        # fill the center
+        f_accelerate_pr = self.accelerate_pr(1000)
+        await self.send_and_ack(f'mmd belt_spd 50')
+        f_onhold_belt = asyncio.sleep(onhold_secs)
+        await self.send_and_ack(f'mmd move_to 520')
+        await self.wait_for_stepper_available()
+        await f_accelerate_pr, f_onhold_belt
+        await self.send_and_ack(f'mmd belt_spd 100')
+        await asyncio.sleep(3)
 
         MIN_POS = 100
         PRODUCT = (540 - MIN_POS) * 50 / 75
-        for p in range(140, 460, 60):
+        for p in range(520, 140, -60):
             # d1_spd = -1000 if d1_spd <= -1000 else d1_spd - 80
             await self.send_and_ack(f'mmd dispenser1_spd {d1_spd}')
             r = 540 - p
@@ -156,18 +145,24 @@ class PizzaMaker:
             await self.send_and_ack(f'mmd belt_spd 150')
             await self.send_and_ack(f'mmd pr_spd 700')
             await self.wait_for_stepper_available()
+            print(f'xfguo: keep_secs: {keep_secs * r / 540}, p = {p}')
             await asyncio.sleep(keep_secs * r / 540)
 
-        await self.send_and_ack(f'mmd move_to 460')
+        # # Make edge
+        await self.send_and_ack(f'mmd move_to 100')
+        await self.wait_for_stepper_available()
+        await asyncio.sleep(onhold_secs_2)
+
+        # STOP
+        await self.send_and_ack(f'mmd move_to 100')
         stop_dispenser0.set()
         await self.send_and_ack(f'mmd dispenser0_off')
         await self.send_and_ack(f'mmd dispenser1_off')
         await asyncio.sleep(5)
         await self.wait_for_stepper_available()
+        await f_dispenser0
 
         await self.send_and_ack(f'mmd home')
         await self.send_and_ack(f'mmd belt_off')
         await self.send_and_ack(f'mmd pr_off')
         await self.wait_for_stepper_available()
-        await f_dispenser0
-
